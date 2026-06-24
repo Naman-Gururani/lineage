@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/lineage/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#6db3e8" />
+
+    <title>Naman's World — explore the portfolio</title>
+    <meta
+      name="description"
+      content="Naman Gururani's portfolio as a tiny explorable game. Wander a cozy island as a little character and walk into each landmark to discover the work of a real-time streaming-data engineer at Barclays."
+    />
+    <meta name="author" content="Naman Gururani" />
+    <link rel="canonical" href="https://naman-gururani.github.io/lineage/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Naman's World — explore the portfolio" />
+    <meta property="og:description" content="A cozy explorable world. Walk a little character around an island and discover Naman Gururani's experience, skills, and projects." />
+    <meta property="og:url" content="https://naman-gururani.github.io/lineage/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Naman's World — explore the portfolio" />
+    <meta name="twitter:description" content="A cozy explorable world. Walk a little character around an island and discover Naman Gururani's work." />
+    <style>
+      #loading {
+        position: fixed; inset: 0; z-index: 50; display: grid; place-content: center;
+        justify-items: center; gap: 1rem; pointer-events: auto;
+        background: linear-gradient(180deg, #8fd0f0, #6db3e8);
+        font-family: system-ui, sans-serif; transition: opacity 0.5s ease;
+      }
+      #loading.gone { opacity: 0; pointer-events: none; }
+      .load-title { font-weight: 700; font-size: 2.2rem; color: #fff; text-shadow: 0 3px 0 rgba(40,90,130,.4); }
+      .load-sub { font-size: 0.85rem; color: #eaf6ff; letter-spacing: .04em; }
+      .load-orb { width: 26px; height: 26px; border-radius: 50%; animation: lbob .7s ease-in-out infinite;
+        background: radial-gradient(circle at 35% 30%, #fff, #5eead4 60%, #2bbfae); }
+      @keyframes lbob { 50% { transform: translateY(-14px); } }
+    </style>
+    <script type="module" crossorigin src="/lineage/assets/index-CAhBN4Dx.js"></script>
+    <link rel="stylesheet" crossorigin href="/lineage/assets/index-Bl_tkEby.css">
+  </head>
+  <body>
+    <div id="game-root" aria-hidden="true"></div>
+    <div id="ui">
+      <div id="loading">
+        <div class="load-orb"></div>
+        <p class="load-title">Naman’s World</p>
+        <p class="load-sub">loading the island…</p>
+      </div>
+    </div>
+    <noscript>
+      <div style="padding:2rem;color:#eee;font-family:sans-serif">
+        This is an interactive game-portfolio for Naman Gururani — Software Development Engineer at
+        Barclays. It needs JavaScript. Reach him at gururaninaman@gmail.com,
+        github.com/Naman-Gururani, or linkedin.com/in/naman-gururani.
+      </div>
+    </noscript>
+  </body>
+</html>
