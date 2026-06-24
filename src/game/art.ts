@@ -54,7 +54,7 @@ export function buildIsland(scene: Phaser.Scene, zones: { tx: number; ty: number
   // gentle wave streaks
   c.strokeStyle = 'rgba(255,255,255,0.18)'
   c.lineWidth = 3
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 110; i++) {
     const x = Math.random() * W
     const y = Math.random() * H
     c.beginPath()
@@ -122,7 +122,7 @@ export function buildIsland(scene: Phaser.Scene, zones: { tx: number; ty: number
   c.fillStyle = gg
   c.fillRect(0, 0, W, H)
   // grass texture: scattered tufts + speckles
-  for (let i = 0; i < 5200; i++) {
+  for (let i = 0; i < 2300; i++) {
     const x = Math.random() * W
     const y = Math.random() * H
     const dark = Math.random() < 0.5
@@ -175,9 +175,26 @@ export function buildIsland(scene: Phaser.Scene, zones: { tx: number; ty: number
 
   scene.textures.addCanvas('island', canvas)
 
-  // collision helper: walkable if inside the beach blob (with margin)
-  const mctx = document.createElement('canvas').getContext('2d')!
-  const isLand = (x: number, y: number) => mctx.isPointInPath(beach, x, y)
+  // collision helper: a cheap rasterized land mask (O(1) lookups instead of
+  // per-point isPointInPath, which kept the main thread busy during scatter).
+  const MW = 240
+  const MH = Math.round((MW * H) / W)
+  const mc = document.createElement('canvas')
+  mc.width = MW
+  mc.height = MH
+  const mx = mc.getContext('2d')!
+  mx.save()
+  mx.scale(MW / W, MH / H)
+  mx.fillStyle = '#fff'
+  mx.fill(beach)
+  mx.restore()
+  const mdata = mx.getImageData(0, 0, MW, MH).data
+  const isLand = (x: number, y: number) => {
+    const ix = ((x * MW) / W) | 0
+    const iy = ((y * MH) / H) | 0
+    if (ix < 0 || iy < 0 || ix >= MW || iy >= MH) return false
+    return mdata[(iy * MW + ix) * 4 + 3] > 128
+  }
   return { isLand }
 }
 

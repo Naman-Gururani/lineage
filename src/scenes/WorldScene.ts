@@ -161,7 +161,7 @@ export class WorldScene extends Phaser.Scene {
     const kinds = ['tree', 'tree', 'tree', 'bush', 'flowers', 'flowers', 'rock'] as const
     let placed = 0
     let tries = 0
-    while (placed < 230 && tries < 4000) {
+    while (placed < 190 && tries < 3200) {
       tries++
       const x = 40 + Math.random() * (WORLD_W - 80)
       const y = 40 + Math.random() * (WORLD_H - 80)
