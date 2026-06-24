@@ -1,61 +1,44 @@
-# LINEAGE
+# NAMAN.SYS
 
-**A portfolio built as a living data pipeline.**
+**A playable portfolio.**
 [**naman-gururani.github.io/lineage**](https://naman-gururani.github.io/lineage/)
 
 ---
 
-> *Follow one record's journey through a system built to trace the journey of everything.*
+Naman Gururani's portfolio is a small arcade. His real content is **locked** — you unlock each part by beating a distinct, hand-built mini-game.
 
-This site casts the visitor as a single data record entering the machine. One
-continuous, **unbranching** thread of light — the *lineage* — draws itself down
-the page as you scroll, lighting a node at each stage. That thread is the literal
-translation of an engineering invariant: **each hop guarantees exactly one
-upstream and one downstream**. Behind it, a field of particles streams past — the
-~750 million records a day the real system reconstructs.
+- **ROUTE** — a pipe-routing logic puzzle → unlocks **Experience**
+- **SORT** — a real-time stream classifier (route falling tokens into the right pipeline lane) → unlocks **Skills**
+- **DECRYPT** — a live cipher dial you rotate to decode an intercepted string → unlocks **Projects**
+- Clear all three → the **Contact / "ACCESS GRANTED"** finale
 
-It is the work of a backend & streaming-data engineer turned into an experience.
+His real-time streaming-data work inspires the *mechanics* (routing packets, sorting streams, decrypting tokens) — not the theme. The payment-lineage engine is one project card, not the brand.
 
-## The journey (six stages)
+## Built for everyone
 
-1. **Ingress** — the record enters; the thread ignites.
-2. **Origin** — the source of the record: who I am.
-3. **Transform** — tokenized, classified by jurisdiction, mapped. The stack.
-4. **Lineage** — the full path reconstructed across decoupled systems. The work.
-5. **Scale** — one record, multiplied: ~750M/day.
-6. **Egress** — the record reaches its destination. Let's connect.
-
-## Craft notes
-
-- **Motion that serves the story** — a single SVG thread drawn on scroll
-  (GSAP ScrollTrigger), buttery smooth scrolling (Lenis), an adaptive Canvas 2D
-  particle stream, count-ups, and magnetic micro-interactions.
-- **Accessible by default** — full keyboard navigation, a skip link, visible
-  focus, semantic landmarks, AA contrast, and a complete `prefers-reduced-motion`
-  path (no pinning, no particles, the thread shown statically, all content
-  present).
-- **Fast** — a tiny hand-authored CSS system, latin-subset self-hosted fonts,
-  lazy/​paused canvas work, and a capped device-pixel-ratio.
+- **Reveal All (recruiter mode)** — one click skips every game and shows all content instantly. This is also the accessibility path.
+- Games are keyboard-playable; modals trap focus and close on `Esc`; there's a skip link.
+- Full `prefers-reduced-motion` support — no particles, and SORT becomes a calm, static classifier.
+- Generated **Web-Audio** sound (mutable), pixel-particle juice, and progress that persists (localStorage).
 
 ## Stack
 
-Vite · TypeScript · GSAP (ScrollTrigger) · Lenis · Canvas 2D · hand-authored CSS
-with design tokens · self-hosted type (Space Grotesk · JetBrains Mono · Inter).
+Vite · TypeScript · Canvas 2D · Web Audio · hand-authored CSS with design tokens.
+Type: Press Start 2P · Space Grotesk · JetBrains Mono · Inter (self-hosted).
 
 ## Develop
 
 ```bash
 npm install
-npm run dev        # start the dev server
-npm run build      # production build to /dist
+npm run dev        # dev server
+npm run build      # production build → /dist
 npm run preview    # preview the production build
 npm run typecheck  # type-check only
 ```
 
 ## Deploy
 
-Pushing to `main` triggers a GitHub Actions workflow that builds the site and
-publishes `/dist` to GitHub Pages. Zero-config.
+Pushing to `main` triggers a GitHub Actions workflow that builds and publishes to GitHub Pages. The currently-served source is the `gh-pages` branch (the built `/dist`).
 
 ## License
 

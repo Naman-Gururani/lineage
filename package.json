@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "LINEAGE — the portfolio of Naman Gururani, built as a living real-time data pipeline.",
+  "description": "NAMAN.SYS — a playable portfolio for Naman Gururani: beat three mini-games to unlock his experience, skills, and projects.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "gsap": "^3.12.5",
-    "lenis": "^1.1.18",
+    "@fontsource/press-start-2p": "^5.2.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

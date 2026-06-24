@@ -1,59 +1,43 @@
 /* ============================================================
-   LINEAGE — base / reset / typography
+   NAMAN.SYS — base / reset
    ============================================================ */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
-
 * {
   margin: 0;
 }
 
 html {
   -webkit-text-size-adjust: 100%;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: var(--line-2) transparent;
 }
 
 body {
   min-height: 100svh;
-  background-color: var(--bg);
+  background: var(--bg);
   color: var(--text);
-  font-family: var(--font-body);
+  font-family: var(--f-body);
   font-size: var(--fs-body);
   line-height: 1.6;
-  font-weight: 400;
   letter-spacing: 0.005em;
   overflow-x: hidden;
-}
-
-/* Smooth scroll is driven by Lenis (JS). Fallback for no-JS / reduced motion. */
-html.lenis,
-html.lenis body {
-  height: auto;
-}
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
-}
-.lenis.lenis-stopped {
-  overflow: hidden;
 }
 
 h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-display);
+  font-family: var(--f-display);
   font-weight: 600;
-  line-height: 1.04;
+  line-height: 1.05;
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
-
 p {
   text-wrap: pretty;
 }
@@ -62,14 +46,12 @@ a {
   color: inherit;
   text-decoration: none;
 }
-
 img,
 svg,
 canvas {
   display: block;
   max-width: 100%;
 }
-
 button {
   font: inherit;
   color: inherit;
@@ -77,47 +59,45 @@ button {
   border: none;
   cursor: pointer;
 }
+ul,
+ol {
+  list-style: none;
+  padding: 0;
+}
 
 ::selection {
-  background: var(--mint);
-  color: #04130f;
+  background: var(--cyan);
+  color: #04141a;
 }
 
 :focus-visible {
-  outline: 2px solid var(--mint);
+  outline: 2px solid var(--cyan);
   outline-offset: 3px;
   border-radius: 4px;
 }
-
-/* skip-link target receives focus programmatically; don't show a ring for it */
-main:focus {
+:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* ---- helpers ---- */
+/* ---- utilities ---- */
+.pixel {
+  font-family: var(--f-pixel);
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+.mono {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.dim {
+  color: var(--dim);
+}
+
 .container {
   width: 100%;
   max-width: var(--container);
   margin-inline: auto;
   padding-inline: var(--gutter);
-}
-
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--fs-eyebrow);
-  font-weight: 500;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--mint);
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.dim {
-  color: var(--text-dim);
 }
 
 .sr-only {
@@ -137,10 +117,10 @@ main:focus {
   top: 0.6rem;
   left: 0.6rem;
   z-index: var(--z-top);
-  transform: translateY(-160%);
-  background: var(--mint);
-  color: #04130f;
-  font-family: var(--font-mono);
+  transform: translateY(-180%);
+  background: var(--cyan);
+  color: #04141a;
+  font-family: var(--f-mono);
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0.6rem 1rem;
@@ -151,7 +131,6 @@ main:focus {
   transform: translateY(0);
 }
 
-/* Respect reduced-motion globally (JS also gates heavy motion). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
