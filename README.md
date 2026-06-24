@@ -1,30 +1,35 @@
-# NAMAN.SYS
+# Naman's World 🌴
 
-**A playable portfolio.**
+**An explorable game-portfolio.**
 [**naman-gururani.github.io/lineage**](https://naman-gururani.github.io/lineage/)
 
 ---
 
-Naman Gururani's portfolio is a small arcade. His real content is **locked** — you unlock each part by beating a distinct, hand-built mini-game.
+Naman Gururani's portfolio is a tiny cozy game. You walk a little character around an island and wander into landmarks to discover each part of his story — explore in any order, or skip the walking entirely.
 
-- **ROUTE** — a pipe-routing logic puzzle → unlocks **Experience**
-- **SORT** — a real-time stream classifier (route falling tokens into the right pipeline lane) → unlocks **Skills**
-- **DECRYPT** — a live cipher dial you rotate to decode an intercepted string → unlocks **Projects**
-- Clear all three → the **Contact / "ACCESS GRANTED"** finale
+- 🏠 **The Cottage** → About
+- 🏢 **Barclays Tower** → Experience
+- 🛠️ **The Workshop** → Skills
+- ⚙️ **The Engine** · 🔒 **The Vault** · 💚 **Safe Stride** → Projects
+- 🗼 **The Lighthouse** → Contact
 
-His real-time streaming-data work inspires the *mechanics* (routing packets, sorting streams, decrypting tokens) — not the theme. The payment-lineage engine is one project card, not the brand.
+It runs on a real game engine, so it feels like a game — a follow-camera, smooth movement, collisions, particles, and sound — not a website pretending to be one.
+
+## Play
+
+- **Move:** WASD / arrow keys, or the on-screen joystick on touch.
+- **Interact:** walk into a glowing landmark and press **E** / tap **✦**.
+- **🗺️ Map · Skip:** jump anywhere, read everything, or skip the walking entirely.
+- Collect the data orbs **◈** scattered around the island.
 
 ## Built for everyone
 
-- **Reveal All (recruiter mode)** — one click skips every game and shows all content instantly. This is also the accessibility path.
-- Games are keyboard-playable; modals trap focus and close on `Esc`; there's a skip link.
-- Full `prefers-reduced-motion` support — no particles, and SORT becomes a calm, static classifier.
-- Generated **Web-Audio** sound (mutable), pixel-particle juice, and progress that persists (localStorage).
+- The **Map · Skip** menu opens any section's content directly — no walking required. This is also the accessibility path: content lives in focus-managed DOM panels (Esc to close), readable by keyboard and screen readers.
+- Touch joystick + interact button on phones; full keyboard on desktop.
 
 ## Stack
 
-Vite · TypeScript · Canvas 2D · Web Audio · hand-authored CSS with design tokens.
-Type: Press Start 2P · Space Grotesk · JetBrains Mono · Inter (self-hosted).
+Vite · TypeScript · **Phaser 3** · Web Audio (generated sound). Every sprite, tile, building, and the island itself is **drawn in code** — there are no image assets. Type: Fredoka · Press Start 2P (self-hosted).
 
 ## Develop
 
@@ -38,7 +43,7 @@ npm run typecheck  # type-check only
 
 ## Deploy
 
-The live site is served by GitHub Pages from the `gh-pages` branch (the built `/dist`). To redeploy: run `npm run build`, then publish the contents of `/dist` to the `gh-pages` branch.
+Served by GitHub Pages from the `gh-pages` branch (the built `/dist`). To redeploy: `npm run build`, then publish `/dist` to `gh-pages`.
 
 ## License
 

@@ -11,17 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/fredoka": "^5.2.10",
     "@fontsource/press-start-2p": "^5.2.7",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "phaser": "^3.90.0"
   },
   "devDependencies": {
     "@fontsource/inter": "^5.1.0",
-    "@fontsource/jetbrains-mono": "^5.1.1",
-    "@fontsource/space-grotesk": "^5.1.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
     "vite": "^6.0.7"
   }
