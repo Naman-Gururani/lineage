@@ -1,0 +1,475 @@
+/* ============================================================
+   LINEAGE — layout: chrome, background, thread, controls
+   ============================================================ */
+
+/* Fixed aurora behind the (transparent) particle canvas + content. */
+body {
+  background:
+    radial-gradient(58% 48% at 74% -6%, rgba(94, 234, 212, 0.08), transparent 60%),
+    radial-gradient(46% 46% at 6% 106%, rgba(245, 177, 76, 0.06), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+.app {
+  position: relative;
+  z-index: var(--z-content);
+}
+
+main {
+  display: block;
+}
+
+/* ---- background particle field ---- */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-canvas);
+  pointer-events: none;
+}
+
+/* ---- the lineage thread ---- */
+.thread-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: var(--z-thread);
+  pointer-events: none;
+  overflow: hidden;
+}
+.thread-svg {
+  display: block;
+  width: 100%;
+}
+.thread-track {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 1.4;
+}
+.thread-glow {
+  stroke: var(--mint);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.16;
+}
+.thread-draw {
+  stroke: var(--mint);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.thread-node {
+  fill: var(--bg);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1.5;
+  transition: stroke 0.45s var(--ease-out), fill 0.45s var(--ease-out);
+}
+.thread-node.is-on {
+  stroke: var(--mint);
+  fill: #061410;
+}
+.comet-glow {
+  fill: var(--mint);
+  opacity: 0.22;
+}
+.comet-core {
+  fill: var(--mint-soft);
+  filter: drop-shadow(0 0 7px var(--mint));
+}
+
+/* ---- top bar ---- */
+.topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(0.85rem, 0.6rem + 1vw, 1.35rem) var(--gutter);
+  border-bottom: 1px solid transparent;
+  transition: background 0.4s, backdrop-filter 0.4s, border-color 0.4s;
+}
+.topbar.is-solid {
+  background: rgba(6, 7, 11, 0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom-color: var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.brand-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: conic-gradient(from 120deg, var(--mint), var(--amber), var(--mint));
+  box-shadow: 0 0 14px -2px var(--mint-glow);
+}
+.brand-name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  color: var(--text);
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 10px var(--mint);
+  animation: pulse 2.6s var(--ease-out) infinite;
+}
+.topbar-mail {
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 2px;
+  transition: color 0.3s, border-color 0.3s;
+}
+.topbar-mail:hover {
+  color: var(--mint);
+  border-color: var(--mint);
+}
+
+/* ---- stage rail (right) ---- */
+.rail {
+  position: fixed;
+  right: clamp(0.7rem, 0.3rem + 1vw, 1.6rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-rail);
+}
+.rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.rail a {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  padding: 0.45rem 0.1rem;
+  min-height: 30px;
+  color: var(--text-faint);
+  transition: color 0.3s;
+}
+.rail-num {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  transition: opacity 0.3s, color 0.3s;
+}
+.rail-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.35s var(--ease-out), transform 0.35s var(--ease-out);
+}
+.rail-tick {
+  width: 20px;
+  height: 1.5px;
+  background: var(--line-strong);
+  border-radius: 2px;
+  transition: width 0.35s var(--ease-out), background 0.35s;
+}
+.rail a:hover .rail-label,
+.rail .is-active a .rail-label {
+  opacity: 1;
+  transform: none;
+}
+.rail a:hover {
+  color: var(--text);
+}
+.rail .is-active a {
+  color: var(--mint);
+}
+.rail .is-active .rail-num {
+  opacity: 1;
+  color: var(--mint);
+}
+.rail .is-active .rail-tick {
+  width: 34px;
+  background: var(--mint);
+  box-shadow: 0 0 12px var(--mint-glow);
+}
+
+/* ---- telemetry HUD (bottom-left) ---- */
+.hud {
+  position: fixed;
+  left: clamp(0.9rem, 0.5rem + 1vw, 1.6rem);
+  bottom: clamp(0.9rem, 0.5rem + 1vw, 1.6rem);
+  z-index: var(--z-rail);
+  width: 206px;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(8, 10, 16, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-family: var(--font-mono);
+  pointer-events: none;
+  transition: opacity 0.55s var(--ease-out);
+}
+.hud.is-hidden {
+  opacity: 0;
+}
+.hud-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.22em;
+  color: var(--mint);
+  margin-bottom: 0.65rem;
+}
+.hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+  animation: pulse 2.6s var(--ease-out) infinite;
+}
+.hud-grid {
+  margin: 0;
+  display: grid;
+  gap: 0.42rem;
+}
+.hud-grid > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.hud dt {
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.hud dd {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.hud dd i {
+  font-style: normal;
+  font-size: 0.62rem;
+  color: var(--text-faint);
+}
+
+/* ---- buttons / links / chips ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.95rem 1.5rem;
+  border-radius: 100px;
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.3s, background 0.3s, color 0.3s, box-shadow 0.3s;
+}
+.btn-primary {
+  border-color: rgba(94, 234, 212, 0.5);
+  color: var(--mint);
+  background: rgba(94, 234, 212, 0.05);
+}
+.btn-primary:hover {
+  background: var(--mint);
+  color: #04130f;
+  box-shadow: 0 12px 40px -10px var(--mint-glow);
+}
+.btn-arrow {
+  transition: transform 0.3s var(--ease-out);
+}
+.btn-primary:hover .btn-arrow {
+  transform: translateY(3px);
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 3px;
+  transition: color 0.3s, border-color 0.3s, gap 0.3s;
+}
+.link-arrow:hover {
+  color: var(--mint);
+  border-color: var(--mint);
+  gap: 0.7rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.015);
+  transition: border-color 0.3s, color 0.3s, transform 0.3s, background 0.3s;
+}
+.chip:hover {
+  color: var(--text);
+  border-color: rgba(94, 234, 212, 0.5);
+  background: rgba(94, 234, 212, 0.04);
+  transform: translateY(-2px);
+}
+.chips-sm .chip {
+  font-size: 0.74rem;
+  padding: 0.38rem 0.68rem;
+}
+
+/* ---- record chip & dots ---- */
+.rec-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.rec-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 10px var(--mint);
+}
+.rec-dot-amber {
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber);
+}
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mint);
+  margin-right: 0.55rem;
+  animation: pulse 2.6s var(--ease-out) infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(94, 234, 212, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+  }
+}
+
+/* zero-size anchor for the thread to pass through */
+.node-anchor {
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
+
+/* ---- colophon / footer ---- */
+.colophon {
+  border-top: 1px solid var(--line);
+  padding: clamp(2.5rem, 2rem + 3vw, 4rem) 0;
+  position: relative;
+  z-index: var(--z-content);
+}
+.colophon-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2rem;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.colophon-built {
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 0.9rem + 0.6vw, 1.4rem);
+  letter-spacing: -0.01em;
+  max-width: 26ch;
+}
+.colophon-type {
+  margin-top: 0.5rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.colophon-right {
+  text-align: right;
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+
+/* ---- responsive chrome ---- */
+@media (max-width: 980px) {
+  .rail {
+    right: 0.5rem;
+  }
+  .rail-label {
+    display: none;
+  }
+}
+@media (max-width: 1099px), (max-height: 759px) {
+  .hud {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .status {
+    display: none;
+  }
+  .colophon-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .colophon-right {
+    text-align: left;
+  }
+}

@@ -1,0 +1,72 @@
+/* ============================================================
+   LINEAGE — design tokens
+   A single source of truth for the visual system.
+   ============================================================ */
+:root {
+  /* ---- color: base ---- */
+  --bg: #06070b;
+  --bg-1: #080a10;
+  --surface: #0c0f16;
+  --surface-2: #11151f;
+  --surface-3: #161b27;
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  /* ---- color: text ---- */
+  --text: #e8ecf2;
+  --text-dim: #aeb7c6;
+  --text-faint: #707a8e;
+
+  /* ---- color: signal (the live data thread) ---- */
+  --mint: #5eead4;
+  --mint-soft: #8af4e2;
+  --mint-deep: #29b9a0;
+  --mint-glow: rgba(94, 234, 212, 0.55);
+
+  /* ---- color: value (payments / hops / nodes) ---- */
+  --amber: #f5b14c;
+  --amber-soft: #ffc977;
+  --amber-deep: #cf8a2c;
+  --amber-glow: rgba(245, 177, 76, 0.5);
+
+  /* ---- typography ---- */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* fluid type scale */
+  --fs-micro: clamp(0.66rem, 0.63rem + 0.15vw, 0.74rem);
+  --fs-eyebrow: clamp(0.7rem, 0.66rem + 0.2vw, 0.8rem);
+  --fs-body: clamp(1rem, 0.96rem + 0.22vw, 1.13rem);
+  --fs-lead: clamp(1.18rem, 1.02rem + 0.78vw, 1.7rem);
+  --fs-h3: clamp(1.35rem, 1.1rem + 1.1vw, 2.1rem);
+  --fs-h2: clamp(2.1rem, 1.4rem + 3.1vw, 4.2rem);
+  --fs-display: clamp(2.8rem, 1.5rem + 6vw, 7rem);
+  --fs-stat: clamp(2.6rem, 1.5rem + 5vw, 6rem);
+
+  /* ---- spacing & layout ---- */
+  --container: 1180px;
+  --container-wide: 1340px;
+  --gutter: clamp(1.25rem, 0.9rem + 2.6vw, 3rem);
+  --section-py: clamp(6rem, 4.5rem + 9vw, 12rem);
+
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 24px;
+
+  /* ---- motion ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-inout: cubic-bezier(0.76, 0, 0.24, 1);
+  --dur-1: 0.25s;
+  --dur-2: 0.5s;
+  --dur-3: 0.9s;
+
+  /* ---- z-index scale ---- */
+  --z-canvas: 0;
+  --z-thread: 1;
+  --z-content: 2;
+  --z-rail: 40;
+  --z-chrome: 50;
+  --z-top: 90;
+}
