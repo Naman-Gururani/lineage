@@ -38,7 +38,7 @@ npm run typecheck  # type-check only
 
 ## Deploy
 
-Pushing to `main` triggers a GitHub Actions workflow that builds and publishes to GitHub Pages. The currently-served source is the `gh-pages` branch (the built `/dist`).
+The live site is served by GitHub Pages from the `gh-pages` branch (the built `/dist`). To redeploy: run `npm run build`, then publish the contents of `/dist` to the `gh-pages` branch.
 
 ## License
 
