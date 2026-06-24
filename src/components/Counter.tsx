@@ -9,7 +9,8 @@ type CounterProps = {
   duration?: number
 }
 
-const fmt = (n: number) => Math.round(n).toLocaleString('en-US')
+const NF = new Intl.NumberFormat('en-US')
+const fmt = (n: number) => NF.format(Math.round(n))
 
 export function Counter({ value, prefix = '', suffix = '', duration = 2 }: CounterProps) {
   const ref = useRef<HTMLSpanElement>(null)

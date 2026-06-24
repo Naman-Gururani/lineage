@@ -76,8 +76,8 @@ export function LineageDiagram() {
         <path ref={pulseRef} d={dLine} className="ld-pulse" />
         {NODES.map((label, i) => (
           <g key={label} className="ld-node" transform={`translate(${xs[i]} ${y})`}>
-            <circle r="11" className="ld-halo" />
-            <circle r="6.5" className="ld-dot" />
+            <circle r="13" className="ld-halo" />
+            <circle r="8" className="ld-dot" />
           </g>
         ))}
       </svg>

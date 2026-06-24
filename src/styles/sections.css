@@ -354,6 +354,30 @@
 .project .chips {
   margin-top: auto;
 }
+.redacted {
+  margin-top: auto;
+}
+.redacted-tag {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+}
+.redacted-bars {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.redacted-bars i {
+  flex: 1;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 177, 76, 0.14);
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(245, 177, 76, 0.22) 0 7px,
+    transparent 7px 12px
+  );
+}
 .work-more {
   margin-top: clamp(1.8rem, 1.4rem + 2vw, 2.6rem);
 }
@@ -380,7 +404,7 @@
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .stat-num {
-    background: linear-gradient(118deg, var(--mint-soft), var(--mint) 40%, var(--amber-soft));
+    background: linear-gradient(160deg, var(--mint-soft), var(--mint-deep) 95%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -484,12 +508,16 @@
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 @media (max-width: 560px) {
+  .ld-legend {
+    justify-content: flex-start;
+    gap: 0.5rem 1.3rem;
+  }
   .connect-link {
     grid-template-columns: 1fr auto;
   }

@@ -89,6 +89,11 @@ button {
   border-radius: 4px;
 }
 
+/* skip-link target receives focus programmatically; don't show a ring for it */
+main:focus {
+  outline: none;
+}
+
 /* ---- helpers ---- */
 .container {
   width: 100%;

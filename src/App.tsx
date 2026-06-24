@@ -34,7 +34,7 @@ function Experience() {
 
       <div className="app">
         <LineageThread />
-        <main id="main">
+        <main id="main" tabIndex={-1}>
           <Ingress />
           <Origin />
           <Transform />

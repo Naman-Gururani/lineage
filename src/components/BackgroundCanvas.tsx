@@ -35,6 +35,9 @@ export function BackgroundCanvas() {
     let H = 0
     let particles: Particle[] = []
     let raf = 0
+    let last = 0
+    const MINT = 'rgb(94,234,212)'
+    const AMBER = 'rgb(245,177,76)'
 
     const make = (): Particle => ({
       x: Math.random() * W,
@@ -63,30 +66,33 @@ export function BackgroundCanvas() {
       while (particles.length < target) particles.push(make())
     }
 
-    const frame = () => {
+    const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
+      const dt = now - last
+      if (dt < 15) return // cap to ~60fps (no benefit on 120/144Hz panels)
+      last = now
+      const step = Math.min(dt / 16.67, 2) // frame-rate-independent motion
       ctx.clearRect(0, 0, W, H)
       const intensity = flow.intensity
-      const speed = 1 + intensity * 2.6
+      const speed = (1 + intensity * 2.6) * step
       const bright = 0.55 + intensity * 1.0
       for (const p of particles) {
-        p.phase += p.sw
+        p.phase += p.sw * step
         p.y += p.vy * speed
         if (p.y - p.len > H) {
           p.y = -p.len
           p.x = Math.random() * W
         }
         const x = p.x + Math.sin(p.phase) * p.amp
-        const alpha = Math.min(0.5, p.a * bright)
-        ctx.strokeStyle = p.amber
-          ? `rgba(245,177,76,${alpha})`
-          : `rgba(94,234,212,${alpha})`
+        ctx.globalAlpha = Math.min(0.5, p.a * bright)
+        ctx.strokeStyle = p.amber ? AMBER : MINT
         ctx.lineWidth = p.w
         ctx.beginPath()
         ctx.moveTo(x, p.y)
         ctx.lineTo(x - Math.sin(p.phase) * p.amp * 0.6, p.y - p.len)
         ctx.stroke()
       }
+      ctx.globalAlpha = 1
     }
 
     const onVisibility = () => {

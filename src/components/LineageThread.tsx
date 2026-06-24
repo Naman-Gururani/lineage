@@ -4,10 +4,14 @@ import { useMotion } from '../lib/motion'
 
 type Pt = { x: number; y: number }
 
-// Smooth path through points (Catmull-Rom -> cubic bezier).
-function catmullRom(points: Pt[], k = 1): string {
-  if (points.length < 2) return ''
-  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+// Smooth path through points (Catmull-Rom -> cubic bezier). Returns the full
+// path plus the cumulative path string ending at each node, so each node's
+// exact arc-length is one cheap getTotalLength() call (no brute-force scan).
+function buildPathData(points: Pt[], k = 1): { d: string; cum: string[] } {
+  if (points.length < 2) return { d: '', cum: [] }
+  const start = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+  let d = start
+  const cum: string[] = [start]
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i - 1] ?? points[i]
     const p1 = points[i]
@@ -18,23 +22,9 @@ function catmullRom(points: Pt[], k = 1): string {
     const c2x = p2.x - ((p3.x - p1.x) / 6) * k
     const c2y = p2.y - ((p3.y - p1.y) / 6) * k
     d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    cum.push(d)
   }
-  return d
-}
-
-function lengthAtPoint(path: SVGPathElement, total: number, t: Pt, steps = 260): number {
-  let best = 0
-  let bestD = Infinity
-  for (let i = 0; i <= steps; i++) {
-    const l = (total * i) / steps
-    const pt = path.getPointAtLength(l)
-    const dd = (pt.x - t.x) ** 2 + (pt.y - t.y) ** 2
-    if (dd < bestD) {
-      bestD = dd
-      best = l
-    }
-  }
-  return best
+  return { d, cum }
 }
 
 /**
@@ -70,6 +60,11 @@ export function LineageThread() {
     // x position per stage (fraction of width) — the weave.
     const weave = [0.5, 0.27, 0.71, 0.29, 0.63, 0.5]
 
+    // hidden measuring path — reused to read each node's exact arc-length
+    const tmpPath = document.createElementNS(svgNS, 'path')
+    tmpPath.style.visibility = 'hidden'
+    svg.appendChild(tmpPath)
+
     const build = () => {
       const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-thread-node]'))
       if (nodes.length < 2) return
@@ -83,7 +78,7 @@ export function LineageThread() {
         const x = (fx + (0.5 - fx) * narrow * 0.72) * W
         return { x, y: r.top + window.scrollY + r.height / 2 }
       })
-      const d = catmullRom(pts)
+      const { d, cum } = buildPathData(pts)
       track.setAttribute('d', d)
       glow.setAttribute('d', d)
       draw.setAttribute('d', d)
@@ -95,14 +90,17 @@ export function LineageThread() {
       length = draw.getTotalLength()
       draw.style.strokeDasharray = String(length)
       glow.style.strokeDasharray = String(length)
-      nodeLengths = pts.map((p) => lengthAtPoint(draw, length, p))
+      nodeLengths = cum.map((seg) => {
+        tmpPath.setAttribute('d', seg)
+        return tmpPath.getTotalLength()
+      })
 
       nodesG.replaceChildren()
       nodeEls = pts.map((p, i) => {
         const c = document.createElementNS(svgNS, 'circle')
         c.setAttribute('cx', p.x.toFixed(1))
         c.setAttribute('cy', p.y.toFixed(1))
-        c.setAttribute('r', i === 0 ? '6' : '5')
+        c.setAttribute('r', i === 0 ? '7' : '6')
         c.setAttribute('class', 'thread-node')
         nodesG.appendChild(c)
         return c
@@ -165,19 +163,22 @@ export function LineageThread() {
       }, 180)
     }
 
+    let cancelled = false
     const raf = requestAnimationFrame(init)
-    // rebuild once layout truly settles (fonts, late reflow)
-    const t1 = window.setTimeout(onResize, 650)
     window.addEventListener('resize', onResize)
     window.addEventListener('load', onResize)
-    if (document.fonts?.ready) document.fonts.ready.then(onResize)
+    // fonts.ready covers late reflow once webfonts swap in
+    document.fonts?.ready.then(() => {
+      if (!cancelled) onResize()
+    })
 
     return () => {
+      cancelled = true
       cancelAnimationFrame(raf)
-      window.clearTimeout(t1)
       window.clearTimeout(debounceId)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('load', onResize)
+      tmpPath.remove()
       st?.kill()
     }
   }, [reduced])
@@ -190,8 +191,8 @@ export function LineageThread() {
         <path ref={drawRef} className="thread-draw" />
         <g ref={nodesRef} className="thread-nodes" />
         <g ref={cometRef} className="thread-comet" style={{ opacity: 0 }}>
-          <circle r="10" className="comet-glow" />
-          <circle r="3.4" className="comet-core" />
+          <circle r="16" className="comet-glow" />
+          <circle r="4.5" className="comet-core" />
         </g>
       </svg>
     </div>

@@ -16,7 +16,7 @@
   /* ---- color: text ---- */
   --text: #e8ecf2;
   --text-dim: #aeb7c6;
-  --text-faint: #707a8e;
+  --text-faint: #828c9e;
 
   /* ---- color: signal (the live data thread) ---- */
   --mint: #5eead4;
@@ -39,11 +39,11 @@
   --fs-micro: clamp(0.66rem, 0.63rem + 0.15vw, 0.74rem);
   --fs-eyebrow: clamp(0.7rem, 0.66rem + 0.2vw, 0.8rem);
   --fs-body: clamp(1rem, 0.96rem + 0.22vw, 1.13rem);
-  --fs-lead: clamp(1.18rem, 1.02rem + 0.78vw, 1.7rem);
+  --fs-lead: clamp(1.14rem, 1.02rem + 0.55vw, 1.5rem);
   --fs-h3: clamp(1.35rem, 1.1rem + 1.1vw, 2.1rem);
   --fs-h2: clamp(2.1rem, 1.4rem + 3.1vw, 4.2rem);
   --fs-display: clamp(2.8rem, 1.5rem + 6vw, 7rem);
-  --fs-stat: clamp(2.6rem, 1.5rem + 5vw, 6rem);
+  --fs-stat: clamp(2.4rem, 1.6rem + 3.4vw, 5rem);
 
   /* ---- spacing & layout ---- */
   --container: 1180px;

@@ -1,8 +1,8 @@
 /* ============================================================
    LINEAGE — content (single source of truth)
-   Audit note: no React / Node.js / JavaScript appears in any
-   skill listing. The in-development product is intentionally
-   abstract and never named.
+   Audit note: skill listings contain only the client-approved
+   stack; the in-development product is intentionally abstract
+   and never named.
    ============================================================ */
 
 export const STAGES = [
@@ -97,8 +97,8 @@ export const WORK = {
       context: 'Independent',
       status: 'Building',
       blurb:
-        'A cross-platform product I’m designing and building outside of work — currently in active development, with an AI spec-driven workflow from day one. Details under wraps for now.',
-      tech: ['Spec-driven', 'Cross-platform'],
+        'A product I’m designing and building outside of work — currently in active development, AI spec-driven from day one. Details under wraps for now.',
+      tech: [],
     },
   ],
 }
@@ -118,7 +118,7 @@ export const SCALE: { heading: string; intro: string; stats: Stat[] } = {
     'At this volume you can’t hold the whole map in memory. The lineage is reconstructed continuously — one guaranteed link at a time.',
   stats: [
     { value: 750, suffix: 'M+', label: 'records traced / day', kind: 'count' },
-    { value: 8681, label: 'records / second, sustained', kind: 'count' },
+    { value: 8681, label: 'records / second, average', kind: 'count' },
     { value: 1, label: 'upstream → downstream per hop', kind: 'static', display: '1 : 1' },
     { value: 24, suffix: '/7', label: 'real-time, always on', kind: 'count' },
   ],

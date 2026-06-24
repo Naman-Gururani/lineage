@@ -9,7 +9,6 @@ import {
 } from 'react'
 import Lenis from 'lenis'
 import { gsap, ScrollTrigger } from './gsap'
-import { flow } from './flow'
 
 type MotionValue = {
   reduced: boolean
@@ -50,10 +49,7 @@ export function MotionProvider({ children }: { children: ReactNode }) {
     })
     lenisRef.current = lenis
 
-    lenis.on('scroll', (e: { velocity: number }) => {
-      ScrollTrigger.update()
-      flow.velocity = e.velocity
-    })
+    lenis.on('scroll', ScrollTrigger.update)
 
     const onTick = (time: number) => lenis.raf(time * 1000)
     gsap.ticker.add(onTick)
@@ -63,7 +59,6 @@ export function MotionProvider({ children }: { children: ReactNode }) {
       gsap.ticker.remove(onTick)
       lenis.destroy()
       lenisRef.current = null
-      flow.velocity = 0
     }
   }, [reduced])
 

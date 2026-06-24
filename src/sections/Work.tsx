@@ -36,13 +36,24 @@ export function Work() {
                 </div>
                 <h3 className="project-title">{proj.title}</h3>
                 <p className="project-blurb">{proj.blurb}</p>
-                <ul className="chips chips-sm">
-                  {proj.tech.map((t) => (
-                    <li className="chip" key={t}>
-                      {t}
-                    </li>
-                  ))}
-                </ul>
+                {proj.tech.length > 0 ? (
+                  <ul className="chips chips-sm">
+                    {proj.tech.map((t) => (
+                      <li className="chip" key={t}>
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="redacted" aria-hidden="true">
+                    <span className="redacted-tag mono">// payload withheld</span>
+                    <div className="redacted-bars">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                  </div>
+                )}
               </article>
             </Reveal>
           ))}
@@ -56,6 +67,7 @@ export function Work() {
             rel="noopener noreferrer"
           >
             More on GitHub <span aria-hidden="true">↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         </Reveal>
       </div>

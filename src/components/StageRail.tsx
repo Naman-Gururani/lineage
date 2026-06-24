@@ -13,6 +13,7 @@ export function StageRail({ active }: { active: string }) {
             <li key={s.id} className={on ? 'is-active' : undefined}>
               <a
                 href={`#${s.id}`}
+                aria-label={`Stage ${s.index}, ${s.label}`}
                 aria-current={on ? 'true' : undefined}
                 onClick={(e) => {
                   e.preventDefault()

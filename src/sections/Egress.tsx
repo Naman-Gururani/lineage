@@ -37,6 +37,7 @@ export function Egress() {
             >
               <span className="connect-label mono">{l.label}</span>
               <span className="connect-value">{l.value}</span>
+              {l.ext && <span className="sr-only"> (opens in a new tab)</span>}
               <span className="connect-arrow" aria-hidden="true">
                 {l.ext ? '↗' : '→'}
               </span>
