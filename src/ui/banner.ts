@@ -26,14 +26,14 @@ export function initBanner(root: HTMLElement): void {
   root.appendChild(toasts)
   events.on('ui:toast', (t) => {
     const n = document.createElement('div')
-    n.className = `toast toast-${t.kind ?? 'info'}`
+    n.className = `toast card toast-${t.kind ?? 'info'}`
     n.innerHTML = `<span class="toast-ic">${t.icon ?? ''}</span><span class="toast-body"><b></b><small></small></span>`
     ;(n.querySelector('b') as HTMLElement).textContent = t.title
     const s = n.querySelector('small') as HTMLElement
     s.textContent = t.sub ?? ''
     s.hidden = !t.sub
     toasts.appendChild(n)
-    while (toasts.children.length > 4) toasts.firstElementChild?.remove()
+    while (toasts.children.length > 6) toasts.firstElementChild?.remove()
     setTimeout(() => n.classList.add('out'), 3200)
     setTimeout(() => n.remove(), 3700)
   })

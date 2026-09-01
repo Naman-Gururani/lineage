@@ -1,5 +1,6 @@
-// Terrain grid: one byte per tile, plus the neighbourhood helpers that drive
-// autotiling, collision and coastline shaping. Pure — no Phaser here.
+// Terrain grid: one byte per tile plus a parallel ledge byte, and the
+// neighbourhood helpers that drive autotiling, collision and coastline shaping.
+// Pure — no Phaser here.
 
 export const T = {
   DEEP: 0,
@@ -16,14 +17,41 @@ export const T = {
   PLAZA: 11,
   POND: 12,
   TALLGRASS: 13,
+  /** One-tile-wide inland stream. Blocks walking; a hop clears it (no bridge). */
+  BROOK: 14,
 } as const
 
 export type Terrain = (typeof T)[keyof typeof T]
+
+/** Alias for the hop/blueprint code, which talks about the brook by id. */
+export const T_BROOK: Terrain = T.BROOK
+
+/**
+ * Terrain a jump can carry the player across. The sea and the two-wide river
+ * stay off the list: only the brook is narrow enough to clear.
+ */
+export const HOPPABLE_TERRAIN: ReadonlySet<Terrain> = new Set<Terrain>([T.BROOK])
+
+/**
+ * Decor/prop kinds drawn low enough that a hop passes over them. The hop planner
+ * ignores their solids on the way through but still refuses them as a landing.
+ * Flowerbeds are deliberately absent: they are non-solid, walked straight
+ * through, which is friendlier than making the player hop a flower patch.
+ */
+export const LOW_KINDS: ReadonlySet<string> = new Set(['fence', 'rock_s', 'bush', 'crate', 'barrel'])
+
+/** Direction you fall when you walk off a ledge tile (one-way, Zelda-style). */
+export type LedgeDir = 'n' | 'e' | 's' | 'w'
+
+/** Stored as 1..4 in the ledge layer; 0 means "no ledge here". */
+const LEDGE_DIRS: readonly LedgeDir[] = ['n', 'e', 's', 'w']
 
 export type Grid = {
   w: number
   h: number
   cells: Uint8Array
+  /** Parallel to `cells`: 0 = no ledge, else a `LedgeDir` code. */
+  ledges: Uint8Array
   get(x: number, y: number): Terrain
   set(x: number, y: number, t: Terrain): void
   inb(x: number, y: number): boolean
@@ -31,16 +59,31 @@ export type Grid = {
 
 export function makeGrid(w: number, h: number, fill: Terrain): Grid {
   const cells = new Uint8Array(w * h).fill(fill)
+  const ledges = new Uint8Array(w * h)
   return {
     w,
     h,
     cells,
+    ledges,
     get: (x, y) => cells[y * w + x] as Terrain,
     set: (x, y, t) => {
       cells[y * w + x] = t
     },
     inb: (x, y) => x >= 0 && y >= 0 && x < w && y < h,
   }
+}
+
+/** The ledge direction at a tile, or null where there is none (or off-grid). */
+export function ledgeAt(g: Grid, tx: number, ty: number): LedgeDir | null {
+  if (!g.inb(tx, ty)) return null
+  const code = g.ledges[ty * g.w + tx]
+  return code === 0 ? null : (LEDGE_DIRS[code - 1] ?? null)
+}
+
+/** Mark a tile as a ledge you can hop down heading `d`. Off-grid writes are ignored. */
+export function setLedge(g: Grid, tx: number, ty: number, d: LedgeDir): void {
+  if (!g.inb(tx, ty)) return
+  g.ledges[ty * g.w + tx] = LEDGE_DIRS.indexOf(d) + 1
 }
 
 export function isWalkable(t: Terrain): boolean {
@@ -58,11 +101,11 @@ export function isWalkable(t: Terrain): boolean {
 }
 
 export function isLand(t: Terrain): boolean {
-  return t !== T.DEEP && t !== T.WATER && t !== T.SHALLOW && t !== T.RIVER && t !== T.POND
+  return !isWater(t)
 }
 
 export function isWater(t: Terrain): boolean {
-  return t === T.DEEP || t === T.WATER || t === T.SHALLOW || t === T.RIVER || t === T.POND
+  return t === T.DEEP || t === T.WATER || t === T.SHALLOW || t === T.RIVER || t === T.POND || t === T.BROOK
 }
 
 /** 4-neighbour mask: N=1 E=2 S=4 W=8. Out of bounds counts as matching. */

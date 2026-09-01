@@ -2,6 +2,7 @@
 // Reader Mode and the Engine console, and the small Controls / Credits panels.
 import { events } from '../core/events'
 import { PROFILE, ZONES, type Content, type Zone } from '../data/content'
+import { signById, type SignDef, type SignDir } from '../data/signs'
 import { closeModal, el, esc, initModals, openModal } from './modal'
 import { applyMotionClass, reducedMotion } from './state'
 
@@ -117,6 +118,73 @@ export function openZone(id: string): void {
   openModal({ id: modalId, el: box, label: z.content.title, onClose: cancel })
 }
 
+/* ---------------- finger post ---------------- */
+
+const ARROW: Record<SignDir, string> = { N: '↑', NE: '↗', E: '→', SE: '↘', S: '↓', SW: '↙', W: '←', NW: '↖' }
+const HEADING: Record<SignDir, string> = {
+  N: 'North',
+  NE: 'North-east',
+  E: 'East',
+  SE: 'South-east',
+  S: 'South',
+  SW: 'South-west',
+  W: 'West',
+  NW: 'North-west',
+}
+
+/**
+ * The card a finger post opens: one row per arm — arrow, destination, small
+ * print. The arrow is decorative; the heading it stands for is spelled out for
+ * screen readers instead.
+ */
+export function openSign(sign: SignDef | string): void {
+  const def = typeof sign === 'string' ? signById(sign) : sign
+  if (!def) return
+  const box = el('article', 'signcard')
+  box.dataset.width = '420px'
+  const arms = def.arms
+    .map(
+      (a) =>
+        `<li class="sign-arm"><span class="sign-arrow" aria-hidden="true">${ARROW[a.dir]}</span>` +
+        `<span class="sign-way"><span class="sign-dir sr-only">${esc(HEADING[a.dir])}:</span>` +
+        `<b class="sign-label">${esc(a.label)}</b>` +
+        (a.note ? `<span class="sign-note">${esc(a.note)}</span>` : '') +
+        '</span></li>',
+    )
+    .join('')
+  box.innerHTML = `
+    <div class="sign-post" aria-hidden="true"></div>
+    <button type="button" class="modal-x" aria-label="Close">✕</button>
+    <h2 class="sign-title">Finger post</h2>
+    <ul class="sign-arms">${arms}</ul>
+    <footer class="sign-foot"><span class="sign-hint">Press <kbd>E</kbd> or <kbd>Esc</kbd> to walk on</span><button type="button" class="pbtn" data-act="close">Close</button></footer>`
+  const id = `sign:${def.id}`
+  wireClose(box, id)
+  openModal({ id, el: box, label: 'Sign — where the roads go' })
+  // E reads a sign and E walks on from it. The listener sits on the panel (where
+  // the modal manager parks focus and traps it) so it catches the key wherever
+  // inside the dialog it is pressed — which also means it is live for the rest of
+  // the very press that opened the card: opening moved focus here, so every
+  // further keydown of that one press lands on this listener and would shut the
+  // card it just opened. `e.repeat` catches only the browser's own auto-repeat,
+  // so the release is the guard instead: the close arms on the first keyup the
+  // dialog sees, which is the end of the opening press whichever key it was.
+  // Both listeners live on the panel, so this needs nothing from the game's input
+  // module and both die with the card.
+  const panelEl = box.parentElement
+  let armed = false
+  panelEl?.addEventListener('keyup', () => {
+    armed = true
+  })
+  panelEl?.addEventListener('keydown', (e) => {
+    if (e.repeat || (e.key !== 'e' && e.key !== 'E')) return
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    if (!armed) return // still the press that opened the card
+    closeModal(id)
+  })
+}
+
 /* ---------------- controls / credits ---------------- */
 
 export function openControls(): void {
@@ -124,8 +192,10 @@ export function openControls(): void {
   box.dataset.width = '600px'
   const rows: [string, string][] = [
     ['Move', '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> · left stick · joystick'],
-    ['Run', '<kbd>Shift</kbd> · gamepad <kbd>B</kbd> · touch <kbd>B</kbd>'],
-    ['Talk · act · next line', '<kbd>E</kbd> <kbd>Space</kbd> <kbd>Enter</kbd> · gamepad <kbd>A</kbd> · touch <kbd>A</kbd>'],
+    ['Walk (running is the default)', '<kbd>Shift</kbd> · gamepad <kbd>B</kbd>'],
+    ['Hop', '<kbd>Space</kbd> · gamepad <kbd>X</kbd> · touch <kbd>B</kbd>'],
+    ['Talk · act', '<kbd>E</kbd> <kbd>Enter</kbd> · gamepad <kbd>A</kbd> · touch <kbd>A</kbd>'],
+    ['Next line', '<kbd>E</kbd> <kbd>Space</kbd> <kbd>Enter</kbd>'],
     ['Map', '<kbd>M</kbd>'],
     ['Journal', '<kbd>J</kbd>'],
     ['Menu · close', '<kbd>Esc</kbd> · touch <kbd>≡</kbd>'],
@@ -146,7 +216,7 @@ export function openCredits(): void {
     <div class="credits-body">
       <p><b>Naman's World — Lineage Isle</b> is the portfolio of ${esc(PROFILE.name)}, ${esc(PROFILE.role)} at ${esc(PROFILE.company)}.</p>
       <p>Built with Phaser 3, TypeScript and Vite. Every sprite, tile and building is painted procedurally while the game loads, and the music and sounds are synthesised with Web Audio — there are no asset files at all.</p>
-      <p>Type: Press Start 2P, Pixelify Sans and Fredoka.</p>
+      <p>Type: Inter for reading, Pixelify Sans for headings.</p>
       <p class="credits-thanks">Thanks for exploring. ⛵</p>
     </div>
     <footer class="modal-foot"><button type="button" class="pbtn" data-act="close">Close</button></footer>`
@@ -161,6 +231,9 @@ export function initPanels(): void {
   applyMotionClass()
   registerPanel('controls', openControls)
   registerPanel('credits', openCredits)
+  registerPanel('sign', (data) => {
+    if (typeof data === 'string') openSign(data)
+  })
   if (routing) return
   routing = true
   events.on('ui:panel', ({ id, data }) => {

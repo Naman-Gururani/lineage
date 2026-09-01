@@ -1,5 +1,7 @@
 # Naman's World v2.5 "HD Isle" Implementation Plan
 
+> **STATUS (2026-09-01): EXECUTED — all 14 tasks complete.** As-built deviations (sign coordinates, ramp rects, genBoard seq field, DOM-canvas climb renderer, per-species canopy floors, fish determinism, etc.) are recorded with rulings in `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md`; the living state is `docs/HANDOFF.md`. This plan is historical.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Evolve Lineage Isle to 32px HD art on a smaller, denser 96×72 island with faster movement + jumping, a welcome card, modern UI, explanatory NPC hosts, navigating signs, a campus (education, CGPA 9.63), four mini-games with unlocks and the "Hire me" retry gag, and a fishing pass.

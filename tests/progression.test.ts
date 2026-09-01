@@ -34,8 +34,10 @@ describe('QuestLog', () => {
     expect(again.progress('packets').done).toBe(4)
   })
 
-  it('has the six designed quests with rewards', () => {
-    expect(QUESTS.map((q) => q.id).sort()).toEqual(['beacon', 'explore', 'fishing', 'gear', 'packets', 'shells'].sort())
+  // The full table — ids, givers, targets — is pinned in `quests.test.ts`.
+  it('keeps the six village errands, each with a reward', () => {
+    const ids = new Set(QUESTS.map((q) => q.id))
+    for (const id of ['beacon', 'explore', 'fishing', 'gear', 'packets', 'shells']) expect(ids.has(id)).toBe(true)
     for (const q of QUESTS) expect(q.reward.xp).toBeGreaterThan(0)
   })
 })

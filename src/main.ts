@@ -1,6 +1,9 @@
-import '@fontsource/fredoka/400.css'
-import '@fontsource/fredoka/500.css'
-import '@fontsource/fredoka/600.css'
+// Inter carries every word of running text; Pixelify Sans is the accent face
+// for headings, kickers and numerals. Press Start 2P is kept for one place the
+// DOM cannot reach — the engine console's canvas labels.
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/600.css'
 import '@fontsource/pixelify-sans/400.css'
 import '@fontsource/pixelify-sans/600.css'
 import '@fontsource/press-start-2p/400.css'
@@ -11,15 +14,23 @@ import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
 import { WorldScene } from './scenes/WorldScene'
 import { initUI } from './ui'
+import { clearSave } from './core/save'
 import { events } from './core/events'
+import { parseFishFlag, setForcedFish } from './data/fish'
 
+// `?fresh=1` starts from nothing: clear the current save *and* the legacy key.
 if (new URLSearchParams(location.search).has('fresh')) {
   try {
-    localStorage.removeItem('nw2.save.v1')
+    clearSave()
   } catch {
-    /* ignore */
+    /* private mode / no storage: ignore */
   }
 }
+
+// `?fish=gold` puts the golden one on every hook — the one-in-twenty catch,
+// on demand, for anyone being shown around.
+const forced = parseFishFlag(location.search)
+if (forced) setForcedFish(forced)
 
 initUI()
 
@@ -51,7 +62,7 @@ function start() {
 
 const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
 if (fonts?.load) {
-  Promise.all([fonts.load('16px "Press Start 2P"'), fonts.load('16px "Pixelify Sans"'), fonts.load('600 16px Fredoka')])
+  Promise.all([fonts.load('16px Inter'), fonts.load('600 16px Inter'), fonts.load('600 16px "Pixelify Sans"')])
     .then(start)
     .catch(start)
 } else {

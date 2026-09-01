@@ -10,6 +10,20 @@ export type NpcBehaviour = { kind: 'idle' } | { kind: 'wander'; radius: number }
 
 export type NpcDef = { id: string; name: string; x: number; y: number; behaviour: NpcBehaviour; facing?: Dir }
 
+/** Frames in the villager walk cycle: contact–down–contact–up (`npc_*_walk_{dir}_{0..3}`). */
+export const NPC_WALK_FRAMES = 4
+/** Milliseconds each walk frame is held. */
+export const NPC_WALK_MS = 150
+
+/**
+ * Walk frame for a monotonically increasing animation tick: 0 → 1 → 2 → 3 → 0…
+ * Pure (no Phaser, no state) so the cycle is unit-testable on its own.
+ */
+export function walkFrameIndex(tick: number): number {
+  const i = Math.floor(tick) % NPC_WALK_FRAMES
+  return i < 0 ? i + NPC_WALK_FRAMES : i
+}
+
 export class Npc extends Phaser.GameObjects.Container {
   readonly sprite: Phaser.GameObjects.Sprite
   readonly shadow: Phaser.GameObjects.Image
@@ -134,12 +148,13 @@ export class Npc extends Phaser.GameObjects.Container {
       if (Math.abs(dx) > Math.abs(dy)) this.dir = dx < 0 ? 'left' : 'right'
       else this.dir = dy < 0 ? 'up' : 'down'
       this.animT += dtMs
-      if (this.animT > 150) {
+      if (this.animT > NPC_WALK_MS) {
         this.animT = 0
-        this.frameIdx = (this.frameIdx + 1) % 4
+        this.frameIdx++
       }
-      const f = this.frameIdx
-      this.sprite.setTexture(ATLAS, f === 1 || f === 3 ? this.frame('idle', this.dir) : this.frame('walk', this.dir, f === 0 ? 0 : 1))
+      // Walk the full four-frame cycle. (The idle pose is still shown whenever
+      // the villager is standing still — see the `target` reset paths above.)
+      this.sprite.setTexture(ATLAS, this.frame('walk', this.dir, walkFrameIndex(this.frameIdx)))
       this.setDepth(this.y)
     }
   }

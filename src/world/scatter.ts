@@ -12,7 +12,10 @@ export type DecorKind =
   | 'palm'
   | 'bush'
   | 'flower'
+  /** Mossy boulder — too tall to hop. */
   | 'rock'
+  /** Small stone — solid, but low enough to clear with a hop (see LOW_KINDS). */
+  | 'rock_s'
   | 'grass'
   | 'mushroom'
   | 'shell'
@@ -34,6 +37,7 @@ const SOLID: Record<DecorKind, boolean> = {
   bush: true,
   flower: false,
   rock: true,
+  rock_s: true,
   grass: false,
   mushroom: false,
   shell: false,
@@ -56,6 +60,7 @@ const TREE_DENSITY: Record<string, number> = {
   engine: 0.06,
   harbor: 0.02,
   point: 0.06,
+  campus: 0.03, // a mown lawn, not a wood
 }
 
 export function scatterDecor(grid: Grid, bp: Blueprint, rng: Rng): Decor[] {
@@ -163,8 +168,12 @@ export function scatterDecor(grid: Grid, bp: Blueprint, rng: Rng): Decor[] {
       const wx = px(x)
       const wy = px(y)
       if (roll < 0.012 && treeFits(wx, wy, 14)) out.push({ kind: 'bush', x: wx, y: wy, v: rng.int(0, 1), solid: true })
-      else if (roll < 0.012 + (r === 'heights' || r === 'ridge' ? 0.03 : 0.008) && treeFits(wx, wy, 12))
-        out.push({ kind: 'rock', x: wx, y: wy, v: rng.int(0, 1), solid: true })
+      else if (roll < 0.012 + (r === 'heights' || r === 'ridge' ? 0.03 : 0.008) && treeFits(wx, wy, 12)) {
+        // Two stones: the small one (rock_0) is low enough to hop, the mossy
+        // boulder (rock_1) is not — the kind is what the hop planner reads.
+        const big = rng.chance(0.4)
+        out.push({ kind: big ? 'rock' : 'rock_s', x: wx, y: wy, v: big ? 1 : 0, solid: true })
+      }
       else if (roll < 0.03 && r === 'woods') out.push({ kind: 'mushroom', x: wx, y: wy, v: rng.int(0, 1), solid: false })
       else if (roll < 0.033 && (r === 'woods' || r === 'fields') && treeFits(wx, wy, 14))
         out.push({ kind: rng.chance(0.5) ? 'stump' : 'log', x: wx, y: wy, v: 0, solid: true })

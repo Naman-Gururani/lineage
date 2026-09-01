@@ -148,7 +148,10 @@ function sync(): void {
     entry.root.classList.toggle('below', !top)
   })
   for (const child of Array.from(uiRoot().children)) {
-    if (child.classList.contains('modal')) continue
+    // Toasts are transient status, not background content: `inert` would pull
+    // the live region out of the accessibility tree, so a toast raised while a
+    // dialog is open (a mini-game reward, say) would never be announced.
+    if (child.classList.contains('modal') || child.classList.contains('toasts')) continue
     child.toggleAttribute('inert', open)
   }
   document.getElementById('game-root')?.toggleAttribute('inert', open)
@@ -174,10 +177,13 @@ export function openModal(opts: ModalOptions): void {
 
   const entry: Entry = { id: opts.id, root, panel, opts, prevFocus: document.activeElement, lastFocus: null }
   root.addEventListener('pointerdown', (e) => {
-    if (e.target === root && opts.closeOnBackdrop !== false) {
-      e.preventDefault()
-      closeModal(entry.id)
-    }
+    if (e.target !== root) return
+    // Always swallow the press: its default action moves focus to <body>, and a
+    // dialog that does not close on its backdrop would then be left with no
+    // focus at all — Esc and every other key would miss it.
+    e.preventDefault()
+    if (opts.closeOnBackdrop !== false) closeModal(entry.id)
+    else focusInto(entry)
   })
   root.addEventListener('focusin', (e) => {
     if (e.target instanceof HTMLElement && e.target !== panel) entry.lastFocus = e.target

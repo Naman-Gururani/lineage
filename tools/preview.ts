@@ -5,7 +5,7 @@ import { encodePNG } from './png'
 import { packSheet, rasterize, type SpriteDef } from '../src/art/pixel'
 import { blit, fillRect, makeRaster, type Raster } from '../src/art/raster'
 import { makeRng } from '../src/core/rng'
-import { TILE, WORLD_SEED } from '../src/config'
+import { TILE, WORLD_SEED, WORLD_TH, WORLD_TW } from '../src/config'
 import { BLUEPRINT, rasterizeBlueprint } from '../src/world/blueprint'
 import { bakeWorld, bakeMinimap } from '../src/world/bake'
 import { scatterDecor } from '../src/world/scatter'
@@ -54,7 +54,7 @@ async function sheet(name: string, k = 4) {
   save(name, scale(r, k))
 }
 
-function world(tx = 0, ty = 0, tw = 160, th = 120, k = 1, withDecor = true) {
+function world(tx = 0, ty = 0, tw = WORLD_TW, th = WORLD_TH, k = 1, withDecor = true) {
   const rng = makeRng(WORLD_SEED)
   const grid = rasterizeBlueprint(BLUEPRINT, rng)
   const full = bakeWorld(grid)
@@ -99,5 +99,5 @@ if (mode === 'sheet') void sheet(rest[0], Number(rest[1] ?? 4))
 else if (mode === 'world') {
   const n = rest.map(Number)
   if (n.length >= 4) world(n[0], n[1], n[2], n[3], n[4] ?? 1)
-  else world(0, 0, 160, 120, n[0] ?? 1)
+  else world(0, 0, WORLD_TW, WORLD_TH, n[0] ?? 1)
 } else console.log('usage: preview sheet <name> [scale] | world [tx ty tw th] [scale]')

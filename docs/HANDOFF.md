@@ -1,76 +1,89 @@
-# HANDOFF — Naman's World: Lineage Isle
+# HANDOFF — Naman's World: Lineage Isle (v2.5 "HD Isle")
 
 > **The living state document.** `/getcontext` reads this first in a new session; `/checkpoint` and `/handoff` keep it current. If this file and reality disagree, trust `git status` + the test suite, then fix this file.
 
 - **Branch:** `redesign/lineage-isle` (branched off `main`) — **all work uncommitted by design** (the user commits/deploys themselves; never commit or push unless asked).
-- **Dates:** rebuilt 2026-08-30 → 2026-08-31.
-- **Status:** ✅ Feature-complete and verified. Ready for the user to play, commit, and deploy.
-- **Docs:** spec `docs/superpowers/specs/2026-08-30-naman-world-2-design.md` · plan `docs/superpowers/plans/2026-08-30-naman-world-2.md` · `README.md` (rewritten, current).
+- **Dates:** v2 rebuilt 2026-08-30 → 08-31 · **v2.5 HD redesign 2026-09-01**.
+- **Status:** ✅ v2.5 feature-complete, reviewed (per-task + whole-branch), browser-verified, all gates green. Ready for the user's real-input feel pass, then commit & deploy.
+- **Docs:** v2.5 spec `docs/superpowers/specs/2026-09-01-naman-world-hd-redesign-design.md` · plan `docs/superpowers/plans/2026-09-01-naman-world-hd.md` · execution ledger (every ruling/fix/review) `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md` (gitignored — retained deliberately until the user commits; task-N-report.md files sit beside it) · v2 docs under `docs/superpowers/` remain for history.
 
 ## TL;DR
 
-The old "cozy island with popup panels" portfolio was rebuilt into a full pixel-art open-world game (~21k lines of TS across 114 files): title screen → boat-arrival cutscene → a designed 160×120-tile island with day/night lighting, weather, critters, 10 quest-giving NPCs, a fishing mini-game, a cat companion, collectibles/XP/achievements, walk-in interiors for all 7 landmarks, journal/map/minimap/pause/settings/Reader-Mode DOM panels, generated music+SFX, and autosave. All résumé content is delivered through mechanics (Naman is an NPC; the Tower elevator is the career timeline; the Engine has a live lineage console; lighting the Lighthouse is Contact). 220 vitest tests, tsc clean, prod build green.
+v2's game was redesigned into **v2.5 "HD Isle"**: all six sprite packs + terrain redrawn at **32px/tile** (Stardew-register HD pixel art, 33-ramp palette), the island re-laid at **96×72 tiles** (denser; 9 regions including the new **Campus Green**), movement raised to walk 4.5 / run 7 t/s with **always-run**, a functional **jump** (Space/B: hops low obstacles + one-way cliff ledges + the brook shortcut), a **welcome card** front page (identity + how-to-play over the live island), a **modern glass UI** (Inter + tokens, pixel type as accent), **host NPCs** that explain every interior with content.ts-sourced deep dives, **finger-post signs** with bearing-tested destinations, **education surfaced** (SRM Campus zone; CGPA corrected to **9.63** everywhere, derived not duplicated), **four mini-games** with unlocks and the **"🤝 Hire me — extra life"** lose-screen gag (real mailto), a **wardrobe** (7 hats), 21 achievements / 10 quests / 100% crown provably reachable, and a fishing pass (3 species incl. the Golden Koi). **719 tests / 47 files / 0 skips**, tsc clean, build green.
 
-## What exists (features)
+## What exists (v2.5 features)
 
-- **Flow:** loading bar (real generation steps) → title menu over the live drifting island (New Game / Continue / Reader Mode / Settings) → skippable arrival cutscene (boat, hop, Captain Mira tutorial dialogue) → free play.
-- **World:** deterministic from `WORLD_SEED` (src/config.ts). Regions with entry banners: Harbor, Sunny Meadow (plaza), Tower Heights (cliff plateau), Stone Ridge, Whispering Woods, Engine Works, Willow Fields, The Point (lighthouse islet + boardwalk). River "Stream" with flowing glow-motes and two bridges; roads carved by A*; ponds, coves, tall-grass patches.
-- **Living world:** 8-min day cycle (tint grading + darkness veil + additive lamp/door/window light pools + stars + lit-window overlays above the veil); weather roll each dawn (clear/breezy/rain with particles, puddles, extra dark); wind sways trees + tall grass, leaves in the woods; ocean 4-frame animation + shore foam + noon sparkles + cloud shadows; butterflies/gulls/crabs/fireflies/fish-jumps near the camera.
-- **NPCs & dialogue:** 10 outdoor/indoor villagers (wander/idle AI, face-on-talk, `!`/`?` quest bubbles) + Naman + Byte the cat companion (trail-follow, sits, pettable). 29 dialogue trees (`src/data/npcs.ts`) with conditions/effects; typewriter DOM dialogue box with portraits and choices; signposts with real directions.
-- **Progression:** quests (explore ×7, packets ×20, shells, fishing, gear, beacon) with journal + toasts; XP/levels; 15 achievements; hats (seashell/hardhat/crown, cat ears spare); coins from grass/chests; 100 % → crown + fireworks + fanfare. The Vault stays sealed until 20/20 packets (Reader Mode never gated).
-- **Interiors:** all 7 landmarks are enterable rooms (ASCII room defs → tiles/props/NPCs/solids). Specials: Cottage (Naman at his PC, bookshelf/bed/photo/fireplace), Tower lobby (Ada + **elevator panel**: floors = career, window views change per floor), Workshop (3 tool-wall pegboards with 14 hung tool icons from the skills groups), Engine (console → **live lineage canvas**), Vault (covered prototype), Safe Stride (map screen + SOS button), Lighthouse (lens → beacon cutscene → beam + fireworks + Contact).
-- **Mini-game:** fishing at the pier end (cast → bite window → hold-E reel bar) — verified catchable.
-- **UI:** pixel-RPG DOM layer — HUD (XP bar, packets, coins, clock, region), location banners, toast stack, modal manager (focus trap, stacking, Esc), full map with fast travel, minimap widget, journal (quests/achievements/stats), settings (volumes, text speed, shake, reduced motion, minimap, touch, reset), Reader Mode (full accessible page), pause menu, content "book" panels per zone.
-- **Audio (all synthesised):** 7 sequencer tracks (title/day/night/interior/tower/engine/fanfare) with crossfades; ambience beds (waves/birds/crickets/wind/rain, interior muffling); 36 SFX incl. per-surface footsteps. Wired via `src/systems/Soundtrack.ts`; unlocks on first gesture.
-- **Save:** autosave every ~10 s + on transitions → `localStorage nw2.save.v1`; settings `nw2.settings.v1`; Continue restores position/time/weather/progress.
-- **Mobile/a11y:** integer zoom 2/3/4; touch joystick + A/B + menu; keyboard-first panels; reduced-motion honoured everywhere; `aria-live` dialogue/toasts; noscript fallback.
+- **Flow:** loading (tokens brand) → **welcome card** over the live drifting island (portrait, "SDE · Barclays · India", pitch, how-to incl. `Run — automatic (Shift to stroll)` / `Jump — Space`, quick links GitHub/LinkedIn/Email/**Reader Mode**, Start/Continue with wipe-confirm) → skippable boat arrival + Mira tutorial → free play.
+- **World:** 96×72 deterministic island (`WORLD_SEED`), 9 regions: Harbor, Sunny Meadow, Tower Heights (ledge-ringed plateau), Stone Ridge, Whispering Woods, Engine Works, Willow Fields, The Point, **Campus Green**. River (2 bridges), **1-wide brook with NO bridge — hop it**, roads by A*, pond, coves. Living world systems (day/night, weather, wind, critters, cat companion) carried from v2 at HD.
+- **Movement:** always-run 7 t/s (Shift strolls), **hop** = Space/touch-B (arc 0.6 tile, grounded shadow, squash/stretch; clears fences/small rocks/bushes/crates/barrels/brook; refuses buildings/trees/water), **one-way ledge hop-downs** on cliff lips (walk into them), smooth lerp camera.
+- **Interiors (9 rooms):** 7 landmarks + **SRM Campus study hall** (Prof. Iyer, chalkboard = Study Hall game, noticeboard = education card) + **Harbor warehouse** (Dockmaster Bo, pallet = Cargo game; `minor` landmark: no discovery/map pin). Every room has a host with a first-visit auto-greet (walks over, skippable) + topics: *What is this place? / Tell me more (quotes content.ts) / What's nearby (bearing-true directions)*.
+- **Signs:** 8 finger-posts; interact opens a card of arrows+destinations+notes; every arm bearing-tested within ±45° of truth.
+- **Mini-games** (all with the lose/stuck gag: `[Try again] [🤝 Hire me — extra life] [Exit]`, "Excellent choice. HR will be in touch." + in-panel `email Naman` mailto):
+  | Game | Venue | Type | Unlock |
+  |---|---|---|---|
+  | Study Hall (Lights-Out ×5 boards) | Campus chalkboard | pure puzzle | 🎓 grad cap |
+  | Cargo Cove (sokoban ×6, solver-verified) | Warehouse pallet | pure puzzle | captain's cap + 40 coins |
+  | Packet Rush (route packets, win 30, endless after) | Engine console | work-themed arcade | goggles + 5 vault-packet credits |
+  | Tower Climb (3-floor platformer, coyote+buffer physics, career captions) | Tower stairs | work-themed platformer | hard hat + **Tower Express** fast travel |
+- **Progression:** 10 quests (explore ×8, packets 20, shells, fishing, gear, beacon + 4 game errands), 21 achievements (incl. per-game, Arcade Legend, One in a Million golden koi, full_house now truthfully lists all 13 talkables), XP/levels, **Wardrobe** in pause (7 hats, single-writer equip), 100% → crown + fireworks (reachable exactly at completion — verified).
+- **Fishing:** pier end; bite window 1.6s→0.9s ramp, tolerance ×1.15, species sardine/parrot/**golden** (deterministic per-catch-count schedule — golden arrives cast #4 by design so the crown never luck-gates; see Conventions #12), per-species journal stats, `?fish=gold` debug.
+- **Content:** résumé single-sourced in `src/data/content.ts` (CGPA **9.63**; education zone `SRM Institute of Science and Technology`, B.Tech CSE 2020–2024); dialogue derives figures via `fact()`/`cgpa()` helpers; drift-tests scan cards AND dialogue; the in-development product stays unnamed (test-pinned).
+- **UI:** token system (`--font-body` Inter, `.card` glass, `--accent`s incl. `--accent-bright`), HUD chip cluster w/ live avatar, dialogue card w/ portrait ring, map (8 discoverable pins + fast travel incl. flag-gated Tower Express), journal (quests/achievements/stats+fish), settings (+Always run), pause (+Wardrobe, +Credits), Reader Mode (+Education, order About→Experience→Education→Skills→Projects→Contact), toasts (cap 6).
+- **Save:** schema **v2** (`nw2.save.v2`): hats[], minigames{}, fish{}, welcomeSeen + v1 fields. v1 saves discarded with a friendly toast; `?fresh=1` clears BOTH keys.
+- **Audio/mobile/a11y:** v2 systems carried; touch gains **B = Hop**, Cargo has an on-screen d-pad; reduced-motion honored everywhere (incl. hop/typewriter/mini-games); AA contrast raised for dim text.
 
-## Architecture map
+## Architecture map (v2.5 deltas marked ★)
 
 ```
-src/config.ts                 TILE/world size/WORLD_SEED/pickZoom/speeds
-src/main.ts                   fonts → Phaser config (pixelArt, RESIZE, ?st=1 timer stepping, ?fresh=1 clears save) + initUI()
-src/core/    rng (seeded), noise, time (day model), events (typed bus + touchInput), keys (WINDOW-level key tracker — see gotchas), save (schema+migrate), hooks (UI late-binding)
-src/art/     palette → pixel.ts (ASCII/procedural SpriteDef → raster/sheet) → raster.ts (RGBA ops) → tiles.ts (terrain painters) → procedural.ts (foliage/glows) → sprites/{hero,env,npcs,props,buildings,interior}.ts → atlas.ts (ONE atlas + anims; register new packs here)
-src/world/   blueprint (the designed island + all spots), terrain (grid/masks/flood), paths (A* roads), collision (moveAndSlide), scatter (decor), bake (chunk rasters), rooms (interior parser), regions
-src/entities/ Player, Npc, Critters, Companion, Packet, Chest, Grass, Sign, Door, Lamp
-src/systems/ GameState (save+quests+xp+ach+dialogue ctx+effect handlers), Dialogue (runner), DialogueRegistry, Interact, DayNight, Weather, Wind, Water, CameraRig, Cutscene, Fishing, Soundtrack, Quests, Achievements, Xp
-src/scenes/  BootScene (staged generation, registers trees+interior scene) → WorldScene (title-attract + play modes) ⇄ InteriorScene
-src/audio/   engine (ctx/buses/compressor), sfx, music (sequencer), songs (note data), ambience
-src/data/    content (résumé — SINGLE SOURCE OF FACTS), npcs (dialogue trees), signs, quests, achievements, rooms
-src/ui/      index (init order), state (uiState the game fills), modal, panels (zone books), dialogue, hud, title, map (+minimap), journal, settings, reader, pause, elevator, toolwall, lineage, banner/toasts, prompt, touch, loading
-src/styles/  ui.css (game chrome) + panels.css (panel layer)
-tests/       220 tests: pure modules + sprite-pack validation + UI (happy-dom)
-tools/       preview.ts (`npm run preview:art -- sheet <pack> 3` or `world [tx ty tw th scale]` → scratch/*.png), png.ts
+src/config.ts                 ★ TILE=32, 96×72, CHUNK=1024, speeds 144/224, pickZoom 1/1.5/2
+src/main.ts                   ★ Inter fonts, ?fresh=1→clearSave(both keys), ?fish=gold, ?st=1
+src/core/    keys (leaf module — window-level tracker; NEVER import from ui/*: module-graph test enforces), save ★v2+hadV1Save, rng/noise/time/events(Phaser bus, baseline exception)/hooks
+src/art/     palette ★33 ramps ×6-7 · pixel/raster · tiles ★32px+brook · sprites/* ★all HD (hero incl. hop/fish/portrait_naman/7 hats; npcs 13 rigs+17 faces; env species floors; props incl. sign_finger/boards; buildings incl. bld_campus/bld_warehouse; interior incl. campus/warehouse sets) · atlas ★4096 · procedural ★slimmed to live painters
+src/world/   blueprint ★96×72 relayout (9 landmarks, minor flag, brook, ledges via setLedge) · terrain ★LOW_KINDS/LEDGE layer/T_BROOK · ★hop.ts (pure planHop) · paths/collision/scatter(★rock_s)/bake/rooms/regions
+src/scenes/  Boot · World ★(mode via transitions, hop/ledges, boot-safe zone guards, resetBuild) · Interior ★(hosts auto-greet, locked-door guard, settings handler) · ★transitions.ts (pure planRoomExit/acceptsRoomWake — the interior↔world/title race fix)
+src/games/   ★ lightsout · sokoban(+solve) · packetrush · climb — pure reducers, no Phaser, no timers
+src/systems/ GameState ★(hats single-writer equipHat/unlockHat, minigameWon/Played, credit contract: binary steps win-only, recoverHats, full_house 13) · ★Minigame.ts (host+gag+won?()+teardown funnel) · Fishing ★(view only) · Interact ★identity guard · rest as v2
+src/data/    content ★(9.63, education, location) · ★fish.ts (pure table/roll/summary) · npcs ★(hosts, topics, derived figures) · signs ★finger-post schema+SIGN_TARGETS · quests ★10 · achievements ★21 · rooms ★9
+src/ui/      ★welcome (front page; title.ts = thin delegate) · ★minigames/{studyhall,cargo,packetrush,climb} · index/state/modal(★inert exemption+backdrop focus)/panels(★sign card+armed guard)/hud(★avatar)/dialogue/map(★/8+travel)/journal(★fish row)/settings(★alwaysRun)/pause(★Wardrobe/Credits)/reader(★Education)/banner(★cap 6)/touch(★B hop)/loading
+src/styles/  ui.css ★tokens (+.card glass, --accent-bright) · panels.css ★tokenized + game styles
+tests/       719 across 47 files ★: per-pack sprites/* + helpers · hop · signs(bearings) · registry (landmarks↔ZONES↔ROOMS invariant — the "unbootable state" guard) · transitions · dialogue-data(figure drift) · content · lightsout/sokoban/packetrush/climb(+tests/helpers/climb-plan.ts route generator) · fishing · minigame(plays games end-to-end) · gamestate/quests · ui-welcome/ui-sign(real-ordering) · module-graph(★cycle/leaf/boundary guard, multi-line-aware)
+tools/       preview.ts ★defaults 96×72 (`npm run preview:art -- world` / `-- sheet <pack> 3`)
+.superpowers/sdd/2026-09-01-naman-world-hd/   execution ledger + all task reports/review packages (gitignored; KEEP until committed)
 ```
 
 ## Conventions & critical gotchas
 
-1. **Never commit/push** unless the user asks. Branch `redesign/lineage-isle`.
-2. **Content rules:** facts about Naman only from `src/data/content.ts`; skills = approved set only (no React/Node/JS); the in-development product stays unnamed.
-3. **Keyboard:** read keys via `src/core/keys.ts` (`keys.any/down/onDown`) — **not** Phaser's per-scene keyboard (it stalls after scene sleep/wake). Escape actions that OPEN a modal must be deferred `setTimeout(...,0)` past the modal layer's same-event Escape handling.
-4. **Art pipeline:** sprites are `SpriteDef`s (ASCII rows+legend or procedural `paint`) using ONLY `palette.ts` keys; new packs must be imported in `atlas.ts allDefs()` or they silently don't render (`hasFrame` guards everywhere). Preview any pack from Node before trusting it.
-5. **Browser testing:** dev server on :5173 (`/lineage/` base). Use `?st=1` (Playwright's occluded window throttles rAF to ~1fps; this forces setTimeout stepping) and `?fresh=1` (clears the save so the title's first button is New Game — otherwise Enter hits Continue). Synthetic `KeyboardEvent`s need `keyCode`. `window.__game` and `window.__events` are exposed for scripting.
-6. **Windows shell:** long heredocs/`node -e` with backticks get mangled — write patch scripts to `scratch/*.cjs` with the Write tool, then `node scratch/x.cjs`. Playwright's browser tab is shared — subagents must not navigate it.
-7. **Pure vs Phaser:** `core/`, `world/` (minus bake's callers), `systems/{Quests,Xp,Achievements,Dialogue}` never import Phaser → keep them unit-testable. UI ↔ scenes talk only via `core/events.ts` (+ `core/hooks.ts`, `ui/state.ts`).
-8. **TDD:** RED first for pure modules; sprites/scenes are verified by preview PNGs + Playwright screenshots (`scratch/shots/` has ~30 from this session).
+1. **Never commit/push** unless the user asks. Branch `redesign/lineage-isle`; ALL v2+v2.5 work is uncommitted.
+2. **Content rules:** facts about Naman only from `src/data/content.ts` (CGPA is **9.63**); dialogue derives figures via helpers, never literals; skills = approved set only (no React/Node/JS); the in-development product stays unnamed. Tests enforce all of this — keep them green.
+3. **Keyboard:** world input via `src/core/keys.ts` only (window-level). `core/keys` is a **leaf**: `ui/*` must never import it (`tests/module-graph.test.ts` enforces; the rule exists because a suspected cycle cost a debugging round). Escape-that-OPENS-a-modal must stay `setTimeout(0)`-deferred; panel own-key close listeners need the **armed-on-first-keyup guard** (see `openSign`) or an `e.repeat` return (map/journal) — same-press-close is a real bug class here.
+4. **Art pipeline:** 32px/tile; sprites are `SpriteDef`s using ONLY `palette.ts` keys; new packs must register in `atlas.ts allDefs()` or silently don't render; per-pack tests in `tests/sprites/<pack>.test.ts` pin dims/anchors/rename-guards; ALWAYS render `npm run preview:art -- sheet <pack> 3` (or `-- world`) and look before trusting art. Style rules live in `.superpowers/sdd/.../art-direction.md`.
+5. **Purity:** `core/`, `world/` (minus bake callers), `systems/{Quests,Xp,Achievements,Dialogue}`, `src/games/*`, `src/data/fish.ts` never import Phaser (exception: `core/events.ts` wraps Phaser's EventEmitter — v2 baseline). Mini-game logic = pure reducers; renderers are thin DOM/canvas (a second Phaser.Game is deliberately avoided — modal z-index + WebGL context cost).
+6. **Minigame framework:** rewards/recording happen ONLY in `MinigameHost.teardown()` (every dismissal funnels there); binary quest steps credit only from a WIN (`GameState.creditMinigameQuest` contract comment); hats: save stores bare ids, frames are `hat_<id>`, `equipHat` is the single `save.hat` writer.
+7. **Browser testing protocol** (hard-won this session):
+   - Dev server :5173, URL `http://localhost:5173/lineage/?st=1&fresh=1`. `?st=1` forces setTimeout stepping (occluded-tab rAF); note it DISTORTS real-time feel — difficulty judgments need a live tab.
+   - **Seed saves only while parked on the title screen** (`?fresh=1` load first): a running play session's ~10s autosave will clobber `localStorage` seeds written from the old page. Never trust a teleport (`player.x=`) to stick — walk or reload with a seeded position.
+   - Synthetic `KeyboardEvent`s (window-dispatched) reach `core/keys` consumers but NOT element-scoped listeners (pause menu, mini-game roots, panel guards) — use real CDP keys (`browser_press_key`) or `.click()` for those. Fixed-position elements have `offsetParent === null` — don't use it as a visibility probe for them.
+   - `window.__game` / `__events` are exposed; `ui:panel {id:'minigame', data:'<id>'}` opens cabinets directly.
+8. **Scene transitions:** interior→world goes through `scenes/transitions.ts` (`planRoomExit`/`acceptsRoomWake`); `game:title` during an interior stops the room with NO wake. Don't hand-roll wake payloads.
+9. **Windows shell:** long heredocs/`node -e` get mangled — write `scratch/*.cjs` with the Write tool and `node scratch/x.cjs`. Playwright's tab is shared — subagents must not navigate it.
+10. **Registry invariant:** every non-minor landmark needs a `ZONES` entry AND every landmark's `room` must exist in `ROOMS` (`tests/registry.test.ts`) — this is the guard that makes "added a landmark, game won't boot" impossible again.
+11. **TDD:** RED first for pure modules; art/scenes verified by preview PNGs + controller screenshots (`scratch/shots/` holds ~25 from v2.5).
+12. **Fish determinism (deliberate):** species-per-catch-count is a fixed schedule from `WORLD_SEED` (golden = cast #4) so 100% never luck-gates. To restore true 5% odds: salt `castSpecies`'s fork per save (one-liner; see comment in `tests/fishing.test.ts`). If you do, expect grindy 100% runs.
 
-## Verification gates (all green as of 2026-08-31)
+## Verification gates (all green, 2026-09-01)
 
 ```bash
-npm test          # 25 files / 220 tests
+npm test          # 47 files / 719 tests / 0 skips
 npx tsc --noEmit  # clean
-npm run build     # dist: app ~104 kB gzip + phaser chunk ~340 kB gzip
+npm run build     # app 477.6 kB (154.6 gzip) + css 89.1 kB (29.2 gzip) + phaser 1.48 MB (339.8 gzip)
 ```
-Playwright pass: boot no-errors → title → New Game → cutscene (skippable) → Mira dialogue → doors/interiors in+out → fishing caught → quests/turn-ins → cat follows → night/rain/lighting → panels (about/lineage/elevator/journal/map/settings/reader/pause) → mobile 390×844.
+Browser-verified (real session, screenshots in `scratch/shots/`): boot 0 errors → welcome card → arrival + Mira → movement 7 t/s → hop (numeric arc = 0.6 tile exactly) → ledges → finger-post card → campus + warehouse interiors round-trip → Prof. Iyer auto-greet + topic menu → Study Hall + gag both trigger paths + pinned mailto **hit-tested** → Cargo + d-pad → Packet Rush + lose gag → Tower Climb render → map (…/8) → journal → wardrobe/credits rows → Reader Education (9.63) → mobile 390×844 (night lighting) → pause. Fishing logic is unit-tested (15 tests); a live-tab catch is on the user's feel pass.
 
-## Change inventory (vs `main`, snapshot 2026-08-31)
+## Change inventory (vs `main`, snapshot 2026-09-01 end of v2.5)
 
-- **Deleted:** `src/game/*` (art/bus/input-state/sound — old engine), `src/ui/ui.ts` (old monolith UI).
-- **Modified:** `README.md`, `index.html`, `package.json` (+vitest/tsx/@types/node/@fontsource/pixelify-sans; scripts test/preview:art), `package-lock.json`, `tsconfig.json` (include tests/tools, node types), `vite.config.ts` (phaser manualChunk), `.gitignore` (+scratch/, .playwright-mcp/), `src/main.ts`, `src/scenes/{BootScene,WorldScene}.ts`, `src/styles/ui.css`.
-- **New (untracked):** `docs/`, `src/{art,audio,core,data(−content.ts),entities,systems,world}/`, `src/scenes/InteriorScene.ts`, `src/ui/` (17 modules), `src/styles/panels.css`, `src/config.ts`, `tests/` (25 files), `tools/`, `vitest.config.ts`, `.claude/commands/`.
-- **Unchanged on purpose:** `src/data/content.ts` (résumé content), `LICENSE`, `public/favicon.svg`.
-- The user's pre-redesign uncommitted diff is preserved at `<session scratchpad>/pre-redesign-uncommitted.patch` (intent — perf, reduced-motion, focus traps — was carried into the redesign).
+- **Tracked modified (17 files):** `.gitignore` (+`.superpowers/`), `README.md`, `index.html`, `package.json`/`package-lock.json` (+Inter as dep, −Fredoka; vitest/tsx/etc. from v2), `src/main.ts`, `src/config.ts`→(untracked in v2, now core), `src/scenes/{BootScene,WorldScene}.ts`, `src/styles/ui.css`, `src/data/content.ts`, `tsconfig.json`, `vite.config.ts` + v2's deletions of old `src/game/*`, `src/ui/ui.ts`.
+- **Untracked new:** everything listed in the architecture map (`src/{art,audio,core,data,entities,systems,world,games}/`, `src/ui/`, `src/scenes/InteriorScene.ts`+`transitions.ts`, `src/styles/panels.css`, `tests/`, `tools/`, `docs/`, `.claude/`).
+- **41 paths** in `git status --short`. **Nothing committed this session.** No work exists outside the repo tree except: session screenshots/`scratch/` (gitignored, disposable) and the SDD ledger under `.superpowers/` (gitignored — **the process record; keep until the user commits, then delete freely**).
 
 ## How to run / resume
 
@@ -80,19 +93,33 @@ npm run dev                     # http://localhost:5173/lineage/
 npm test && npx tsc --noEmit    # gates
 npm run build                   # → dist ; deploy = publish /dist to gh-pages
 ```
-Debug: `?fresh=1` new save · `?st=1` timer stepping · `npm run preview:art -- sheet npcs 3` renders sprite packs to `scratch/`.
+- Debug URLs: `?fresh=1` wipe save (both keys) · `?st=1` timer stepping (testing only — distorts feel) · `?fish=gold` force golden koi.
+- Art previews: `npm run preview:art -- sheet hero 3` · `npm run preview:art -- world` → `scratch/*.png`.
+- New session: run `/getcontext` (reads this file, verifies against reality). The full v2.5 decision trail (every ruling, review, fix round) is `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md`.
 
-## Backlog (nice-to-haves, none blocking)
+## Backlog (ordered; each item actionable cold)
 
-- Listen-through of music/SFX on real speakers and tune levels (composed + unit-tested, only briefly auditioned via analyser).
-- Fishing difficulty tuning on real input; maybe a second fish type.
-- Rain drops could still read stronger at night; possible thunder flash (respect reduced motion).
-- Credits screen content (pause → Credits is wired to a stub panel).
-- Windmill blades placement fine-tune; vertical fence spacing polish (one pass done).
-- Perf profile on a real GPU/60 Hz (architecture: baked chunks + culling + sleep — expected fine; Playwright environment can't measure honestly).
-- Deploy + OG screenshot image for social embeds.
+1. **Real-input feel pass (user, live tab — cannot be judged under `?st=1`):** play all four mini-games + fishing + hop/movement on real hardware. Named dials: Packet Rush `prSpawnInterval`/ramp constants (`src/games/packetrush.ts` top), Climb `CLIMB` constants + stage hoist cycle 3.5s (`src/games/climb.ts`; stage-1's high checkpoint respawns onto a moving hoist ~75% of its cycle — nudge `platforms[0].speed` or move the flag if it frustrates), fishing bite/reel constants (`src/data/fish.ts`). T13 report §9 lists all dials.
+2. **Music/SFX listen-through on speakers** (v2 backlog, still open): tune bus levels in `src/audio/engine.ts`; audition mini-game win/lose stingers.
+3. **Real-phone touch pass:** joystick + A/B + Cargo d-pad on an actual device (desktop resize hides them correctly via `touch:auto`); verify hop button feel.
+4. **Deploy + OG image:** build → gh-pages; capture a hero screenshot (welcome card over the island) for `og:image` in `index.html`.
+5. **Fish determinism decision (optional):** keep the guaranteed-crown schedule (current, recommended) or add a per-save salt to `castSpecies` for true 5% odds (`src/data/fish.ts:81`, note in `tests/fishing.test.ts`).
+6. **Credits content:** pause → Credits opens a stub panel (`src/ui/panels.ts` `openCredits`) — write real copy when wanted.
+7. **Night-rain readability / thunder flash** (v2 backlog, untouched): weather layer in `src/systems/Weather.ts`; respect reduced-motion.
+8. **Perf profile on a real GPU** (architecture: baked 1024px chunks + culling — expected fine; Playwright can't measure honestly).
+9. **`npm audit`: 2 pre-existing high advisories** in dev tooling deps (predate v2.5; not shipped code) — review when convenient.
+10. **Housekeeping after commit:** delete `.superpowers/` + `scratch/` at will; `src/ui/title.ts` is a deliberate 4-line delegate (contract-tested), not dead code; `export type Tones` in `procedural.ts` is unreferenced (one-line delete if it bothers you).
 
 ## Checkpoint log
 
 ### 2026-08-31 — Session 1 (full rebuild) — CHECKPOINT #1
 Rebuilt the entire game per spec/plan (see docs/superpowers/): foundation (rng/time/pixel/terrain/blueprint/paths/collision/scatter, TDD), art pipeline + all six sprite packs, Phaser scenes (Boot/World/Interior), living-world systems, dialogue/quests/achievements/XP/save, fishing, cutscenes, DOM panel layer, generated audio, soundtrack wiring. Seven parallel subagents delivered buildings/props/npcs/interior art, audio, UI panels, dialogue scripts (one rate-limit restart, one stall-resume; all completed green). Bugs found & fixed via Playwright playtesting: chunk-cull bounds, Phaser keyboard stall after sleep/wake (→ core/keys.ts), Escape same-event modal race (→ deferred open), interact prompt during lock, sealed-door bypass, travel-from-interior position clobber, cliff-ring diagonal gaps, render-texture lighting (→ veil + additive pools), night overlays under the veil, missing atlas registrations. Final: 220 tests, tsc clean, build green, ~30 verification screenshots in scratch/shots/. Nothing committed.
+
+### 2026-09-01 — Session 2 (v2.5 "HD Isle" redesign) — CHECKPOINT #2
+**What was done:** the full v2.5 redesign per the 2026-09-01 spec/plan — executed as 14 subagent-driven tasks (Opus implementers, per-task spec+quality reviews, fix rounds, controller visual/browser gates on everything) + 2 systematic-debug chains + a whole-branch final review + one consolidated fix wave. Highlights: 32px HD art (palette 33 ramps; 6 packs redrawn in parallel; controller-reviewed sheets), 96×72 island relayout (campus + warehouse + brook + 15 ledge lips), hop/ledge system (pure `planHop`), welcome card, UI token pass, host dialogue + finger-posts, education/CGPA 9.63 (derived in dialogue), 4 mini-games + gag + wardrobe + 21 achievements/10 quests, fishing pass, save v2.
+**Key decisions (full trail with costs in the SDD ledger):** engine direction tokens kept over plan's n/e/s/w; faces 24→32px; player recolored to a coral "visitor" distinct from Naman; ravi not duplicated outdoors; packets 20-requirement kept with Rush granting 5 alternates; voice-only greetings for rooms whose hosts live outdoors; binary quest steps credit only on wins; fish schedule deterministic (crown never luck-gates); full_house roster now includes professor+dockmaster; SDD workspace retained (uncommitted branch ⇒ ledger is the record).
+**Bugs found & fixed beyond plan scope:** NPCs idled half of every walk cycle (v2 latent), Byte's portrait never existed (v2 latent), scene.restart() state accumulation, interior-exit→title race + WAKE-listener leak (new pure `transitions.ts`), sign-card same-press close race (armed-guard pattern + `module-graph` boundary tests), `?fresh=1` only clearing the v1 key, goldfish achievement having no trigger (v2.5 latent — 100% was silently impossible), duplicate meeting XP, climb quest quit-exploit (defused pre-release).
+**Two controller false alarms honestly withdrawn** (campus door "unreachable"; a "movement freeze" that was probe-vs-cutscene timing) — both documented in the ledger; each still yielded stronger tests.
+**Gates now:** 47 files / 719 tests / 0 skips · tsc clean · build: app 154.6 kB gzip, css 29.2 kB gzip, phaser 339.8 kB gzip.
+**Uncommitted:** 41 paths (17 tracked modified + new dirs per Change inventory). **Nothing was committed or pushed.** Backups: none needed outside git's working tree — the only non-repo artifacts are gitignored (`scratch/`, `.playwright-mcp/`, `.superpowers/` ledger — retain the ledger until commit).
+**Nothing is half-finished.** Next session: user feel-pass items in the Backlog, top 3 first.

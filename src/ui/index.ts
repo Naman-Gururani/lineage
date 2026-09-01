@@ -1,5 +1,6 @@
-// DOM overlay: loading, title, HUD, prompt, banner, touch controls — and the
-// panel layer (modals, dialogue box, map, journal, settings, reader, rooms).
+// DOM overlay: loading, the welcome card, HUD, prompt, banner, touch controls
+// — and the panel layer (modals, dialogue box, map, journal, settings, reader,
+// rooms).
 import { events } from '../core/events'
 import { hooks } from '../core/hooks'
 import { initBanner } from './banner'
@@ -9,27 +10,36 @@ import { initHud } from './hud'
 import { initJournal } from './journal'
 import { initLineage } from './lineage'
 import { initLoading } from './loading'
+import { initMinigames } from '../systems/Minigame'
 import { initMap, initMinimap } from './map'
+import { initCargo } from './minigames/cargo'
+import { initClimb } from './minigames/climb'
+import { initPacketRush } from './minigames/packetrush'
+import { initStudyHall } from './minigames/studyhall'
 import { initPanels } from './panels'
 import { initPause } from './pause'
 import { initPrompt } from './prompt'
 import { initReader } from './reader'
 import { initSettings } from './settings'
-import { initTitle } from './title'
 import { initToolwall } from './toolwall'
 import { initTouch } from './touch'
+import { initWelcome } from './welcome'
 
 export function initUI(): void {
   const root = document.getElementById('ui')!
   initLoading(root)
-  initTitle(root)
+  initWelcome(root)
   initHud(root)
   initPrompt(root)
   initBanner(root)
   initTouch(root)
 
-  // panel layer — initialised before Phaser boots so its window key handlers
-  // run ahead of the game's (Esc/E that close a panel never reach the scene)
+  // Panel layer. The order below buys no key priority: `core/keys` installs its
+  // window listener at *import* time, which is before this function ever runs,
+  // so the game's handler is always first on the window whatever we do here.
+  // What actually keeps a panel's Esc/E off the world is the scenes' own guard —
+  // every scene key handler bails while `document.body` carries `modal-open` —
+  // plus the `stopImmediatePropagation` the panels themselves call.
   initPanels()
   initDialogue()
   initSettings()
@@ -41,6 +51,11 @@ export function initUI(): void {
   initElevator()
   initToolwall()
   initLineage()
+  initMinigames()
+  initStudyHall()
+  initCargo()
+  initPacketRush()
+  initClimb()
   hooks.openDialogue = (runner) => openDialogue(runner)
 
   // Esc from the world (no modal open) is handled by scenes; keep a global fallback

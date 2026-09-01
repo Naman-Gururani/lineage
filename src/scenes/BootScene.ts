@@ -12,8 +12,7 @@ import { scatterDecor, type Decor } from '../world/scatter'
 import type { Grid } from '../world/terrain'
 import { InteriorScene } from './InteriorScene'
 import { NPC_INFO, NPC_TREES } from '../data/npcs'
-import { SIGNS } from '../data/signs'
-import { linesTree, registerTrees } from '../systems/DialogueRegistry'
+import { registerTrees } from '../systems/DialogueRegistry'
 
 export type WorldData = {
   grid: Grid
@@ -28,7 +27,6 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     registerTrees(NPC_TREES, NPC_INFO)
-    for (const [id, lines] of Object.entries(SIGNS)) registerTrees({ [`sign_${id}`]: linesTree(`sign_${id}`, 'Signpost', lines) })
     if (!this.scene.get('interior')) this.scene.add('interior', InteriorScene, false)
     let grid: Grid | null = null
     let decor: Decor[] = []

@@ -50,7 +50,7 @@ function ensure(): HTMLElement {
   root = el('section', 'dlg hidden')
   root.setAttribute('aria-label', 'Dialogue')
   root.innerHTML = `
-    <div class="dlg-box">
+    <div class="dlg-box card">
       <div class="dlg-portrait" aria-hidden="true"></div>
       <div class="dlg-main">
         <div class="dlg-name"><b class="dlg-who"></b><span class="dlg-emote" aria-hidden="true" hidden></span></div>

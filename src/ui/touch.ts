@@ -6,7 +6,7 @@ export function initTouch(root: HTMLElement): void {
   wrap.innerHTML = `
     <div class="joy"><div class="joy-base"><div class="joy-thumb"></div></div></div>
     <div class="tbuttons">
-      <button class="tb tb-b" aria-label="Run">B</button>
+      <button class="tb tb-b" aria-label="Hop">B</button>
       <button class="tb tb-a" aria-label="Interact">A</button>
     </div>
     <button class="tb tb-menu" aria-label="Menu">≡</button>`
@@ -64,14 +64,11 @@ export function initTouch(root: HTMLElement): void {
   a.addEventListener('pointerup', aOff)
   a.addEventListener('pointercancel', aOff)
   a.addEventListener('pointerleave', aOff)
+  // B hops. Running is the default pace now, so it needs no button of its own.
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault()
-    touchInput.run = true
+    events.emit('world:action', { action: 'jump' })
   })
-  const runOff = () => (touchInput.run = false)
-  b.addEventListener('pointerup', runOff)
-  b.addEventListener('pointercancel', runOff)
-  b.addEventListener('pointerleave', runOff)
   m.addEventListener('click', () => events.emit('world:action', { action: 'menu' }))
 
   const wantTouch = () => window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0

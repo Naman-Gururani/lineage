@@ -45,6 +45,10 @@ export function openSettings(): void {
     <fieldset><legend>Text</legend>
       ${seg('textSpeed', 'Text speed', [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']], s.textSpeed)}
     </fieldset>
+    <fieldset><legend>Movement</legend>
+      ${toggle('alwaysRun', 'Always run', s.alwaysRun)}
+      <p class="row-note">On, Shift asks for a careful walk. Off, Shift is the run.</p>
+    </fieldset>
     <fieldset><legend>Display</legend>
       ${toggle('shake', 'Screen shake', s.shake)}
       ${toggle('reducedMotion', 'Reduced motion', s.reducedMotion)}
@@ -73,6 +77,7 @@ export function openSettings(): void {
       reducedMotion: f.get('reducedMotion') != null,
       minimap: f.get('minimap') != null,
       touch: (f.get('touch') as Settings['touch']) ?? 'auto',
+      alwaysRun: f.get('alwaysRun') != null,
     }
     uiState.settings = ns
     applyToGame(ns)

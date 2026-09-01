@@ -1,19 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import { ACHIEVEMENTS } from '../src/data/achievements'
-import { NPC_INFO, NPC_TREES } from '../src/data/npcs'
+import { ZONES } from '../src/data/content'
+import { NEARBY, NPC_INFO, NPC_TREES, ROOM_HOSTS, greetFlag } from '../src/data/npcs'
 import { QUESTS } from '../src/data/quests'
-import { SIGNS } from '../src/data/signs'
+import { ROOMS } from '../src/data/rooms'
+import { SIGN_TARGETS, type SignDir } from '../src/data/signs'
 import { DialogueRunner, type Cond, type Ctx, type Effect, type Tree } from '../src/systems/Dialogue'
 import { QuestLog } from '../src/systems/Quests'
+import { BLUEPRINT } from '../src/world/blueprint'
 
-const MAX_LINE = 110
+// One dialogue box. The longest authored line is Naman's doorway greeting
+// (125 chars); `.dlg-text` has no fixed height, so it wraps inside a taller box.
+const MAX_LINE = 125
 const MAX_LINES_PER_NODE = 4
+// A bottom-anchored dialogue box grows upward, so a long choice list walks off
+// the top of a short viewport. Seven 44px rows is the authored ceiling.
+const MAX_CHOICES = 7
 const MAX_ADVANCES = 200
-const MAX_SIGN_LINE = 60
 
-const CAST = ['mira', 'tomas', 'pip', 'lou', 'ada', 'ravi', 'sol', 'devi', 'arjun', 'ilse', 'naman', 'cat']
-const OBJECTS = ['bookshelf', 'bed', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'lens', 'vault_door', 'telescope', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell']
-const SIGN_IDS = ['harbor', 'plaza_e', 'plaza_w', 'woods', 'bridge_a', 'bridge_b', 'ridge', 'point']
+const CAST = ['mira', 'tomas', 'pip', 'lou', 'ada', 'ravi', 'sol', 'devi', 'arjun', 'ilse', 'naman', 'cat', 'professor', 'dockmaster']
+const OBJECTS = ['bookshelf', 'bed', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'lens', 'vault_door', 'vault_keeper', 'telescope', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell']
+
+/** Host trees greet on room entry: `intro` is entered by the scene, not by `entry`. */
+const HOST_TREES = Object.entries(ROOM_HOSTS)
+const introOf = (treeId: string): string | undefined => (Object.values(ROOM_HOSTS).includes(treeId) ? 'intro' : undefined)
+
+/**
+ * Villagers who also stand out on the island. They can be met without opening a
+ * door, so their room greeting must not pay the meeting reward a second time —
+ * the gear errand sends you to Sol on the Engine road long before the Engine.
+ */
+const OUTDOORS = new Set(Object.keys(BLUEPRINT.npcSpots))
 
 const trees = Object.entries(NPC_TREES)
 const questIds = new Set(QUESTS.map((q) => q.id))
@@ -153,10 +170,12 @@ describe('NPC_TREES structure', () => {
     }
   })
 
-  it('every node is reachable from an entry or an edge', () => {
+  it('every node is reachable from an entry, an auto-greet or an edge', () => {
     for (const [id, tree] of trees) {
       const reachable = new Set<string>()
       const stack = tree.entry.map((e) => e.node)
+      const intro = introOf(id)
+      if (intro) stack.push(intro)
       while (stack.length) {
         const n = stack.pop()!
         if (reachable.has(n)) continue
@@ -180,6 +199,7 @@ describe('NPC_TREES structure', () => {
           expect(line.text.length, `"${id}/${nodeId}" too long: ${line.text}`).toBeLessThanOrEqual(MAX_LINE)
           expect(line.text, `"${id}/${nodeId}" contains a newline`).not.toMatch(/\n/)
         }
+        expect(node.choices?.length ?? 0, `"${id}/${nodeId}" offers too many choices`).toBeLessThanOrEqual(MAX_CHOICES)
         for (const c of node.choices ?? []) {
           expect(c.text.trim().length, `"${id}/${nodeId}" empty choice`).toBeGreaterThan(0)
           expect(c.text.length, `"${id}/${nodeId}" choice too long`).toBeLessThanOrEqual(40)
@@ -252,9 +272,10 @@ describe('NPC_TREES termination', () => {
     }
   })
 
-  it('runs from every entry (choosing the first option) and ends or returns to a choice already seen', () => {
+  it('runs from every entry and auto-greet (choosing the first option) and ends or returns to a choice already seen', () => {
     for (const [id, tree] of trees) {
-      for (const e of tree.entry) {
+      const starts = [...tree.entry.map((e) => ({ node: e.node })), ...(introOf(id) ? [{ node: 'intro' }] : [])]
+      for (const e of starts) {
         const r = new DialogueRunner(startingAt(tree, e.node), permissive())
         const seenChoices = new Set<string>()
         for (let guard = 0; ; guard++) {
@@ -297,19 +318,59 @@ describe('NPC_TREES termination', () => {
 })
 
 describe('NPC_TREES first meetings and rewards', () => {
-  it('each cast member’s first entry is guarded and sets met_<id> with some XP', () => {
+  it('each cast member’s first meeting is guarded and sets met_<id> with some XP', () => {
     for (const id of CAST) {
       const tree = NPC_TREES[id]
-      const guard = tree.entry[0].when?.notFlag
-      expect(guard, `"${id}" first entry should be guarded by notFlag`).toBeTruthy()
-      const effects = tree.nodes[tree.entry[0].node].effects ?? []
+      // A host who lives only indoors meets you in their doorway: the auto-greet
+      // `intro`, guarded by the room's greet flag. Anyone you can also meet out
+      // on the island — Sol, Arjun, Ilse and the villagers — meets you at entry[0].
+      const room = OUTDOORS.has(id) ? undefined : Object.keys(ROOM_HOSTS).find((r) => ROOM_HOSTS[r] === id)
+      const guard = room ? greetFlag(room) : tree.entry[0].when?.notFlag
+      const node = room ? tree.nodes.intro : tree.nodes[tree.entry[0].node]
+      expect(guard, `"${id}" first meeting should be guarded by notFlag`).toBeTruthy()
+      expect(node, `"${id}" has no first-meeting node`).toBeDefined()
+      const effects = node.effects ?? []
       expect(effects.some((e) => e.setFlag === guard), `"${id}" first node must set ${guard}`).toBe(true)
       expect(effects.some((e) => e.setFlag === `met_${id}`), `"${id}" first node must set met_${id}`).toBe(true)
       expect(effects.some((e) => (e.xp ?? 0) > 0), `"${id}" first node must grant XP`).toBe(true)
     }
   })
 
-  it('XP-granting nodes are entry-only and guarded by a flag they set (no XP farming)', () => {
+  it('pays each villager’s meeting reward once — a room greeting never pays it again', () => {
+    for (const id of CAST) {
+      const intro = NPC_TREES[id].nodes.intro
+      if (!intro || !OUTDOORS.has(id)) continue
+      // `met_<id>` and the greet flag are independent guards: neither implies
+      // the other, so meeting outdoors and then walking in would pay twice.
+      const fx = intro.effects ?? []
+      expect(fx.some((e) => e.setFlag === `met_${id}`), `"${id}/intro" re-awards met_${id} — its outdoor hello already does`).toBe(false)
+      expect(fx.some((e) => (e.xp ?? 0) > 0), `"${id}/intro" re-awards XP — its outdoor hello already does`).toBe(false)
+    }
+  })
+
+  it('never lets two meeting rewards fire in one playthrough', () => {
+    for (const id of CAST) {
+      const tree = NPC_TREES[id]
+      const payers = Object.keys(tree.nodes).filter((n) => (tree.nodes[n].effects ?? []).some((e) => e.setFlag === `met_${id}`))
+      if (payers.length < 2) continue
+      // Only an indoor-only host may carry two. InteriorScene runs `intro`
+      // before the player can move, so the greeting always fires first…
+      expect(payers, `"${id}" has two meeting rewards and no auto-greet to order them`).toContain('intro')
+      expect(OUTDOORS.has(id), `"${id}" can be met outdoors, so both rewards could fire`).toBe(false)
+      // …and every other payer is an entry guarded by a flag that greeting sets,
+      // which makes it unreachable from then on.
+      const introFlags = new Set((tree.nodes.intro.effects ?? []).map((e) => e.setFlag).filter(Boolean) as string[])
+      for (const nodeId of payers) {
+        if (nodeId === 'intro') continue
+        const entries = tree.entry.filter((e) => e.node === nodeId)
+        expect(entries.length, `"${id}/${nodeId}" awards met_${id} but is not an entry`).toBeGreaterThan(0)
+        for (const e of entries)
+          expect(introFlags.has(e.when?.notFlag ?? ''), `"${id}/${nodeId}" is not blocked by anything "${id}/intro" sets`).toBe(true)
+      }
+    }
+  })
+
+  it('XP-granting nodes are entered once and guarded by a flag they set (no XP farming)', () => {
     for (const [id, tree] of trees) {
       const targets = new Set<string>()
       for (const node of Object.values(tree.nodes)) {
@@ -319,6 +380,13 @@ describe('NPC_TREES first meetings and rewards', () => {
       for (const [nodeId, node] of Object.entries(tree.nodes)) {
         if (!node.effects?.some((e) => e.xp)) continue
         expect(targets.has(nodeId), `"${id}/${nodeId}" grants XP but is reachable from an edge`).toBe(false)
+        // Either a guarded tree entry, or the auto-greet the scene runs once per
+        // room — both are gated by a flag the node itself sets.
+        if (nodeId === introOf(id)) {
+          const room = Object.keys(ROOM_HOSTS).find((r) => ROOM_HOSTS[r] === id)!
+          expect(node.effects.some((x) => x.setFlag === greetFlag(room)), `"${id}/intro" must set ${greetFlag(room)}`).toBe(true)
+          continue
+        }
         const entries = tree.entry.filter((e) => e.node === nodeId)
         expect(entries.length, `"${id}/${nodeId}" grants XP but is not an entry`).toBeGreaterThan(0)
         for (const e of entries) {
@@ -340,6 +408,232 @@ describe('NPC_TREES first meetings and rewards', () => {
         for (const g of guards) expect(g?.notFlag, `"${id}/${nodeId}" give path must be guarded by notFlag ${flag}`).toBe(flag)
       }
     }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* Hosts: the villager (or voice) that greets you inside a landmark.    */
+
+/** Everything every villager and object can say, as one string. */
+const allDialogueText = trees.flatMap(([, t]) => allLines(t).map(({ line }) => line.text)).join('\n')
+
+/** A fact as the zone card states it — the only place a figure is authored. */
+const cardFact = (zoneId: string, k: string): string => ZONES.find((z) => z.id === zoneId)!.content.facts!.find((f) => f.k === k)!.v
+
+describe('room hosts', () => {
+  it('gives every interior a host whose tree exists', () => {
+    expect(Object.keys(ROOM_HOSTS).sort()).toEqual(Object.keys(ROOMS).sort())
+    for (const [room, host] of HOST_TREES) {
+      expect(NPC_TREES[host], `room "${room}" host "${host}" has no tree`).toBeDefined()
+      expect(NPC_TREES[host].id).toBe(host)
+    }
+    expect(new Set(Object.values(ROOM_HOSTS)).size, 'one host per room').toBe(HOST_TREES.length)
+  })
+
+  it('names greet flags after the room', () => {
+    for (const room of Object.keys(ROOMS)) expect(greetFlag(room)).toBe(`greet_${room}`)
+  })
+
+  it('gives every host an `intro` that sets its room’s greet flag', () => {
+    for (const [room, host] of HOST_TREES) {
+      const intro = NPC_TREES[host].nodes.intro
+      expect(intro, `host "${host}" has no intro node`).toBeDefined()
+      expect(intro.effects?.some((e) => e.setFlag === greetFlag(room)), `"${host}/intro" must set ${greetFlag(room)}`).toBe(true)
+      expect(intro.lines.length, `"${host}/intro" greeting is over budget`).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('keeps `intro` for the auto-greet alone — never an entry or an edge', () => {
+    for (const [, host] of HOST_TREES) {
+      const tree = NPC_TREES[host]
+      expect(tree.entry.some((e) => e.node === 'intro'), `"${host}" lists intro as an entry`).toBe(false)
+      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+        expect(node.next, `"${host}/${nodeId}" leads into intro`).not.toBe('intro')
+        for (const c of node.choices ?? []) expect(c.next, `"${host}/${nodeId}" chooses into intro`).not.toBe('intro')
+      }
+    }
+  })
+
+  it('gives every host the three place topics, reachable and terminating', () => {
+    for (const [, host] of HOST_TREES) {
+      const tree = NPC_TREES[host]
+      for (const topic of ['about_place', 'more', 'nearby']) {
+        const node = tree.nodes[topic]
+        expect(node, `"${host}" has no "${topic}" node`).toBeDefined()
+        expect(node.lines.length, `"${host}/${topic}" is empty`).toBeGreaterThanOrEqual(1)
+        expect(node.lines.length, `"${host}/${topic}" is over budget`).toBeLessThanOrEqual(4)
+        // reachable by choice from somewhere in the tree
+        const chosen = Object.values(tree.nodes).some((n) => (n.choices ?? []).some((c) => c.next === topic))
+        expect(chosen, `"${host}/${topic}" is not offered as a choice`).toBe(true)
+      }
+      expect(tree.nodes.about_place.lines.length, `"${host}/about_place" should be 1–2 boxes`).toBeLessThanOrEqual(2)
+    }
+  })
+
+  it('lets the outdoor villagers point the way too', () => {
+    for (const id of ['mira', 'tomas', 'pip', 'lou', 'devi']) {
+      const tree = NPC_TREES[id]
+      expect(tree.nodes.nearby, `"${id}" has no nearby node`).toBeDefined()
+      expect(Object.values(tree.nodes).some((n) => (n.choices ?? []).some((c) => c.next === 'nearby')), `"${id}" never offers directions`).toBe(true)
+    }
+  })
+
+  it('runs each greeting the way InteriorScene does: flag set, XP once, lands on a hub', () => {
+    for (const [room, host] of HOST_TREES) {
+      const w = makeWorld()
+      // exactly what the scene builds on a first room entry
+      const greeting: Tree = { ...NPC_TREES[host], entry: [{ node: 'intro' }] }
+      const r = new DialogueRunner(greeting, ctxFor(w))
+      const seen: string[] = []
+      for (let i = 0; i < MAX_ADVANCES; i++) {
+        seen.push(r.line.text)
+        const res = r.advance()
+        if (res === 'end') break
+        if (res === 'choice') break // the host's hub — the player takes it from here
+      }
+      expect(w.flags.has(greetFlag(room)), `"${host}" greeting never set ${greetFlag(room)}`).toBe(true)
+      expect(seen.length, `"${host}" greeting says nothing`).toBeGreaterThan(0)
+      // A host you can only meet indoors is met by the greeting, and paid for
+      // it. One you can also meet outdoors is paid out there instead.
+      if (OUTDOORS.has(host)) expect(w.xp, `"${host}" is paid twice — once outdoors, once for the room`).toBe(0)
+      else expect(w.xp, `"${host}" greeting granted no XP`).toBeGreaterThan(0)
+
+      // a second visit is impossible: the flag now routes the tree elsewhere
+      const again = new DialogueRunner(NPC_TREES[host], ctxFor(w))
+      expect(again.nodeId, `"${host}" still enters at intro`).not.toBe('intro')
+    }
+  })
+
+  it('resolves every interpolated content reference — no undefined text', () => {
+    for (const [id, tree] of trees)
+      for (const { nodeId, line } of allLines(tree)) {
+        expect(line.text, `"${id}/${nodeId}" has an unresolved reference`).not.toMatch(/undefined|NaN|\[object|\{\{/)
+        expect(line.who, `"${id}/${nodeId}" has an unresolved speaker`).not.toMatch(/undefined/)
+      }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* Directions. The same 8-way bearing maths as tests/signs.test.ts: a   */
+/* host and a finger post must not disagree about where a place is.     */
+
+const DIRS: SignDir[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+
+/** Compass bearing in degrees clockwise from North (screen y grows southward). */
+function bearing(fx: number, fy: number, tx: number, ty: number): number {
+  return ((Math.atan2(tx - fx, -(ty - fy)) * 180) / Math.PI + 360) % 360
+}
+
+/** Smallest angle between an 8-way sector centre and an actual bearing. */
+function offBy(dir: SignDir, deg: number): number {
+  const d = Math.abs(deg - DIRS.indexOf(dir) * 45) % 360
+  return d > 180 ? 360 - d : d
+}
+
+/** Where a `NEARBY.from` anchor stands, in tiles. */
+function anchor(from: string): { tx: number; ty: number } {
+  if (from.startsWith('npc:')) {
+    const spot = BLUEPRINT.npcSpots[from.slice(4)]
+    expect(spot, `unknown npc anchor "${from}"`).toBeDefined()
+    return { tx: spot.x, ty: spot.y }
+  }
+  const lm = BLUEPRINT.landmarks.find((l) => l.id === from.slice(3))
+  expect(lm, `unknown landmark anchor "${from}"`).toBeDefined()
+  return { tx: lm!.door.x, ty: lm!.door.y }
+}
+
+describe('host directions', () => {
+  it('measures 8-way sectors clockwise from North', () => {
+    expect(bearing(10, 10, 10, 0)).toBe(0)
+    expect(bearing(10, 10, 20, 10)).toBe(90)
+    expect(bearing(10, 10, 10, 20)).toBe(180)
+    expect(bearing(10, 10, 20, 0)).toBe(45)
+    expect(offBy('N', 350)).toBe(10)
+    expect(offBy('NW', 350)).toBe(35)
+  })
+
+  it('covers every host and every outdoor villager, twice over', () => {
+    const want = [...Object.values(ROOM_HOSTS), 'mira', 'tomas', 'pip', 'lou', 'devi']
+    expect(Object.keys(NEARBY).sort()).toEqual([...new Set(want)].sort())
+    for (const [id, def] of Object.entries(NEARBY)) {
+      expect(def.arms.length, `"${id}" should name two places`).toBe(2)
+      expect(def.from, `"${id}" anchor`).toMatch(/^(npc|lm):[a-z_]+$/)
+      for (const a of def.arms) {
+        expect(DIRS, `"${id}" dir ${a.dir}`).toContain(a.dir)
+        expect(SIGN_TARGETS[a.target], `"${id}" unknown target "${a.target}"`).toBeDefined()
+        expect(a.place.trim().length, `"${id}" empty place name`).toBeGreaterThan(0)
+      }
+      expect(new Set(def.arms.map((a) => a.target)).size, `"${id}" names the same place twice`).toBe(2)
+    }
+  })
+
+  it('points every arm within ±45° of the as-built place — the finger posts agree', () => {
+    for (const [id, def] of Object.entries(NEARBY)) {
+      const from = anchor(def.from)
+      for (const a of def.arms) {
+        const t = SIGN_TARGETS[a.target]
+        const deg = bearing(from.tx, from.ty, t.tx, t.ty)
+        expect(offBy(a.dir, deg), `"${id}" says ${a.place} is ${a.dir}, but it bears ${deg.toFixed(1)}°`).toBeLessThanOrEqual(45)
+      }
+    }
+  })
+
+  it('speaks every direction it stores — the words and the data cannot drift apart', () => {
+    const WORD: Record<SignDir, string> = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' }
+    for (const [id, def] of Object.entries(NEARBY)) {
+      const said = NPC_TREES[id].nodes.nearby.lines.map((l) => l.text).join(' ').toLowerCase()
+      for (const a of def.arms) {
+        expect(said, `"${id}/nearby" never names ${a.place}`).toContain(a.place.toLowerCase())
+        expect(said, `"${id}/nearby" never says ${WORD[a.dir]}`).toContain(WORD[a.dir])
+      }
+    }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* Content drift. Facts live in content.ts; dialogue may only quote     */
+/* them. Numbers cannot be import-compared inside prose, so every       */
+/* figure a villager says must also appear on a zone card.              */
+
+const contentText = [
+  ...Object.values(ZONES).flatMap((z) => [
+    z.name,
+    z.label,
+    z.content.kicker ?? '',
+    z.content.title,
+    z.content.sub ?? '',
+    ...(z.content.body ?? []),
+    ...(z.content.points ?? []),
+    ...(z.content.chips ?? []),
+    ...(z.content.facts ?? []).map((f) => `${f.k} ${f.v}`),
+    ...(z.content.groups ?? []).flatMap((g) => [g.label, ...g.items]),
+    ...(z.content.links ?? []).map((l) => `${l.label} ${l.value}`),
+  ]),
+].join('\n')
+
+describe('facts come from content.ts', () => {
+  it('never says 9.57 — the CGPA is 9.63', () => {
+    expect(allDialogueText).not.toContain('9.57')
+    expect(allDialogueText).toContain('9.63')
+    expect(contentText).toContain('9.63')
+  })
+
+  it('says every figure the zone cards say, and invents none', () => {
+    // decimals (9.63, 2.0) and any run of three or more digits (750, 2024)
+    const figures = (s: string) => new Set(s.match(/\b\d+\.\d+\b|\b\d{3,}\b/g) ?? [])
+    const inContent = figures(contentText)
+    for (const f of figures(allDialogueText)) expect(inContent.has(f), `dialogue says "${f}", no zone card does`).toBe(true)
+  })
+
+  it('carries the headline numbers on both sides', () => {
+    for (const figure of ['9.63', '750', '2020', '2024', '2023']) {
+      expect(contentText, `content.ts lost "${figure}"`).toContain(figure)
+      expect(allDialogueText, `no villager quotes "${figure}"`).toContain(figure)
+    }
+  })
+
+  it('leaves the in-development product unnamed', () => {
+    expect(NPC_TREES.vault_keeper.nodes.about_place.lines.map((l) => l.text).join(' ')).toContain('A consumer product, in development')
   })
 })
 
@@ -393,7 +687,7 @@ describe('Pip — Shell Seeker', () => {
     expect(w.items.get('shell')).toBe(1)
     expect(w.quests.isDone('shells')).toBe(true)
 
-    const thanks = play('pip', w)
+    const thanks = play('pip', w, ['Bye, Pip'])
     expect(thanks.join(' ')).toMatch(/hat/i)
     expect(w.xp).toBe(5)
   })
@@ -427,7 +721,7 @@ describe('Old Tomas — Gone Fishing', () => {
     expect(w.items.get('fish')).toBe(0)
     expect(w.quests.isDone('fishing')).toBe(true)
 
-    const done = play('tomas', w).join(' ')
+    const done = play('tomas', w, ['Just sitting']).join(' ')
     expect(done).toMatch(/Byte/)
   })
 })
@@ -459,7 +753,7 @@ describe('Ravi and Sol — Spare Parts', () => {
     expect(w.items.get('gear')).toBe(0)
     expect(w.quests.isDone('gear')).toBe(true)
 
-    const done = play('ravi', w).join(' ')
+    const done = play('ravi', w, ['Back to the bench']).join(' ')
     expect(done).toMatch(/spec/i)
   })
 
@@ -475,7 +769,7 @@ describe('Ravi and Sol — Spare Parts', () => {
   it('Ravi reminds you where to look while the gear is missing', () => {
     const w = makeWorld({ flags: ['met_ravi'] })
     w.quests.start('gear')
-    expect(play('ravi', w).join(' ')).toMatch(/Sol/)
+    expect(play('ravi', w, ['Back to the bench']).join(' ')).toMatch(/Sol/)
     expect(w.applied.some((e) => e.take)).toBe(false)
   })
 
@@ -504,7 +798,7 @@ describe('Keeper Ilse and the lens — Light the Beacon', () => {
     expect(lit.join(' ')).toMatch(/hum/i)
     expect(w.applied.length).toBe(n)
 
-    const proud = play('ilse', w).join(' ')
+    const proud = play('ilse', w, ['Mind the stairs']).join(' ')
     expect(proud).toMatch(/Keeper/)
   })
 
@@ -539,8 +833,8 @@ describe('Naman at his desk', () => {
     expect(text).toMatch(/Barclays/)
     expect(text).toMatch(/August 2024/)
     expect(text).toMatch(/SRM IST/)
-    expect(text).toMatch(/2020 to 2024/)
-    expect(text).toMatch(/9\.57/)
+    expect(text).toContain(cardFact('education', 'Years'))
+    expect(text).toContain(cardFact('about', 'CGPA').split('/')[0].trim())
     expect(text).toMatch(/Kafka/)
     expect(text).toMatch(/IBM MQ/)
     expect(text).toMatch(/750 million/)
@@ -573,10 +867,11 @@ describe('Cottage objects', () => {
     expect(no.applied.some((e) => e.sleep)).toBe(false)
   })
 
-  it('the bookshelf tells the education facts', () => {
+  it('the bookshelf tells the education facts, straight off the zone card', () => {
     const text = play('bookshelf', makeWorld()).join(' ')
     expect(text).toMatch(/SRM IST/)
-    expect(text).toMatch(/9\.57/)
+    expect(text).toContain(cardFact('about', 'CGPA'))
+    expect(text).toContain(cardFact('education', 'Years'))
   })
 
   it('the mailbox has no mail', () => {
@@ -619,18 +914,5 @@ describe('Island objects', () => {
   })
 })
 
-describe('SIGNS', () => {
-  it('has exactly the eight signposts with 1–3 short lines each', () => {
-    expect(Object.keys(SIGNS).sort()).toEqual([...SIGN_IDS].sort())
-    for (const id of SIGN_IDS) {
-      const lines = SIGNS[id]
-      expect(lines.length, `sign "${id}"`).toBeGreaterThanOrEqual(1)
-      expect(lines.length, `sign "${id}"`).toBeLessThanOrEqual(3)
-      for (const l of lines) {
-        expect(l.trim().length, `sign "${id}" empty line`).toBeGreaterThan(0)
-        expect(l.length, `sign "${id}" too long: ${l}`).toBeLessThanOrEqual(MAX_SIGN_LINE)
-      }
-      expect(lines.some((l) => /^[←→↑↓]/.test(l)), `sign "${id}" needs a direction`).toBe(true)
-    }
-  })
-})
+// Finger posts are no longer dialogue: their arms, headings and bearings are
+// checked against the as-built island in tests/signs.test.ts.

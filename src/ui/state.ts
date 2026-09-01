@@ -2,6 +2,7 @@
 // (journal, map, dialogue…) only ever read it.
 import { loadSettings, type Settings } from '../core/save'
 import type { Achievements } from '../systems/Achievements'
+import type { WardrobeView } from '../systems/GameState'
 import type { QuestLog } from '../systems/Quests'
 import type { Xp } from '../systems/Xp'
 import { BLUEPRINT } from '../world/blueprint'
@@ -10,6 +11,8 @@ export type UiStats = {
   steps: number
   playSeconds: number
   fishCaught: number
+  /** species id → how many of it have been landed */
+  fish: Record<string, number>
   bonks: number
   grassCut: number
   packets: number
@@ -30,6 +33,10 @@ export type UiState = {
   /** data URL for a portrait frame name like 'face_mira' ('' if missing) */
   faces: (face: string) => string
   visitedRegions: string[]
+  /** hats owned / worn, and the one way to change what is worn */
+  wardrobe: WardrobeView
+  /** the save's own flag bag — read by panels that unlock (fast travel) */
+  flags: Record<string, number>
 }
 
 export const uiState: UiState = {
@@ -40,6 +47,7 @@ export const uiState: UiState = {
     steps: 0,
     playSeconds: 0,
     fishCaught: 0,
+    fish: {},
     bonks: 0,
     grassCut: 0,
     packets: 0,
@@ -51,6 +59,9 @@ export const uiState: UiState = {
   player: { x: 0, y: 0 },
   faces: () => '',
   visitedRegions: [],
+  // Replaced by the live view the moment there is a save (see `WorldScene`).
+  wardrobe: { hats: [], equipped: '', equip: () => false },
+  flags: {},
 }
 
 /** True when motion should be minimised: the OS preference or the in-game toggle. */

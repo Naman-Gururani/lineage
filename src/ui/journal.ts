@@ -2,7 +2,9 @@
 import { sfx } from '../audio/sfx'
 import { ACHIEVEMENTS } from '../data/achievements'
 import { ZONES } from '../data/content'
+import { NPC_INFO } from '../data/npcs'
 import type { QuestDef } from '../data/quests'
+import { fishSummary } from '../data/fish'
 import { BLUEPRINT } from '../world/blueprint'
 import { closeModal, el, esc, openModal } from './modal'
 import { panelHead, registerPanel, wireClose } from './panels'
@@ -17,6 +19,9 @@ const TABS: [Tab, string][] = [
 let lastTab: Tab = 'quests'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** Quest givers are villager ids; the card wants the name on their door. */
+const giverName = (id: string) => NPC_INFO[id]?.name ?? cap(id)
 
 export function fmtTime(sec: number): string {
   const s = Math.max(0, Math.floor(sec))
@@ -40,7 +45,7 @@ function questCard(d: QuestDef, done: boolean): string {
     })
     .join('')
   return `<article class="quest${done ? ' done' : ''}">
-    <header><h4>${esc(d.title)}</h4>${d.giver ? `<span class="quest-giver">from ${esc(cap(d.giver))}</span>` : ''}</header>
+    <header><h4>${esc(d.title)}</h4>${d.giver ? `<span class="quest-giver">from ${esc(giverName(d.giver))}</span>` : ''}</header>
     <p>${esc(d.desc)}</p>
     <ul class="quest-steps">${steps}</ul>
     <footer class="quest-reward">Reward · ${d.reward.xp} XP — ${esc(d.reward.text)}</footer>
@@ -80,6 +85,7 @@ function statsHTML(): string {
     ['Steps', st.steps.toLocaleString('en-US')],
     ['Time played', fmtTime(st.playSeconds)],
     ['Fish caught', String(st.fishCaught)],
+    ['Species landed', fishSummary(st.fish ?? {})],
     ['Sign bonks', String(st.bonks)],
     ['Grass cut', String(st.grassCut)],
     ['Packets', `${st.packets} / ${st.packetsTotal}`],
@@ -121,6 +127,7 @@ export function openJournal(tab: Tab = lastTab): void {
   })
   box.addEventListener('keydown', (e) => {
     if (e.key === 'j' || e.key === 'J') {
+      if (e.repeat) return // auto-repeat of the press that opened the journal
       closeModal('journal')
       e.preventDefault()
       return

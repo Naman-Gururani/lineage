@@ -7,9 +7,9 @@ import { uiState } from '../ui/state'
 import { TILE, WORLD_H, WORLD_SEED, WORLD_W } from '../config'
 import { events, touchInput } from '../core/events'
 import { hooks } from '../core/hooks'
-import { keys } from '../core/keys'
+import { isBound, keys } from '../core/keys'
 import { makeRng, type Rng } from '../core/rng'
-import { loadSave, loadSettings, type Save, type Settings } from '../core/save'
+import { hadV1Save, loadSave, loadSettings, type Save, type Settings } from '../core/save'
 import { Chest } from '../entities/Chest'
 import { Companion } from '../entities/Companion'
 import { Critters } from '../entities/Critters'
@@ -20,6 +20,8 @@ import { Npc, type NpcDef } from '../entities/Npc'
 import { Packet } from '../entities/Packet'
 import { Player } from '../entities/Player'
 import { Sign } from '../entities/Sign'
+import { FISH_NAMES, landFish } from '../data/fish'
+import { signById } from '../data/signs'
 import { CameraRig } from '../systems/CameraRig'
 import { Cutscene } from '../systems/Cutscene'
 import { Fishing } from '../systems/Fishing'
@@ -28,18 +30,35 @@ import { DialogueRunner, type Tree } from '../systems/Dialogue'
 import { getTree, linesTree, npcInfo } from '../systems/DialogueRegistry'
 import { GameState } from '../systems/GameState'
 import { InteractSystem, type Interactable } from '../systems/Interact'
+import { minigames } from '../systems/Minigame'
 import { Water } from '../systems/Water'
 import { Weather } from '../systems/Weather'
 import { Wind } from '../systems/Wind'
 import { BLUEPRINT, type Landmark } from '../world/blueprint'
 import type { Blocked, Solid } from '../world/collision'
+import { HOP_TIME, LEDGE_ARC, LEDGE_TILES, boxBlocked, planHop } from '../world/hop'
 import { regionAt } from '../world/regions'
 import type { Decor } from '../world/scatter'
-import { T, isWalkable, isWater, type Grid } from '../world/terrain'
+import { HOPPABLE_TERRAIN, LOW_KINDS, T, isWalkable, isWater, ledgeAt, type Grid, type LedgeDir } from '../world/terrain'
 import type { WorldData } from './BootScene'
 import { ZONES } from '../data/content'
+import { ROOMS } from '../data/rooms'
+import type { Dir } from '../entities/Player'
+import { acceptsRoomWake, type Mode } from './transitions'
 
-type Mode = 'title' | 'play'
+/** Unit step and ledge code per facing, so a walk into a lip reads as a drop. */
+const FACING: Record<Dir, { sx: number; sy: number; ledge: LedgeDir }> = {
+  up: { sx: 0, sy: -1, ledge: 'n' },
+  right: { sx: 1, sy: 0, ledge: 'e' },
+  down: { sx: 0, sy: 1, ledge: 's' },
+  left: { sx: -1, sy: 0, ledge: 'w' },
+}
+
+/** Doors onto rooms that have not been built yet say so instead of crashing. */
+const COMING_SOON = 'Opening soon.'
+
+/** Buildings with no zone entry still need a name over their door. */
+const PLAIN_NAMES: Record<string, string> = { warehouse: 'The Warehouse' }
 
 /** Play a sound by name if the audio module provides it (some land later). */
 const play = (name: string, fallback?: string) => {
@@ -54,6 +73,8 @@ const DECOR_FRAME: Record<string, (v: number) => string> = {
   palm: (v) => `palm_${v % 2}`,
   bush: (v) => `bush_${v % 2}`,
   rock: (v) => `rock_${v % 2}`,
+  // the small stone always draws as rock_0 — rock_1 is the mossy boulder
+  rock_s: () => 'rock_0',
   flower: (v) => `flower_${v % 4}`,
   mushroom: (v) => `mushroom_${v % 2}`,
   shell: (v) => `shell_${v % 2}`,
@@ -73,6 +94,7 @@ const SOLID_BOX: Record<string, { w: number; h: number }> = {
   palm: { w: 8, h: 6 },
   bush: { w: 14, h: 8 },
   rock: { w: 14, h: 8 },
+  rock_s: { w: 11, h: 6 },
   fence: { w: 16, h: 6 },
   lamp: { w: 6, h: 5 },
   bench: { w: 22, h: 8 },
@@ -97,7 +119,10 @@ export class WorldScene extends Phaser.Scene {
   mode: Mode = 'title'
   grid!: Grid
   decor: Decor[] = []
+  /** Everything you cannot walk through. */
   solids: Solid[] = []
+  /** The subset a hop cannot clear — fences, small stones and crates are absent. */
+  hardSolids: Solid[] = []
   player!: Player
   rig!: CameraRig
   state!: GameState
@@ -134,6 +159,8 @@ export class WorldScene extends Phaser.Scene {
   private stepAcc = 0
   private runAcc = 0
   private reduced = false
+  /** Directional input was held this frame — a hop reads it rather than actual travel. */
+  private wantsMove = false
   private inCutscene = false
   private beam: Phaser.GameObjects.Image | null = null
   private dust!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -145,6 +172,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(data: { mode?: Mode; save?: Save | null }) {
+    this.resetBuild()
     this.mode = data.mode ?? 'title'
     this.settings = loadSettings()
     this.reduced = this.settings.reducedMotion
@@ -172,7 +200,8 @@ export class WorldScene extends Phaser.Scene {
 
     const onKey = (e: KeyboardEvent) => {
       if (!this.scene.isActive() || document.body.classList.contains('modal-open')) return
-      if (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter') this.onAction()
+      if (isBound(e, 'jump')) this.onJump()
+      else if (e.code === 'KeyE' || e.code === 'Enter') this.onAction()
       else if (e.code === 'Escape') setTimeout(() => this.onMenu(), 0) // defer past the modal layer's same-event Escape handling
       else if (e.code === 'KeyM') this.onPanel('map')
       else if (e.code === 'KeyJ') this.onPanel('journal')
@@ -184,20 +213,61 @@ export class WorldScene extends Phaser.Scene {
     this.unsub.push(events.on('game:continue', () => this.startPlay(loadSave(), false)))
     this.unsub.push(events.on('game:title', () => this.backToTitle()))
     this.unsub.push(events.on('world:travel', ({ id }) => this.travelTo(id)))
-    this.unsub.push(events.on('world:action', ({ action }) => (action === 'interact' ? this.onAction() : action === 'menu' ? this.onMenu() : this.onPanel(action))))
+    this.unsub.push(
+      events.on('world:action', ({ action }) =>
+        action === 'interact' ? this.onAction() : action === 'jump' ? this.onJump() : action === 'menu' ? this.onMenu() : this.onPanel(action),
+      ),
+    )
     this.unsub.push(events.on('settings:changed', () => this.applySettings()))
     this.unsub.push(events.on('game:reader', () => this.state?.ach.unlock('well_read')))
+    // Phaser leaves scene-level listeners in place across `restart()`, so this
+    // one has to be taken off by hand — otherwise every title → play cycle adds
+    // another and a single return from a room runs `onWake` once per past run.
+    const onWakeEvent = (_s: unknown, d?: { x: number; y: number; cutscene?: string }) => this.onWake(d)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       for (const u of this.unsub) u()
       this.unsub = []
+      this.events.off(Phaser.Scenes.Events.WAKE, onWakeEvent)
     })
-    this.events.on(Phaser.Scenes.Events.WAKE, (_s: unknown, d?: { x: number; y: number }) => this.onWake(d))
+    this.events.on(Phaser.Scenes.Events.WAKE, onWakeEvent)
 
     if (this.mode === 'title') this.enterTitle()
     else this.startPlay(data.save ?? null, false)
   }
 
   /* ---------------- construction ---------------- */
+
+  /**
+   * Phaser reuses the scene instance across `restart()` (title → play → title),
+   * so every list the build pushes into has to start empty or the second pass
+   * doubles the island and keeps hold of destroyed sprites.
+   */
+  private resetBuild() {
+    this.solids = []
+    this.hardSolids = []
+    this.cullables = []
+    this.tintables = []
+    this.packets = []
+    this.grasses = []
+    this.signs = []
+    this.chests = []
+    this.npcs = []
+    this.flowerSpots = []
+    this.woodsSpots = []
+    this.landmarkImgs.clear()
+    this.interact = new InteractSystem()
+    this.companion = null
+    this.beam = null
+    this.regionId = ''
+    this.inCutscene = false
+    this.locked = false
+    // The hero and the run go with the old scene: keeping them would let a
+    // later ui:lock (opening Settings from the title, say) call freeze() on a
+    // destroyed Player, whose anims Phaser has already nulled. `backToTitle`
+    // persists the save before restarting, so nothing is lost here.
+    this.player = undefined!
+    this.state = undefined!
+  }
 
   private buildOcean() {
     const cam = this.cameras.main
@@ -238,9 +308,15 @@ export class WorldScene extends Phaser.Scene {
       if (d.kind === 'shell' && d.v === 1) this.makeShellPickup(img, d)
       if (d.solid) {
         const b = SOLID_BOX[d.kind] ?? { w: 10, h: 6 }
-        this.solids.push({ x: d.x - b.w / 2, y: d.y - b.h + 1, w: b.w, h: b.h })
+        this.addSolid({ x: d.x - b.w / 2, y: d.y - b.h + 1, w: b.w, h: b.h }, LOW_KINDS.has(d.kind))
       }
     }
+  }
+
+  /** Register a solid. Low ones block walking but a hop sails over them. */
+  private addSolid(s: Solid, low = false) {
+    this.solids.push(s)
+    if (!low) this.hardSolids.push(s)
   }
 
   private makeShellPickup(img: Phaser.GameObjects.Image, d: Decor) {
@@ -280,21 +356,28 @@ export class WorldScene extends Phaser.Scene {
           this.dayNight.onWarmth((w) => night!.setAlpha(w))
         }
       } else this.placeholderBuilding(lm, bx, by)
-      this.solids.push({ x: lm.tx * TILE, y: lm.ty * TILE, w: lm.w * TILE, h: lm.h * TILE })
+      this.addSolid({ x: lm.tx * TILE, y: lm.ty * TILE, w: lm.w * TILE, h: lm.h * TILE })
       const dx = lm.door.x * TILE + 8
       const dy = lm.door.y * TILE + 8
-      const zone = ZONES.find((z) => z.id === lm.id)!
+      // Minor buildings and buildings whose zone has not landed yet still render
+      // and collide; they just have no zone content behind the door.
+      const zone = ZONES.find((z) => z.id === lm.id) ?? null
+      const name = zone?.name ?? PLAIN_NAMES[lm.id] ?? lm.id
       this.dayNight.addLight({ x: dx, y: dy - 10, r: 34, color: 0xffc070 })
       const door = makeDoor(
         dx,
         dy,
-        zone.name,
-        () => lm.id !== 'stealth' || !this.state || this.state.save.packets.length >= 20,
+        name,
+        () => this.doorOpen(lm),
         () => this.enterLandmark(lm),
-        () => `Sealed — ${this.state?.save.packets.length ?? 0}/20 packets`,
+        () => (this.roomReady(lm) ? `Sealed — ${this.state?.save.packets.length ?? 0}/20 packets` : COMING_SOON),
         () => {
           play('bonk', 'bump')
           this.rig.shake(0.002, 100)
+          if (!this.roomReady(lm)) {
+            events.emit('ui:toast', { kind: 'info', icon: '🚧', title: COMING_SOON, sub: `${name} has not opened yet.` })
+            return
+          }
           const tree = getTree('vault_door')
           if (tree) void this.runDialogue(tree)
         },
@@ -302,6 +385,16 @@ export class WorldScene extends Phaser.Scene {
       this.interact.add(door)
       this.landmarkImgs.set(lm.id, { img, night, door })
     }
+  }
+
+  /** A door only opens onto content the game actually has behind it. */
+  private roomReady(lm: Landmark): boolean {
+    return this.scene.get('interior') ? !!ROOMS[lm.room] : ZONES.some((z) => z.id === lm.id)
+  }
+
+  private doorOpen(lm: Landmark): boolean {
+    if (!this.roomReady(lm)) return false
+    return lm.id !== 'stealth' || !this.state || this.state.save.packets.length >= 20
   }
 
   private placeholderBuilding(lm: Landmark, bx: number, by: number) {
@@ -330,7 +423,8 @@ export class WorldScene extends Phaser.Scene {
       } else if (p.kind === 'windmill' && hasFrame(this, 'windmill')) {
         img = this.add.image(x, y, ATLAS, 'windmill').setDepth(y)
         if (hasFrame(this, 'windmill_blades_0')) {
-          const b = this.add.sprite(x, y - 60, ATLAS, 'windmill_blades_0').setDepth(y + 1)
+          // the HD windmill's hub sits 118px above its base
+          const b = this.add.sprite(x, y - 118, ATLAS, 'windmill_blades_0').setDepth(y + 1)
           if (this.anims.exists('windmill_blades')) b.play('windmill_blades')
           this.tintables.push(b)
         }
@@ -339,9 +433,10 @@ export class WorldScene extends Phaser.Scene {
         this.cullables.push({ obj: img, x0: img.x - img.width, y0: img.y - img.height, x1: img.x + img.width, y1: img.y + 8 })
         this.tintables.push(img)
       }
-      if (p.solid) this.solids.push({ x: p.solid.x * TILE, y: p.solid.y * TILE, w: p.solid.w * TILE, h: p.solid.h * TILE })
-      if (p.kind === 'signpost') {
-        const s = new Sign(this, img ?? this.add.image(x, y, ATLAS, 'signpost').setDepth(y), p.id ?? 'sign', () => this.readSign(p.id ?? 'sign'))
+      if (p.solid) this.addSolid({ x: p.solid.x * TILE, y: p.solid.y * TILE, w: p.solid.w * TILE, h: p.solid.h * TILE }, LOW_KINDS.has(p.kind))
+      const signDef = p.kind === 'sign_finger' ? signById(p.id ?? '') : undefined
+      if (signDef) {
+        const s = new Sign(this, img ?? this.add.image(x, y, ATLAS, 'sign_finger').setDepth(y), signDef, (id) => this.readSign(id))
         this.signs.push(s)
         this.interact.add(s.interactable)
       } else if (p.kind === 'telescope' || p.kind === 'well' || p.kind === 'stall' || p.kind === 'boat' || p.kind === 'mailbox' || p.kind === 'bell' || p.kind === 'fountain') {
@@ -358,7 +453,7 @@ export class WorldScene extends Phaser.Scene {
       const ch = new Chest(this, `c${i}`, c.x * TILE + 8, c.y * TILE + 14, false, (chest) => this.openChest(chest))
       this.chests.push(ch)
       this.interact.add(ch.interactable)
-      this.solids.push({ x: ch.x - 7, y: ch.y - 6, w: 14, h: 6 })
+      this.addSolid({ x: ch.x - 7, y: ch.y - 6, w: 14, h: 6 })
       this.tintables.push(ch.sprite)
     })
     // fishing spot
@@ -413,13 +508,15 @@ export class WorldScene extends Phaser.Scene {
   /* ---------------- modes ---------------- */
 
   private enterTitle() {
+    // A loop around the island, well inside the 96×72 map so the camera never
+    // parks against a bound: harbor → fields → woods → ridge → heights → engine.
     const pts = [
-      { x: 80 * TILE, y: 66 * TILE },
-      { x: 80 * TILE, y: 100 * TILE },
-      { x: 140 * TILE, y: 100 * TILE },
-      { x: 120 * TILE, y: 34 * TILE },
-      { x: 40 * TILE, y: 34 * TILE },
-      { x: 34 * TILE, y: 88 * TILE },
+      { x: 48 * TILE, y: 54 * TILE },
+      { x: 68 * TILE, y: 47 * TILE },
+      { x: 76 * TILE, y: 24 * TILE },
+      { x: 50 * TILE, y: 16 * TILE },
+      { x: 24 * TILE, y: 20 * TILE },
+      { x: 22 * TILE, y: 50 * TILE },
     ]
     this.stopDrift = this.rig.drift(pts, 12000)
     soundtrack.title()
@@ -435,9 +532,16 @@ export class WorldScene extends Phaser.Scene {
     this.rig.release()
     this.state = new GameState(save)
     this.registry.set('state', this.state)
+    // The mini-game host lives in the DOM layer and has no registry to read:
+    // hand it the save the moment there is one, so its rewards land.
+    minigames.state = this.state
     uiState.quests = this.state.quests
     uiState.achievements = this.state.ach
     uiState.xp = this.state.xp
+    // Live views, not copies: the wardrobe panel and the map's fast-travel list
+    // read whatever the save says at the moment they open.
+    uiState.wardrobe = this.state.wardrobeView()
+    uiState.flags = this.state.save.flags
     uiState.faces = (f) => frameDataURL(f, 3)
     const minimapSrc = this.textures.exists('minimap') ? (this.textures.get('minimap').getSourceImage() as HTMLCanvasElement) : null
     if (minimapSrc && minimapSrc.toDataURL) uiState.minimapURL = minimapSrc.toDataURL()
@@ -477,6 +581,8 @@ export class WorldScene extends Phaser.Scene {
     const sx = save && save.scene !== 'title' && save.x > 0 ? save.x : BLUEPRINT.spawn.x * TILE + TILE / 2
     const sy = save && save.scene !== 'title' && save.y > 0 ? save.y : BLUEPRINT.spawn.y * TILE + TILE / 2
     this.player = new Player(this, sx, sy)
+    this.player.alwaysRun = this.settings.alwaysRun
+    this.player.reducedMotion = this.reduced
     this.player.setHat(this.state.save.hat || null)
     this.player.onStep = (surface) => {
       const fn = (sfx as unknown as Record<string, (() => void) | undefined>)[`step_${surface}`] ?? sfx.step
@@ -498,12 +604,26 @@ export class WorldScene extends Phaser.Scene {
     hooks.faces = (f) => frameDataURL(f, 3)
     this.emitState()
     this.refreshSoundtrack()
+    this.greetReturningPlayer()
     if (fresh) void this.runCutscene('arrival')
     else this.state.ach.unlock('first_steps')
   }
 
+  /** Islands from before the reshape are gone; say so once rather than silently. */
+  private greetReturningPlayer() {
+    if (WorldScene.greeted || this.state.save.welcomeSeen || !hadV1Save()) return
+    WorldScene.greeted = true
+    events.emit('ui:toast', { kind: 'info', icon: '🏝️', title: 'The island got a big upgrade — fresh start!' })
+  }
+
+  private static greeted = false
+
   private backToTitle() {
     if (this.state && this.player) this.state.persist(this.player.feet, 'world', this.dayNight.time, this.weather.state)
+    // The mini-game host is the one system that holds the save outside the
+    // registry; hand it back before `startPlay` builds a new one, or a game
+    // finished on the next save would pay into the file we just left.
+    minigames.detach()
     this.scene.restart({ mode: 'title' })
   }
 
@@ -511,6 +631,10 @@ export class WorldScene extends Phaser.Scene {
     this.settings = loadSettings()
     this.reduced = this.settings.reducedMotion
     this.rig.shakeEnabled = this.settings.shake && !this.reduced
+    if (this.player) {
+      this.player.alwaysRun = this.settings.alwaysRun
+      this.player.reducedMotion = this.reduced
+    }
   }
 
   private setLocked(v: boolean) {
@@ -522,6 +646,11 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private onWake(d?: { x?: number; y?: number; cutscene?: string }) {
+    // A room's hand-off is queued a frame (or a fade) ahead of itself, so it can
+    // arrive after `backToTitle()` has already restarted the world. Resuming
+    // play here would light the HUD over the welcome card and push the dropped
+    // `GameState` back into the registry.
+    if (!acceptsRoomWake(this.mode)) return
     if (d && this.player && typeof d.x === 'number' && typeof d.y === 'number') {
       this.player.setPosition(d.x, d.y)
       this.player.dir = 'down'
@@ -542,6 +671,81 @@ export class WorldScene extends Phaser.Scene {
     if (this.mode !== 'play' || this.locked || this.inCutscene) return
     if (this.interact.trigger()) return
     void this.swing()
+  }
+
+  /* ---------------- hopping ---------------- */
+
+  /** Solids near a point, so a hop does not walk the whole island's list. */
+  private solidsNear(list: Solid[], x: number, y: number, pad: number): Solid[] {
+    return list.filter((s) => s.x < x + pad && s.x + s.w > x - pad && s.y < y + pad && s.y + s.h > y - pad)
+  }
+
+  private pointIn(list: Solid[], x: number, y: number): boolean {
+    for (const s of list) if (x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h) return true
+    return false
+  }
+
+  /** Terrain a hop cannot cross. The brook is left out — that is the whole point of it. */
+  private hardTerrain(x: number, y: number): boolean {
+    const tx = Math.floor(x / TILE)
+    const ty = Math.floor(y / TILE)
+    if (!this.grid.inb(tx, ty)) return true
+    const t = this.grid.get(tx, ty)
+    return !isWalkable(t) && !HOPPABLE_TERRAIN.has(t)
+  }
+
+  /** Everything that refuses a landing: terrain plus every solid, low ones included. */
+  private readonly blockedAny: Blocked = (x, y) => this.blocked(x, y) || this.pointIn(this.solids, x, y)
+
+  private onJump() {
+    if (this.mode !== 'play' || !this.player || this.locked || this.inCutscene) return
+    if (this.player.hopping || this.player.frozen || this.player.swinging) return
+    const p = this.player
+    const f = FACING[p.dir]
+    // held input, not actual travel: pressed up against a brook you have stopped
+    // moving, and that is exactly the moment you want the hop to carry you over
+    const going = this.wantsMove
+    const pad = 3 * TILE
+    const near = this.solidsNear(this.solids, p.x, p.y, pad)
+    const nearHard = this.solidsNear(this.hardSolids, p.x, p.y, pad)
+    const plan = planHop(
+      p.x,
+      p.y,
+      f.sx,
+      f.sy,
+      going,
+      (x, y) => this.hardTerrain(x, y) || this.pointIn(nearHard, x, y),
+      (x, y) => this.blocked(x, y) || this.pointIn(near, x, y),
+    )
+    this.doHop(plan.lx, plan.ly)
+  }
+
+  /**
+   * Walking into a cliff lip that faces the way you are going drops you off it —
+   * two tiles down, one way, no button needed.
+   */
+  private tryLedgeHop() {
+    const p = this.player
+    const f = FACING[p.dir]
+    const ptx = Math.floor(p.x / TILE)
+    const pty = Math.floor(p.y / TILE)
+    if (ledgeAt(this.grid, ptx + f.sx, pty + f.sy) !== f.ledge) return
+    // clear the lip and land two tiles on, keeping the across-the-lip position
+    const lx = f.sx ? (ptx + f.sx * LEDGE_TILES + 0.5) * TILE : p.x
+    const ly = f.sy ? (pty + f.sy * LEDGE_TILES + 0.5) * TILE : p.y
+    if (boxBlocked(lx, ly, this.blockedAny)) return
+    this.doHop(lx, ly, { arc: LEDGE_ARC, time: HOP_TIME * 1.2, drop: true })
+  }
+
+  private doHop(lx: number, ly: number, opts: { arc?: number; time?: number; drop?: boolean } = {}) {
+    if (!this.player.startHop(lx, ly, opts)) return
+    play('hop')
+    this.player.onHopLand = () => {
+      const fn = (sfx as unknown as Record<string, (() => void) | undefined>)[`step_${this.player.surface}`] ?? sfx.step
+      fn()
+      if (!this.reduced) this.dust.emitParticleAt(this.player.x, this.player.y + 1, opts.drop ? 5 : 3)
+      if (opts.drop) this.rig.shake(0.002, 90)
+    }
   }
 
   private onMenu() {
@@ -589,14 +793,9 @@ export class WorldScene extends Phaser.Scene {
     await this.player.swing()
   }
 
+  /** Finger posts open a card of arms, not a dialogue: the roads speak for themselves. */
   private readSign(id: string) {
-    const tree = getTree(`sign_${id}`) ?? linesTree(`sign_${id}`, 'Signpost', this.signLines(id))
-    void this.runDialogue(tree)
-  }
-
-  private signLines(id: string): string[] {
-    const mod = (window as unknown as { __signs?: Record<string, string[]> }).__signs
-    return mod?.[id] ?? ['A weathered signpost.', 'The paint has faded.']
+    events.emit('ui:panel', { id: 'sign', data: id })
   }
 
   private talkObject(kind: string) {
@@ -647,9 +846,14 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private enterLandmark(lm: Landmark) {
-    const zone = ZONES.find((z) => z.id === lm.id)!
-    const first = this.state.discover(lm.id)
-    if (first) {
+    if (!this.roomReady(lm)) {
+      events.emit('ui:toast', { kind: 'info', icon: '🚧', title: COMING_SOON })
+      return
+    }
+    // Minor buildings (and any whose zone has not landed yet) are scenery with a
+    // door: no discovery banner, no journal entry, no map label.
+    const zone = lm.minor ? null : (ZONES.find((z) => z.id === lm.id) ?? null)
+    if (zone && this.state.discover(lm.id)) {
       sfx.discover()
       this.rig.punchZoom(0.05, 300)
       events.emit('ui:banner', { title: `Discovered: ${zone.name}`, sub: zone.label })
@@ -727,16 +931,25 @@ export class WorldScene extends Phaser.Scene {
     if (this.locked || this.inCutscene) return
     this.locked = true
     this.interact.hide()
-    const f = new Fishing(this, this.player, this.rng, (n) => play(n))
-    const result = await f.run()
+    const f = new Fishing(this, this.player, this.rng, (n) => play(n), this.state.save.stats.fishCaught)
+    const { result, fish } = await f.run()
     this.locked = false
-    if (result === 'caught') {
+    if (result === 'caught' && fish) {
+      // The errand counts fish, not species: one inventory `fish` whatever came
+      // up, and the tally beside it is what the journal reads.
       this.state.give('fish', 1)
-      this.state.save.stats.fishCaught++
+      const golden = landFish(this.state.save, fish)
+      this.state.dirty = true
       this.state.quests.advance('fishing', 'catch', 1)
       this.state.ach.unlock('fisher')
-      this.state.addXp(12)
-      events.emit('ui:toast', { kind: 'item', icon: '🐟', title: 'Caught a Sunfish!' })
+      if (golden) this.state.ach.unlock('goldfish')
+      this.state.addXp(golden ? 40 : 12)
+      events.emit('ui:toast', {
+        kind: golden ? 'ach' : 'item',
+        icon: golden ? '🐠' : '🐟',
+        title: `Caught a ${FISH_NAMES[fish] ?? 'fish'}!`,
+        sub: golden ? 'One in a million.' : undefined,
+      })
     } else if (result === 'missed') events.emit('ui:toast', { kind: 'info', icon: '🎣', title: 'It got away…' })
     this.emitState()
   }
@@ -789,7 +1002,7 @@ export class WorldScene extends Phaser.Scene {
     this.inCutscene = false
     this.state.ach.unlock('first_steps')
     if (mira) await this.talkTo(mira)
-    else events.emit('ui:hint', { text: 'WASD / arrows to walk · Shift to run · E to talk' })
+    else events.emit('ui:hint', { text: 'WASD / arrows to move · Space to hop · E to talk' })
     events.emit('ui:banner', { title: 'Harbor', sub: 'Lineage Isle' })
     this.state.save.tutorialDone = true
     this.state.dirty = true
@@ -862,14 +1075,19 @@ export class WorldScene extends Phaser.Scene {
     uiState.stats.steps = st.stats.steps
     uiState.stats.playSeconds = st.stats.playSeconds
     uiState.stats.fishCaught = st.stats.fishCaught
+    uiState.stats.fish = st.fish ?? {}
     uiState.stats.bonks = st.stats.bonks
     uiState.stats.grassCut = st.grassCut
-    uiState.stats.packets = st.packets.length
+    // Packet Rush pays out in packets as well, so the tally can run past the
+    // twenty that lie about the island. Both readouts count progress towards the
+    // twenty the Vault asks for, not the routes they arrived by.
+    const packets = Math.min(st.packets.length, BLUEPRINT.packetSpots.length)
+    uiState.stats.packets = packets
     uiState.stats.discoveries = st.discoveries
     uiState.visitedRegions = st.visitedRegions
     const r = this.player ? regionAt(BLUEPRINT.regions, this.player.x / TILE, this.player.y / TILE) : null
     events.emit('world:state', {
-      packets: this.state.save.packets.length,
+      packets,
       packetsTotal: BLUEPRINT.packetSpots.length,
       xp: this.state.xp.xp,
       level: this.state.xp.level,
@@ -940,32 +1158,41 @@ export class WorldScene extends Phaser.Scene {
     if (this.mode === 'play' && this.player) {
       let dx = 0
       let dy = 0
-      let run = false
+      // the pace modifier, not a speed: Player inverts it when always-run is on
+      let paceMod = false
       if (!this.locked && !this.inCutscene) {
         if (keys.any('ArrowLeft', 'KeyA')) dx -= 1
         if (keys.any('ArrowRight', 'KeyD')) dx += 1
         if (keys.any('ArrowUp', 'KeyW')) dy -= 1
         if (keys.any('ArrowDown', 'KeyS')) dy += 1
-        run = keys.any('ShiftLeft', 'ShiftRight') || touchInput.run
+        paceMod = keys.any('ShiftLeft', 'ShiftRight')
         if (touchInput.active) {
           dx += touchInput.x
           dy += touchInput.y
-          if (Math.hypot(touchInput.x, touchInput.y) > 0.9) run = true
+          // a full tilt asks for the quick pace — when always-run is on it already is one
+          if (!this.settings.alwaysRun && Math.hypot(touchInput.x, touchInput.y) > 0.9) paceMod = true
         }
         const pad = this.input.gamepad?.getPad(0)
         if (pad) {
           if (Math.abs(pad.leftStick.x) > 0.2) dx += pad.leftStick.x
           if (Math.abs(pad.leftStick.y) > 0.2) dy += pad.leftStick.y
-          if (pad.B) run = true
+          if (pad.B) paceMod = true
           if (pad.A && this.time.now - ((pad as unknown as { _lastA?: number })._lastA ?? 0) > 300) {
             ;(pad as unknown as { _lastA?: number })._lastA = this.time.now
             this.onAction()
           }
+          if (pad.X && this.time.now - ((pad as unknown as { _lastX?: number })._lastX ?? 0) > 300) {
+            ;(pad as unknown as { _lastX?: number })._lastX = this.time.now
+            this.onJump()
+          }
         }
       }
+      this.wantsMove = Math.hypot(dx, dy) > 0.15
       const px0 = this.player.x
       const py0 = this.player.y
-      this.player.move(dx, dy, run, dt, this.blocked, this.solids, this.grid)
+      const wasHopping = this.player.hopping
+      this.player.move(dx, dy, paceMod, dt, this.blocked, this.solids, this.grid)
+      if (!this.player.hopping && !wasHopping && this.wantsMove && !this.locked && !this.inCutscene) this.tryLedgeHop()
       const moved = Math.hypot(this.player.x - px0, this.player.y - py0)
       if (moved > 0) {
         this.stepAcc += moved

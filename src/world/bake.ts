@@ -1,5 +1,5 @@
-// Bakes the terrain grid into chunk rasters (512×512 px) and a minimap raster.
-// Pure: rasters only; the scene turns them into textures.
+// Bakes the terrain grid into chunk rasters (CHUNK px square, 1024 today) and a
+// minimap raster. Pure: rasters only; the scene turns them into textures.
 import { paintTile, terrainColor } from '../art/tiles'
 import { fillRect, makeRaster, type Raster } from '../art/raster'
 import { CHUNK, TILE, WORLD_H, WORLD_W } from '../config'
@@ -35,7 +35,7 @@ export function bakeAll(grid: Grid): ChunkRaster[] {
   return chunkList().map(({ cx, cy }) => bakeChunk(grid, cx, cy))
 }
 
-/** Whole world in one raster (previews only — 2560×1920). */
+/** Whole world in one raster (previews only — 3072×2304 at 96×72 tiles of 32px). */
 export function bakeWorld(grid: Grid): Raster {
   const r = makeRaster(WORLD_W, WORLD_H)
   for (let ty = 0; ty < grid.h; ty++) for (let tx = 0; tx < grid.w; tx++) paintTile(r, tx * TILE, ty * TILE, grid, tx, ty)

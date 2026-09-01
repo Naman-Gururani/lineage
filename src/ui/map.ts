@@ -16,7 +16,26 @@ const KIND_ICON: Record<string, string> = {
   vault: '🔐',
   cottage: '🏡',
   lighthouse: '🗼',
+  campus: '🎓',
 }
+
+/**
+ * Discoverable landmarks — the "n/N FOUND" denominator and the pin set. Minor
+ * buildings (the warehouse) are scenery with a door: no zone, no discovery, so
+ * counting them would leave the tally stuck one short of full forever.
+ */
+const discoverable = () => BLUEPRINT.landmarks.filter((lm) => !lm.minor)
+
+/**
+ * Routes that are earned rather than found. The Tower Express is the Tower
+ * Climb's prize: the entry is registered now and stays out of the map until the
+ * flag lands, so nothing has to be added to this panel when the game ships.
+ */
+export const FAST_TRAVEL: { id: string; label: string; note: string; flag: string }[] = [
+  { id: 'experience', label: 'Tower Express', note: 'Straight to Tower Heights, from anywhere', flag: 'tower_express' },
+]
+
+export const unlockedTravel = (): typeof FAST_TRAVEL => FAST_TRAVEL.filter((f) => !!uiState.flags[f.flag])
 
 const zoneOf = (id: string): Zone | undefined => ZONES.find((z) => z.id === id)
 const pctX = (tx: number) => ((tx / WORLD_TW) * 100).toFixed(2) + '%'
@@ -74,7 +93,7 @@ export function openMap(): void {
     const c = bboxCentre(r.poly)
     stage += `<span class="map-region" style="left:${pctX(c.x)};top:${pctY(c.y)}">${esc(r.name)}</span>`
   }
-  for (const lm of BLUEPRINT.landmarks) {
+  for (const lm of discoverable()) {
     const z = zoneOf(lm.id)
     if (!z) continue
     const known = discovered.has(lm.id)
@@ -87,9 +106,20 @@ export function openMap(): void {
       `<span class="map-lbl" aria-hidden="true">${known ? esc(z.label) : '?'}</span></button>`
   }
   stage += `<span class="map-player" role="img" aria-label="You are here" style="left:${((uiState.player.x / WORLD_W) * 100).toFixed(2)}%;top:${((uiState.player.y / WORLD_H) * 100).toFixed(2)}%"></span>`
-  box.innerHTML = `${panelHead('Lineage Isle', `${discovered.size}/${BLUEPRINT.landmarks.length} FOUND`)}
+  const express = unlockedTravel()
+  box.innerHTML = `${panelHead('Lineage Isle', `${discovered.size}/${discoverable().length} FOUND`)}
     <div class="map-wrap"><div class="map-stage">${stage}</div></div>
-    <div class="map-info"><p class="map-hint" aria-live="polite">Select a landmark — discovered places can be travelled to.</p><button type="button" class="pbtn primary map-travel" hidden>Travel ▶</button></div>`
+    <div class="map-info"><p class="map-hint" aria-live="polite">Select a landmark — discovered places can be travelled to.</p><button type="button" class="pbtn primary map-travel" hidden>Travel ▶</button></div>
+    ${
+      express.length
+        ? `<div class="map-express"><span class="map-express-lbl">Fast travel</span>${express
+            .map(
+              (f) =>
+                `<button type="button" class="pbtn map-express-btn" data-travel="${esc(f.id)}">⚡ ${esc(f.label)}<small>${esc(f.note)}</small></button>`,
+            )
+            .join('')}</div>`
+        : ''
+    }`
 
   const hint = box.querySelector('.map-hint') as HTMLElement
   const travel = box.querySelector('.map-travel') as HTMLButtonElement
@@ -110,10 +140,20 @@ export function openMap(): void {
       travel.hidden = true
     }
   }
+  const goTo = (id: string) => {
+    sfx.select()
+    closeAllModals()
+    events.emit('world:travel', { id })
+  }
   box.addEventListener('click', (e) => {
     const t = e.target as HTMLElement
     if (t.closest('.modal-x')) {
       closeModal('map')
+      return
+    }
+    const route = t.closest<HTMLButtonElement>('[data-travel]')
+    if (route) {
+      goTo(route.dataset.travel!)
       return
     }
     const b = t.closest<HTMLButtonElement>('.map-lm')
@@ -124,9 +164,7 @@ export function openMap(): void {
   })
   travel.addEventListener('click', () => {
     if (!selId || !discovered.has(selId)) return
-    sfx.select()
-    closeAllModals()
-    events.emit('world:travel', { id: selId })
+    goTo(selId)
   })
   box.addEventListener('focusin', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.map-lm')
@@ -134,6 +172,7 @@ export function openMap(): void {
   })
   box.addEventListener('keydown', (e) => {
     if (e.key === 'm' || e.key === 'M') {
+      if (e.repeat) return // auto-repeat of the press that opened the map
       closeModal('map')
       e.preventDefault()
       return
@@ -195,7 +234,7 @@ export function initMinimap(): void {
     ctx.fillStyle = '#2b7fc0'
     ctx.fillRect(0, 0, 128, 96)
     if (img && img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, 128, 96)
-    for (const lm of BLUEPRINT.landmarks) {
+    for (const lm of discoverable()) {
       const z = zoneOf(lm.id)
       const known = uiState.stats.discoveries.includes(lm.id)
       ctx.fillStyle = known && z ? accentOf(z) : 'rgba(253,251,244,0.55)'

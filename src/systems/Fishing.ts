@@ -1,12 +1,21 @@
 // Fishing at the pier: cast, wait for the bite, then keep the fish inside the
 // catch zone by holding E. Rendered with Phaser graphics (no DOM).
+//
+// This file is the view. Everything it is playing out — the species table, the
+// bite window, the width of the net, the tally — is pure, and lives in
+// `data/fish.ts` so the journal (and the tests) can read it without a scene.
 import Phaser from 'phaser'
 import { ATLAS, hasFrame } from '../art/atlas'
+import { FISH_TINTS, REEL_TOLERANCE, biteWindow, castSpecies, type FishId } from '../data/fish'
 import { events, touchInput } from '../core/events'
 import { keys } from '../core/keys'
+import type { Rng } from '../core/rng'
 import type { Player } from '../entities/Player'
 
 export type FishingResult = 'caught' | 'missed' | 'cancelled'
+
+/** Which species came up, alongside how the cast ended. */
+export type FishingOutcome = { result: FishingResult; fish: FishId | null }
 
 export class Fishing {
   private gfx: Phaser.GameObjects.Graphics
@@ -17,8 +26,10 @@ export class Fishing {
   constructor(
     private scene: Phaser.Scene,
     private player: Player,
-    private rng: { next(): number; range(a: number, b: number): number },
+    private rng: Rng,
     private sfx: (name: string) => void,
+    /** fish landed so far — the strike window tightens as it climbs */
+    private catches = 0,
   ) {
     this.gfx = scene.add.graphics().setDepth(99000)
     this.line = scene.add.graphics().setDepth(player.depth + 1)
@@ -49,8 +60,13 @@ export class Fishing {
     return false
   }
 
-  async run(): Promise<FishingResult> {
+  async run(): Promise<FishingOutcome> {
     const p = this.player
+    // Rolled at the cast, not at the landing: what is on the hook is decided
+    // before the fight, so a fight that goes badly is a fish lost and not a
+    // reroll. The wait below still comes off the shared stream, so no two casts
+    // feel alike even though the fish on the end of the line is settled.
+    const species = castSpecies(this.rng, this.catches)
     p.freeze(true)
     p.dir = 'down'
     p.idle()
@@ -82,22 +98,22 @@ export class Fishing {
       await this.wait(16)
       this.drawLine(p.x, p.y - 14, bob.x, bob.y)
     }
-    if (this.cancelled) return this.finish('cancelled', bob)
+    if (this.cancelled) return this.finish('cancelled', bob, null)
     bobTween.stop()
     this.scene.tweens.add({ targets: bob, y: by + 6, duration: 90, yoyo: true, repeat: 2 })
     this.ripple(bx, by)
     this.sfx('reel')
     events.emit('ui:hint', { text: '! Press E !' })
-    const hit = await this.pressWithin(750)
-    if (this.cancelled) return this.finish('cancelled', bob)
+    const hit = await this.pressWithin(biteWindow(this.catches) * 1000)
+    if (this.cancelled) return this.finish('cancelled', bob, null)
     if (!hit) {
       events.emit('ui:hint', { text: 'Too slow — it swam off.' })
-      return this.finish('missed', bob)
+      return this.finish('missed', bob, null)
     }
     // reel mini-game
     events.emit('ui:hint', { text: 'Hold E to lift the net — keep the fish inside!' })
     const ok = await this.reel(bob)
-    return this.finish(ok ? 'caught' : 'missed', bob)
+    return this.finish(ok ? 'caught' : 'missed', bob, ok ? species : null)
   }
 
   private async reel(bob: Phaser.GameObjects.Components.Transform): Promise<boolean> {
@@ -110,7 +126,7 @@ export class Fishing {
     let zoneVel = 0
     let progress = 0.35
     let t = 0
-    const zoneH = 0.3
+    const zoneH = 0.3 * REEL_TOLERANCE
     while (progress > 0 && progress < 1) {
       if (keys.down('Escape')) {
         this.cancelled = true
@@ -176,7 +192,7 @@ export class Fishing {
     r.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => r.destroy())
   }
 
-  private finish(result: FishingResult, bob: Phaser.GameObjects.GameObject): FishingResult {
+  private finish(result: FishingResult, bob: Phaser.GameObjects.GameObject, fish: FishId | null): FishingOutcome {
     this.scene.tweens.killTweensOf(bob)
     bob.destroy()
     this.gfx.destroy()
@@ -187,9 +203,12 @@ export class Fishing {
       this.sfx('catch')
       if (hasFrame(this.scene, 'fish_jump_1')) {
         const f = this.scene.add.image(this.player.x + 6, this.player.y + 30, ATLAS, 'fish_jump_1').setDepth(this.player.depth + 3)
+        // One sprite, three fish: the tint is what tells a parrotfish from a
+        // goldfish as it flips out of the water.
+        if (fish && FISH_TINTS[fish]) f.setTint(FISH_TINTS[fish])
         this.scene.tweens.add({ targets: f, x: this.player.x, y: this.player.y - 24, duration: 420, ease: 'Back.out', onComplete: () => f.destroy() })
       }
     }
-    return result
+    return { result, fish }
   }
 }

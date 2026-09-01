@@ -8,6 +8,7 @@ export const PROFILE = {
   name: 'Naman Gururani',
   role: 'Software Development Engineer',
   company: 'Barclays',
+  location: 'India',
   email: 'gururaninaman@gmail.com',
   github: 'https://github.com/Naman-Gururani',
   githubHandle: 'Naman-Gururani',
@@ -23,6 +24,7 @@ export type LandmarkKind =
   | 'vault'
   | 'cottage'
   | 'lighthouse'
+  | 'campus'
 
 export type Content = {
   kicker?: string
@@ -73,7 +75,7 @@ export const ZONES: Zone[] = [
         { k: 'Now', v: 'SDE · Barclays' },
         { k: 'Since', v: 'August 2024' },
         { k: 'Education', v: 'B.Tech CSE · SRM IST (2020–2024)' },
-        { k: 'CGPA', v: '9.57 / 10' },
+        { k: 'CGPA', v: '9.63 / 10' },
       ],
     },
   },
@@ -96,6 +98,26 @@ export const ZONES: Zone[] = [
         'Automated loading of process exceptions into an analyst portal via a secured (OAuth 2.0) REST API — collapsing an 8-hour delay into real time — aggregating Teradata data with Python and KornShell.',
       ],
       chips: ['Apache Flink', 'Apache Kafka', 'Kafka Streams', 'Redis', 'DynamoDB', 'IBM MQ'],
+    },
+  },
+  {
+    id: 'education',
+    name: 'SRM Campus',
+    label: 'Education',
+    kind: 'campus',
+    tx: 57,
+    ty: 26,
+    accent: 0x7ec8ff,
+    content: {
+      kicker: 'STUDY',
+      title: 'SRM Institute of Science and Technology',
+      sub: 'B.Tech, Computer Science & Engineering · 2020 – 2024',
+      facts: [
+        { k: 'Degree', v: 'B.Tech CSE' },
+        { k: 'Years', v: '2020 – 2024' },
+        { k: 'CGPA', v: '9.63 / 10' },
+      ],
+      body: ['Where systems stopped being homework and started being fun.'],
     },
   },
   {

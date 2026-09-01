@@ -62,6 +62,7 @@ export class Companion extends Phaser.GameObjects.Container {
         this.frameIdx = (this.frameIdx + 1) % 4
       }
       const f = this.frameIdx
+      // Deliberately 2-frame (CAT_WALK): Byte is a quadruped, not part of the humanoid 4-frame rig.
       this.sprite.setTexture(ATLAS, f === 1 || f === 3 ? this.frame('idle', this.dir) : this.frame('walk', this.dir, f === 0 ? 0 : 1))
       this.setDepth(this.y)
     } else {

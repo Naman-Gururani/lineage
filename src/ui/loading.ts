@@ -1,4 +1,6 @@
+// The boot screen: the name, the island's title and a thin progress bar.
 import { events } from '../core/events'
+import { PROFILE } from '../data/content'
 
 export function initLoading(root: HTMLElement): void {
   let box = document.getElementById('loading')
@@ -8,9 +10,10 @@ export function initLoading(root: HTMLElement): void {
     root.appendChild(box)
   }
   box.innerHTML = `
-    <div class="load-logo">NAMAN'S WORLD</div>
-    <div class="load-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="load-fill"></div></div>
-    <div class="load-label">Painting sprites…</div>`
+    <p class="load-logo">${PROFILE.name}</p>
+    <p class="load-kicker">Lineage Isle</p>
+    <div class="load-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="load-fill"></span></div>
+    <p class="load-label">Painting sprites…</p>`
   const bar = box.querySelector('.load-bar') as HTMLElement
   const fill = box.querySelector('.load-fill') as HTMLElement
   const label = box.querySelector('.load-label') as HTMLElement

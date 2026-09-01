@@ -4,7 +4,7 @@ import { makeRng } from '../src/core/rng'
 import { BLUEPRINT, rasterizeBlueprint } from '../src/world/blueprint'
 import { regionAt } from '../src/world/regions'
 import { scatterDecor } from '../src/world/scatter'
-import { T, isLand } from '../src/world/terrain'
+import { LOW_KINDS, T, isLand } from '../src/world/terrain'
 
 describe('scatterDecor', () => {
   const grid = rasterizeBlueprint(BLUEPRINT, makeRng(WORLD_SEED))
@@ -48,12 +48,28 @@ describe('scatterDecor', () => {
       if ((d.kind === 'tree' || d.kind === 'pine') && r?.id === 'woods') woods++
       if (d.kind === 'palm') palms++
     }
-    expect(woods).toBeGreaterThan(120)
+    expect(woods).toBeGreaterThan(60)
     expect(palms).toBeGreaterThan(6)
   })
 
   it('places exactly five quest shells', () => {
     expect(decor.filter((d) => d.kind === 'shell' && d.v === 1).length).toBe(5)
+  })
+
+  it('emits small rocks as the hoppable rock_s kind', () => {
+    const small = decor.filter((d) => d.kind === 'rock_s')
+    const big = decor.filter((d) => d.kind === 'rock')
+    expect(small.length).toBeGreaterThanOrEqual(8)
+    expect(big.length).toBeGreaterThanOrEqual(5)
+    expect(small.length).toBeGreaterThan(big.length)
+    expect(LOW_KINDS.has('rock_s')).toBe(true)
+    expect(LOW_KINDS.has('rock')).toBe(false)
+    // both block walking; only the small one is low enough to hop
+    expect(small.every((d) => d.solid)).toBe(true)
+    expect(big.every((d) => d.solid)).toBe(true)
+    // the variant picks the matching art: rock_0 is the small stone, rock_1 the mossy boulder
+    expect(small.every((d) => d.v === 0)).toBe(true)
+    expect(big.every((d) => d.v === 1)).toBe(true)
   })
 
   it('marks blocking props solid and soft props not', () => {

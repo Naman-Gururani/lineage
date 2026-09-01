@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#2b7fc0" />
+    <meta name="theme-color" content="#080b12" />
 
     <title>Naman's World — Lineage Isle · an explorable portfolio</title>
     <meta
@@ -22,15 +22,18 @@
     <meta name="twitter:title" content="Naman's World — Lineage Isle" />
     <meta name="twitter:description" content="A pixel-art open-world portfolio game by Naman Gururani." />
     <style>
-      #loading { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 1.1rem;
-        background: radial-gradient(circle at 50% 30%, #3e9fd8, #1f5f9c 70%); font-family: system-ui, sans-serif; color: #fdfbf4; }
-      .load-logo { font-weight: 700; letter-spacing: .06em; }
+      /* Pre-boot paint: the same ground and rhythm ui.css takes over with. */
+      #loading { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: .9rem;
+        background: radial-gradient(130% 90% at 50% 0%, #17203a 0%, #080b12 62%); font-family: system-ui, sans-serif; color: #eef3ff; }
+      .load-logo { margin: 0; font-size: 1.8rem; font-weight: 600; }
+      .load-kicker { margin: -.4rem 0 .6rem; font-size: .78rem; letter-spacing: .24em; text-transform: uppercase; color: #5eead4; }
+      .load-label { margin: 0; font-size: .85rem; color: #9fadc8; }
     </style>
   </head>
   <body>
     <div id="game-root" aria-hidden="true"></div>
     <div id="ui">
-      <div id="loading"><div class="load-logo">NAMAN'S WORLD</div><div class="load-label">loading…</div></div>
+      <div id="loading"><p class="load-logo">Naman Gururani</p><p class="load-kicker">Lineage Isle</p><p class="load-label">loading…</p></div>
     </div>
     <noscript>
       <div style="padding:2rem;color:#eee;font-family:sans-serif;max-width:60ch">

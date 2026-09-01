@@ -24,7 +24,7 @@ let sheet: Sheet | null = null
 
 export function buildAtlas(scene: Phaser.Scene): void {
   if (scene.textures.exists(ATLAS)) return
-  sheet = buildSheet(allDefs(), 2048)
+  sheet = buildSheet(allDefs(), 4096)
   const tex = scene.textures.addCanvas(ATLAS, sheet.canvas)
   if (!tex) throw new Error('atlas texture could not be created')
   for (const [name, f] of Object.entries(sheet.frames)) {

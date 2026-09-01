@@ -31,7 +31,7 @@ export type Events = {
     py?: number
   }
   'world:travel': { id: string }
-  'world:action': { action: 'interact' | 'menu' | 'map' | 'journal' }
+  'world:action': { action: 'interact' | 'jump' | 'menu' | 'map' | 'journal' }
   'world:discovered': { id: string; first: boolean }
   /** the elevator arrived at a floor: swap the room's window view */
   'room:window': { frame: 0 | 1 | 2 | 3 }
@@ -65,4 +65,4 @@ class TypedEmitter {
 export const events = new TypedEmitter()
 
 /** Shared analog input written by the touch joystick / buttons, read by scenes. */
-export const touchInput = { x: 0, y: 0, active: false, run: false, aHeld: false }
+export const touchInput = { x: 0, y: 0, active: false, aHeld: false }

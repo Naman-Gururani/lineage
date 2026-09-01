@@ -51,7 +51,10 @@ export class InteractSystem {
 
   private setCurrent(i: Interactable | null) {
     const prompt = i ? `${i.key ?? 'E'}|${i.prompt}` : ''
-    if (prompt === this.lastPrompt) return
+    // Two interactables can word their prompt identically ("E | Read the sign").
+    // Bailing on the text alone would leave `current` pointing at the one you
+    // walked away from, and E would fire the wrong sign.
+    if (prompt === this.lastPrompt && i === this.current) return
     this.lastPrompt = prompt
     this.current = i
     events.emit('ui:prompt', i ? { text: i.prompt, key: i.key ?? 'E' } : { text: null })

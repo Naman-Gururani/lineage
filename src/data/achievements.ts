@@ -15,5 +15,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'cat_person', title: 'Cat Person', desc: 'Befriend Byte.', icon: '🐈' },
   { id: 'full_house', title: 'Full House', desc: 'Talk to every villager.', icon: '🗣️' },
   { id: 'keeper', title: 'Keeper', desc: 'Light the beacon.', icon: '🗼' },
+  // The arcade. Ids are prefixed because the mini-games already own their bare
+  // names as quest ids, and nothing good comes of a badge and a quest sharing one.
+  { id: 'ach_studyhall', title: "Dean's List", desc: 'Clear every board in Study Hall.', icon: '🎓' },
+  { id: 'ach_cargo', title: 'Shipshape', desc: 'Stack every crate in Cargo Cove.', icon: '⚓' },
+  { id: 'ach_packetrush', title: 'Backpressure? Never', desc: 'Beat Packet Rush at the Engine Works.', icon: '⚡' },
+  { id: 'ach_climb', title: 'Corner Office', desc: 'Climb Tower Heights to the roof.', icon: '🏢' },
+  { id: 'arcade', title: 'Arcade Legend', desc: 'Beat all four of the island’s games.', icon: '🕹️' },
+  { id: 'goldfish', title: 'One in a Million', desc: 'Land the goldfish.', icon: '🐠', secret: true },
   { id: 'complete', title: '100%', desc: 'Discover everything, finish every quest, earn every badge.', icon: '👑' },
 ]

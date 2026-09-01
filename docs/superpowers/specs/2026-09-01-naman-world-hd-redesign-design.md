@@ -1,6 +1,6 @@
 # Naman's World v2.5 — "HD Isle" redesign — Design Spec
 
-**Date:** 2026-09-01 · **Status:** Approved pending user review · **Base:** `redesign/lineage-isle` (v2 "Lineage Isle", feature-complete, uncommitted)
+**Date:** 2026-09-01 · **Status:** ✅ IMPLEMENTED (user-approved in-session; built same day; see `docs/HANDOFF.md` for as-built state — two spec amendments during build: faces 32×32 not 24×24, fish species deterministic per catch count rather than a live 5% roll) · **Base:** `redesign/lineage-isle` (v2 "Lineage Isle", feature-complete, uncommitted)
 
 ## 1. Goal
 
