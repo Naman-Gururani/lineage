@@ -5,7 +5,7 @@
 - **Branch:** `main` = `redesign/lineage-isle` = `dc1f78b` — **committed and pushed 2026-09-01 at the user's request** (history: `c336964` v2 rebuild → `de6f21e` v2.5 HD Isle → `dc1f78b` cleanup). The never-commit-unless-asked rule still governs future work.
 - **Dates:** v2 rebuilt 2026-08-30 → 08-31 · **v2.5 HD redesign 2026-09-01** · **deployed 2026-09-01**.
 - **Status:** ✅ v2.5 complete, reviewed, browser-verified, all gates green — **LIVE at [naman-gururani.github.io/lineage](https://naman-gururani.github.io/lineage/)** (gh-pages `4ce6fe7`). Next: the user's real-input feel pass (Backlog #1); redeploy = `npm run build` + `npx gh-pages -d dist`.
-- **Docs:** v2.5 spec `docs/superpowers/specs/2026-09-01-naman-world-hd-redesign-design.md` · plan `docs/superpowers/plans/2026-09-01-naman-world-hd.md` · execution ledger (every ruling/fix/review) `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md` (gitignored — retained deliberately until the user commits; task-N-report.md files sit beside it) · v2 docs under `docs/superpowers/` remain for history.
+- **Docs:** v2.5 spec `docs/superpowers/specs/2026-09-01-naman-world-hd-redesign-design.md` · plan `docs/superpowers/plans/2026-09-01-naman-world-hd.md` · v2 docs under `docs/superpowers/` for history. The v2.5 execution ledger (`.superpowers/sdd/2026-09-01-naman-world-hd/progress.md`, gitignored) and `scratch/` are now disposable — git history is the record — but harmless to keep.
 
 ## TL;DR
 
@@ -53,7 +53,7 @@ tools/       preview.ts ★defaults 96×72 (`npm run preview:art -- world` / `--
 
 ## Conventions & critical gotchas
 
-1. **Never commit/push** unless the user asks. Branch `redesign/lineage-isle`; ALL v2+v2.5 work is uncommitted.
+1. **Never commit/push unless the user asks.** (The 2026-09-01 commit+deploy was user-requested; the rule stands for all future work.) `main` and `redesign/lineage-isle` currently point at the same head.
 2. **Content rules:** facts about Naman only from `src/data/content.ts` (CGPA is **9.63**); dialogue derives figures via helpers, never literals; skills = approved set only (no React/Node/JS); the in-development product stays unnamed. Tests enforce all of this — keep them green.
 3. **Keyboard:** world input via `src/core/keys.ts` only (window-level). `core/keys` is a **leaf**: `ui/*` must never import it (`tests/module-graph.test.ts` enforces; the rule exists because a suspected cycle cost a debugging round). Escape-that-OPENS-a-modal must stay `setTimeout(0)`-deferred; panel own-key close listeners need the **armed-on-first-keyup guard** (see `openSign`) or an `e.repeat` return (map/journal) — same-press-close is a real bug class here.
 4. **Art pipeline:** 32px/tile; sprites are `SpriteDef`s using ONLY `palette.ts` keys; new packs must register in `atlas.ts allDefs()` or silently don't render; per-pack tests in `tests/sprites/<pack>.test.ts` pin dims/anchors/rename-guards; ALWAYS render `npm run preview:art -- sheet <pack> 3` (or `-- world`) and look before trusting art. Style rules live in `.superpowers/sdd/.../art-direction.md`.
@@ -79,11 +79,12 @@ npm run build     # app 477.6 kB (154.6 gzip) + css 89.1 kB (29.2 gzip) + phaser
 ```
 Browser-verified (real session, screenshots in `scratch/shots/`): boot 0 errors → welcome card → arrival + Mira → movement 7 t/s → hop (numeric arc = 0.6 tile exactly) → ledges → finger-post card → campus + warehouse interiors round-trip → Prof. Iyer auto-greet + topic menu → Study Hall + gag both trigger paths + pinned mailto **hit-tested** → Cargo + d-pad → Packet Rush + lose gag → Tower Climb render → map (…/8) → journal → wardrobe/credits rows → Reader Education (9.63) → mobile 390×844 (night lighting) → pause. Fishing logic is unit-tested (15 tests); a live-tab catch is on the user's feel pass.
 
-## Change inventory (vs `main`, snapshot 2026-09-01 end of v2.5)
+## Repository state (snapshot 2026-09-02)
 
-- **Tracked modified (17 files):** `.gitignore` (+`.superpowers/`), `README.md`, `index.html`, `package.json`/`package-lock.json` (+Inter as dep, −Fredoka; vitest/tsx/etc. from v2), `src/main.ts`, `src/config.ts`→(untracked in v2, now core), `src/scenes/{BootScene,WorldScene}.ts`, `src/styles/ui.css`, `src/data/content.ts`, `tsconfig.json`, `vite.config.ts` + v2's deletions of old `src/game/*`, `src/ui/ui.ts`.
-- **Untracked new:** everything listed in the architecture map (`src/{art,audio,core,data,entities,systems,world,games}/`, `src/ui/`, `src/scenes/InteriorScene.ts`+`transitions.ts`, `src/styles/panels.css`, `tests/`, `tools/`, `docs/`, `.claude/`).
-- **41 paths** in `git status --short`. **Nothing committed this session.** No work exists outside the repo tree except: session screenshots/`scratch/` (gitignored, disposable) and the SDD ledger under `.superpowers/` (gitignored — **the process record; keep until the user commits, then delete freely**).
+- **Working tree: CLEAN** (`git status --short` = 0). Everything is committed and pushed.
+- **History on `main` (= `redesign/lineage-isle`):** `310a2f9` (old site) → `c336964` *v2 rebuild* → `de6f21e` *v2.5 HD Isle* → `dc1f78b` *stray-screenshot cleanup* → `4bfc056`+ *handoff docs*. Remote `origin/main` matches local.
+- **Deployed:** `gh-pages` = `4ce6fe7`, built from this exact source (bundle hash `index-CX-KMjHK.js` verified identical between the deploy and a fresh local build). Live: https://naman-gururani.github.io/lineage/
+- Gitignored local leftovers (`scratch/`, `.playwright-mcp/`, `.superpowers/`, `dist/`) are disposable artifacts, not work.
 
 ## How to run / resume
 
@@ -93,9 +94,10 @@ npm run dev                     # http://localhost:5173/lineage/
 npm test && npx tsc --noEmit    # gates
 npm run build                   # → dist ; deploy = publish /dist to gh-pages
 ```
+- **Redeploy after any change:** `npm run build` then `npx gh-pages -d dist` (publishes `/dist` to the `gh-pages` branch; live in ~1–2 min).
 - Debug URLs: `?fresh=1` wipe save (both keys) · `?st=1` timer stepping (testing only — distorts feel) · `?fish=gold` force golden koi.
 - Art previews: `npm run preview:art -- sheet hero 3` · `npm run preview:art -- world` → `scratch/*.png`.
-- New session: run `/getcontext` (reads this file, verifies against reality). The full v2.5 decision trail (every ruling, review, fix round) is `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md`.
+- New session: run `/getcontext` (reads this file, verifies against reality). The full v2.5 decision trail (every ruling, review, fix round) is `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md` if it still exists locally (gitignored, deletable).
 
 ## Backlog (ordered; each item actionable cold)
 
@@ -108,7 +110,7 @@ npm run build                   # → dist ; deploy = publish /dist to gh-pages
 7. **Night-rain readability / thunder flash** (v2 backlog, untouched): weather layer in `src/systems/Weather.ts`; respect reduced-motion.
 8. **Perf profile on a real GPU** (architecture: baked 1024px chunks + culling — expected fine; Playwright can't measure honestly).
 9. **`npm audit`: 2 pre-existing high advisories** in dev tooling deps (predate v2.5; not shipped code) — review when convenient.
-10. **Housekeeping after commit:** delete `.superpowers/` + `scratch/` at will; `src/ui/title.ts` is a deliberate 4-line delegate (contract-tested), not dead code; `export type Tones` in `procedural.ts` is unreferenced (one-line delete if it bothers you).
+10. **Housekeeping (unblocked — everything is committed):** delete local `.superpowers/` + `scratch/` at will; `src/ui/title.ts` is a deliberate 4-line delegate (contract-tested), not dead code; `export type Tones` in `procedural.ts` is unreferenced (one-line delete if it bothers you).
 
 ## Checkpoint log
 
@@ -123,6 +125,9 @@ Rebuilt the entire game per spec/plan (see docs/superpowers/): foundation (rng/t
 **Gates now:** 47 files / 719 tests / 0 skips · tsc clean · build: app 154.6 kB gzip, css 29.2 kB gzip, phaser 339.8 kB gzip.
 **Uncommitted:** 41 paths (17 tracked modified + new dirs per Change inventory). **Nothing was committed or pushed.** Backups: none needed outside git's working tree — the only non-repo artifacts are gitignored (`scratch/`, `.playwright-mcp/`, `.superpowers/` ledger — retain the ledger until commit).
 **Nothing is half-finished.** Next session: user feel-pass items in the Backlog, top 3 first.
+
+### 2026-09-02 — Session 2 close — CHECKPOINT #3 (final)
+Post-deploy doc refresh so this file reads true top-to-bottom for `/getcontext`: repository-state section rewritten for the committed world, redeploy command added to How-to-run, housekeeping unblocked. Gates re-verified on 2026-09-02: **47 files / 719 tests / 0 skips · tsc clean · build green** (css 29.21 kB gzip · app 154.64 kB gzip · phaser 339.84 kB gzip; bundle hash matches the deployed `gh-pages`). **Working tree clean — zero uncommitted paths; local `main` = `origin/main` = `redesign/lineage-isle`.** Nothing is at risk outside git: `scratch/`, `.playwright-mcp/`, and the `.superpowers/` ledger are gitignored disposables (their substance lives in git history and this doc). Nothing is in flight. **Resume:** `/getcontext`, then Backlog #1 (real-input feel pass — mini-game/fishing dials, live tab, not `?st=1`).
 
 ### 2026-09-01 — Session 2 addendum — COMMIT & DEPLOY
 At the user's explicit request: history assembled from the retained tree snapshots into `c336964` (v2 rebuild, incl. v2.5 design docs) → `de6f21e` (v2.5 HD Isle) → `dc1f78b` (removed a stray reference screenshot that had slipped into the root). `main` fast-forwarded and pushed; `redesign/lineage-isle` pushed; `npm run build` + `npx gh-pages -d dist` published to `gh-pages` (`4ce6fe7`). Live URL verified serving the v2.5 title. Note: the deployed save schema is v2 — returning visitors with a v1 save get the friendly fresh-start toast. HANDOFF sections above that said "uncommitted" are superseded by this entry; the SDD ledger under `.superpowers/` may now be deleted at will (history is in git).
