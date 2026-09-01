@@ -2,9 +2,9 @@
 
 > **The living state document.** `/getcontext` reads this first in a new session; `/checkpoint` and `/handoff` keep it current. If this file and reality disagree, trust `git status` + the test suite, then fix this file.
 
-- **Branch:** `redesign/lineage-isle` (branched off `main`) — **all work uncommitted by design** (the user commits/deploys themselves; never commit or push unless asked).
-- **Dates:** v2 rebuilt 2026-08-30 → 08-31 · **v2.5 HD redesign 2026-09-01**.
-- **Status:** ✅ v2.5 feature-complete, reviewed (per-task + whole-branch), browser-verified, all gates green. Ready for the user's real-input feel pass, then commit & deploy.
+- **Branch:** `main` = `redesign/lineage-isle` = `dc1f78b` — **committed and pushed 2026-09-01 at the user's request** (history: `c336964` v2 rebuild → `de6f21e` v2.5 HD Isle → `dc1f78b` cleanup). The never-commit-unless-asked rule still governs future work.
+- **Dates:** v2 rebuilt 2026-08-30 → 08-31 · **v2.5 HD redesign 2026-09-01** · **deployed 2026-09-01**.
+- **Status:** ✅ v2.5 complete, reviewed, browser-verified, all gates green — **LIVE at [naman-gururani.github.io/lineage](https://naman-gururani.github.io/lineage/)** (gh-pages `4ce6fe7`). Next: the user's real-input feel pass (Backlog #1); redeploy = `npm run build` + `npx gh-pages -d dist`.
 - **Docs:** v2.5 spec `docs/superpowers/specs/2026-09-01-naman-world-hd-redesign-design.md` · plan `docs/superpowers/plans/2026-09-01-naman-world-hd.md` · execution ledger (every ruling/fix/review) `.superpowers/sdd/2026-09-01-naman-world-hd/progress.md` (gitignored — retained deliberately until the user commits; task-N-report.md files sit beside it) · v2 docs under `docs/superpowers/` remain for history.
 
 ## TL;DR
@@ -123,3 +123,6 @@ Rebuilt the entire game per spec/plan (see docs/superpowers/): foundation (rng/t
 **Gates now:** 47 files / 719 tests / 0 skips · tsc clean · build: app 154.6 kB gzip, css 29.2 kB gzip, phaser 339.8 kB gzip.
 **Uncommitted:** 41 paths (17 tracked modified + new dirs per Change inventory). **Nothing was committed or pushed.** Backups: none needed outside git's working tree — the only non-repo artifacts are gitignored (`scratch/`, `.playwright-mcp/`, `.superpowers/` ledger — retain the ledger until commit).
 **Nothing is half-finished.** Next session: user feel-pass items in the Backlog, top 3 first.
+
+### 2026-09-01 — Session 2 addendum — COMMIT & DEPLOY
+At the user's explicit request: history assembled from the retained tree snapshots into `c336964` (v2 rebuild, incl. v2.5 design docs) → `de6f21e` (v2.5 HD Isle) → `dc1f78b` (removed a stray reference screenshot that had slipped into the root). `main` fast-forwarded and pushed; `redesign/lineage-isle` pushed; `npm run build` + `npx gh-pages -d dist` published to `gh-pages` (`4ce6fe7`). Live URL verified serving the v2.5 title. Note: the deployed save schema is v2 — returning visitors with a v1 save get the friendly fresh-start toast. HANDOFF sections above that said "uncommitted" are superseded by this entry; the SDD ledger under `.superpowers/` may now be deleted at will (history is in git).
