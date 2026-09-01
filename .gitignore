@@ -7,3 +7,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+scratch/
+.playwright-mcp/
+.superpowers/

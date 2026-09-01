@@ -1,45 +1,59 @@
-# Naman's World 🌴
+# Naman's World — Lineage Isle 🏝️
 
-**An explorable game-portfolio.**
+**An open-world pixel-art game that happens to be a portfolio.**
 [**naman-gururani.github.io/lineage**](https://naman-gururani.github.io/lineage/)
 
 ---
 
-Naman Gururani's portfolio is a tiny cozy game. You walk a little character around an island and wander into landmarks to discover each part of his story — explore in any order, or skip the walking entirely.
+Naman Gururani's portfolio is a small open-world game. You arrive on Lineage Isle by boat, and everything a résumé would tell you is something you *find*: talk to Naman at his desk in the Cottage, ride the Barclays Tower elevator through his career, read the Workshop's tool wall, watch the Engine stitch payment lineage live, and light the Lighthouse to reach him.
 
-- 🏠 **The Cottage** → About
-- 🏢 **Barclays Tower** → Experience
-- 🛠️ **The Workshop** → Skills
-- ⚙️ **The Engine** · 🔒 **The Vault** · 💚 **Safe Stride** → Projects
-- 🗼 **The Lighthouse** → Contact
+## The island
 
-It runs on a real game engine, so it feels like a game — a follow-camera, smooth movement, collisions, particles, and sound — not a website pretending to be one.
+| Place | What it holds |
+|---|---|
+| 🏡 **The Cottage** (Sunny Meadow) | About — Naman himself is inside, talk to him |
+| 🏢 **Barclays Tower** (Tower Heights) | Experience — the elevator floors are the timeline |
+| 🛠️ **The Workshop** (Whispering Woods) | Skills — hung as tools on pegboards |
+| ⚙️ **The Engine** (Engine Works) | The real-time payment-lineage project, with a live console |
+| 🔐 **The Vault** (Stone Ridge) | An unnamed product in development — sealed until you recover all 20 lost packets |
+| 💚 **Safe Stride** (Willow Fields) | An elderly-safety project, told by the people it helps |
+| 🗼 **The Lighthouse** (The Point) | Contact — climb up and light the lens |
 
-## Play
+## An actual game
 
-- **Move:** WASD / arrow keys, or the on-screen joystick on touch.
-- **Interact:** walk into a glowing landmark and press **E** / tap **✦**.
-- **🗺️ Map · Skip:** jump anywhere, read everything, or skip the walking entirely.
-- Collect the data orbs **◈** scattered around the island.
+- **A living island** — day/night with lamplight and lit windows, weather (wind, rain), animated sea and shore foam, drifting cloud shadows, butterflies, gulls, crabs, fireflies, jumping fish, and the Stream: a river of glowing packets flowing from the Tower to the Engine.
+- **Villagers** — ten islanders with portraits, typewriter dialogue, and quests (shells for Pip, fishing with Old Tomas, spare parts for Ravi, the beacon for Keeper Ilse). A cat called Byte will follow you home if you earn her.
+- **Progression** — XP and levels, 20 lost packets, chests, tall grass to cut (with a wrench), a journal of quests and achievements, unlockable hats, a 100 % celebration.
+- **Real game furniture** — title screen, arrival cutscene, interiors for every landmark, location banners, a full map with fast travel, a minimap, pause menu, autosave (Continue where you left off).
+- **Generated everything** — every sprite, tile, building and villager is drawn in code (an ASCII/procedural pixel pipeline); all music, ambience and sound effects are synthesised with Web Audio. The repo ships **zero image or audio assets**.
+
+## Controls
+
+- **Move** WASD / arrows (hold **Shift** to run) · on touch: joystick + A/B buttons · basic gamepad support
+- **E / Space** talk · read · open · fish — or swing the wrench (cut grass, bonk signs)
+- **M** map & fast travel · **J** journal · **Esc** pause
 
 ## Built for everyone
 
-- The **Map · Skip** menu opens any section's content directly — no walking required. This is also the accessibility path: content lives in focus-managed DOM panels (Esc to close), readable by keyboard and screen readers.
-- Touch joystick + interact button on phones; full keyboard on desktop.
+**Reader Mode** (title screen or pause menu) presents every section as a plain, accessible page — no walking required. Panels are focus-managed DOM dialogs, reduced motion is respected (and toggleable), and the whole HUD is keyboard-first.
 
 ## Stack
 
-Vite · TypeScript · **Phaser 3** · Web Audio (generated sound). Every sprite, tile, building, and the island itself is **drawn in code** — there are no image assets. Type: Fredoka · Press Start 2P (self-hosted).
+Vite · TypeScript (strict) · **Phaser 3** · Web Audio. Pure logic (terrain, collision, day cycle, quests, dialogue, saves) is unit-tested with **vitest**; the world is deterministic from a single seed.
 
 ## Develop
 
 ```bash
 npm install
 npm run dev        # dev server
+npm test           # unit tests
+npm run typecheck  # type-check only
 npm run build      # production build → /dist
 npm run preview    # preview the production build
-npm run typecheck  # type-check only
+npm run preview:art -- sheet hero 3   # render any sprite pack to scratch/*.png
 ```
+
+Debug flags: `?fresh=1` starts with a cleared save · `?st=1` forces timer-based stepping (useful for automated tests).
 
 ## Deploy
 
