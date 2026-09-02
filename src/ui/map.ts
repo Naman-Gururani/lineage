@@ -12,7 +12,7 @@ const KIND_ICON: Record<string, string> = {
   home: '🏠',
   tower: '🏢',
   workshop: '🛠️',
-  engine: '⚙️',
+  fair: '🎪',
   vault: '🔐',
   cottage: '🏡',
   lighthouse: '🗼',
@@ -27,12 +27,13 @@ const KIND_ICON: Record<string, string> = {
 const discoverable = () => BLUEPRINT.landmarks.filter((lm) => !lm.minor)
 
 /**
- * Routes that are earned rather than found. The Tower Express is the Tower
- * Climb's prize: the entry is registered now and stays out of the map until the
- * flag lands, so nothing has to be added to this panel when the game ships.
+ * Routes that are earned rather than found. The Tower Express comes with the
+ * visitor pass Bo hands over for his word puzzle: the entry is registered now
+ * and stays out of the map until the flag lands, so nothing has to be added to
+ * this panel when the game ships.
  */
 export const FAST_TRAVEL: { id: string; label: string; note: string; flag: string }[] = [
-  { id: 'experience', label: 'Tower Express', note: 'Straight to Tower Heights, from anywhere', flag: 'tower_express' },
+  { id: 'experience', label: 'Tower Express', note: "Bo's visitor pass", flag: 'tower_express' },
 ]
 
 export const unlockedTravel = (): typeof FAST_TRAVEL => FAST_TRAVEL.filter((f) => !!uiState.flags[f.flag])
@@ -82,8 +83,9 @@ function nearestInDirection(buttons: HTMLButtonElement[], from: HTMLButtonElemen
   return best
 }
 
-export function openMap(): void {
+export function openMap(data?: { focus?: string }): void {
   const discovered = new Set(uiState.stats.discoveries)
+  const objective = uiState.objective
   const box = el('div', 'map')
   box.dataset.width = '900px'
   let stage = uiState.minimapURL
@@ -93,13 +95,18 @@ export function openMap(): void {
     const c = bboxCentre(r.poly)
     stage += `<span class="map-region" style="left:${pctX(c.x)};top:${pctY(c.y)}">${esc(r.name)}</span>`
   }
+  // Where the story sends you next, pinned to its tile rather than to a
+  // landmark: the first two stations point at the `PIER` sentinel, which no
+  // landmark answers to and so has no pin of its own.
+  if (objective)
+    stage += `<span class="map-objective" aria-hidden="true" style="left:${pctX(objective.tx + 0.5)};top:${pctY(objective.ty + 0.5)}"></span>`
   for (const lm of discoverable()) {
     const z = zoneOf(lm.id)
     if (!z) continue
     const known = discovered.has(lm.id)
     const c = lmCentre(lm.id)
     stage +=
-      `<button type="button" class="map-lm ${known ? 'known' : 'unknown'}" data-id="${lm.id}" ` +
+      `<button type="button" class="map-lm ${known ? 'known' : 'unknown'}${objective?.landmark === lm.id ? ' objective' : ''}" data-id="${lm.id}" ` +
       `style="left:${pctX(c.x)};top:${pctY(c.y)};--accent:${accentOf(z)}" ` +
       `aria-label="${known ? `${esc(z.name)} — ${esc(z.label)}` : 'Undiscovered landmark'}">` +
       `<span class="map-ic" aria-hidden="true">${known ? (KIND_ICON[z.kind] ?? '★') : '?'}</span>` +
@@ -190,11 +197,19 @@ export function openMap(): void {
     }
     e.preventDefault()
   })
+  // A locked card's [Show on map] asks for its landmark: select it and hand it
+  // the opening focus, discovered or not — being told where a place is does not
+  // make it somewhere you may travel to.
+  const wanted = data?.focus ? buttons.find((b) => b.dataset.id === data.focus) : undefined
+  if (wanted) {
+    select(wanted.dataset.id!)
+    wanted.setAttribute('data-autofocus', '')
+  }
   openModal({ id: 'map', el: box, label: 'Island map' })
 }
 
 export function initMap(): void {
-  registerPanel('map', () => openMap())
+  registerPanel('map', (data) => openMap(data as { focus?: string } | undefined))
 }
 
 /* ---------------- minimap widget ---------------- */

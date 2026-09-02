@@ -14,9 +14,21 @@ import { registerPanel } from '../ui/panels'
 import { reducedMotion } from '../ui/state'
 import type { GameState } from './GameState'
 
-export type MinigameId = 'studyhall' | 'cargo' | 'packetrush' | 'climb'
+export type MinigameId = 'wordle' | 'claw' | 'flappy' | 'forge' | 'crew'
 
 export type MinigameResult = { id: MinigameId; won: boolean; score: number }
+
+/** How many "Hire me" lifelines one round may take before HR simply waves it through. */
+export const MERCY_HIRES = 3
+
+/** `?cheat=1` puts a Skip button in every game panel — for demos and testing, never advertised. */
+export function cheatEnabled(): boolean {
+  try {
+    return new URLSearchParams(location.search).has('cheat')
+  } catch {
+    return false
+  }
+}
 
 /** The lose / stuck overlay: a title in the game's own voice, and a way on. */
 export type GagOpts = {
@@ -36,23 +48,24 @@ export type MinigameSession = {
   /**
    * Has this round *already* been won, whatever happens next?
    *
-   * Only a game that carries on past its own win needs this: Packet Rush banks
-   * the clear at thirty and then offers the endless run, and walking away from
-   * that — or losing the last life to it — must still be recorded as the clear
-   * it was. A game that ends the moment it is won leaves this alone.
+   * Only a game that stays on screen past its own win needs this: every one of
+   * them holds the board for a win beat (`afterWin`) before closing, and Escape
+   * during that beat must still be recorded as the clear it was, not as a walk
+   * out. A game that closes the instant it is won leaves this alone.
    */
   won?(): boolean
 }
 
 export type MinigameMount = (host: MinigameHost, root: HTMLElement) => MinigameSession
 
-export const MINIGAME_IDS: MinigameId[] = ['studyhall', 'cargo', 'packetrush', 'climb']
+export const MINIGAME_IDS: MinigameId[] = ['wordle', 'claw', 'flappy', 'forge', 'crew']
 
 export const MINIGAME_LABELS: Record<MinigameId, string> = {
-  studyhall: 'Study Hall — Lights Out',
-  cargo: 'Cargo Cove — crate stacking',
-  packetrush: 'Packet Rush',
-  climb: 'Tower Climb',
+  wordle: "Bo's Word Puzzle",
+  claw: 'Prize Grab',
+  flappy: 'Chalk Flight',
+  forge: 'Word Forge',
+  crew: 'Crew Drop',
 }
 
 const MODAL_ID = 'minigame'
@@ -82,9 +95,21 @@ export class MinigameHost {
   private hired: HTMLElement | null = null
   /** the result `close()` asked for, read by the teardown funnel */
   private pending: MinigameResult | null = null
+  /** "Hire me" lifelines taken this round; the third one is the mercy rule */
+  private hires = 0
 
   get openId(): MinigameId | null {
     return this.id
+  }
+
+  /**
+   * A chapter earned mid-game — the claw hands over one project per prize. The
+   * save layer records it and credits the story; `announce` false means the
+   * renderer opens the card itself (over the game) instead of the panel layer
+   * opening it after the game closes.
+   */
+  unlockFacet(zoneId: string, announce = true): void {
+    this.state?.unlockFacet(zoneId, announce)
   }
 
   /** Mount a game: locks the world, opens the modal, routes keys to the renderer. */
@@ -102,6 +127,7 @@ export class MinigameHost {
     this.box = box
     this.pending = null
     this.hired = null
+    this.hires = 0
     // Held alongside the modal manager's own lock so the scene behind stops
     // reading input the moment the game opens, and only lets go on close.
     holdLock('minigame')
@@ -117,6 +143,14 @@ export class MinigameHost {
       window.setTimeout(() => this.confirmExit(), 0)
     })
     this.session = mount(this, box)
+    if (cheatEnabled()) {
+      const skip = el('button', 'pbtn mg-cheat') as HTMLButtonElement
+      skip.type = 'button'
+      skip.dataset.act = 'cheat'
+      skip.textContent = 'Skip (dev)'
+      skip.addEventListener('click', () => this.close({ id, won: true, score: 99 }))
+      box.appendChild(skip)
+    }
   }
 
   /** Finish a round: records it, hands the rewards to GameState, unpauses. */
@@ -166,6 +200,19 @@ export class MinigameHost {
       closeModal(GAG_ID)
       if (act === 'retry') opts.retry()
       else if (act === 'hire') {
+        // The mercy rule: the third lifeline in one round is the round. A
+        // recruiter who has asked HR three times has seen enough of the game;
+        // the chapter behind it should not stay locked over a reflex test.
+        this.hires++
+        if (this.hires >= MERCY_HIRES && this.id) {
+          sfx.pickup()
+          this.pinHireNote()
+          // Close first: the win pays out (chapter, badge, hat) through teardown,
+          // and the punchline gets the last word over those toasts.
+          this.close({ id: this.id, won: true, score: this.session?.score?.() ?? 0 })
+          events.emit('ui:toast', { kind: 'ach', icon: '🤝', title: 'HR fast-tracked you.', sub: 'Consider it unlocked.' })
+          return
+        }
         // The joke pays out: the nudge is real, and so is the address.
         ;(opts.hint ?? opts.retry)()
         sfx.pickup()
@@ -232,6 +279,7 @@ export class MinigameHost {
     this.session = null
     this.pending = null
     this.hired = null
+    this.hires = 0
     this.box = null
     this.id = null
     releaseLock('minigame')

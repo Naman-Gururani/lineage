@@ -2150,4 +2150,391 @@ furn(
   { p: 'path4', P: 'path3', l: 'path5', k: 'path2' },
 )
 
+/* --------------------- fairground: prize tent + arcade ------------------- */
+/*
+ * Sol's tent and the Harbor Arcade share one legend so the two rooms read as
+ * one midway: a metal carcass, cream cloth, warm timber and the fair's
+ * red/teal/gold rotation. Everything is modelled the way the rest of the pack
+ * is — masses with a lit top-left rim and a shaded bottom-right return, detail
+ * separated by value steps rather than lines.
+ */
+const FAIRPAL: Legend = {
+  ...METAL,
+  ...CLOTH,
+  ...WOOD,
+  s: 'red6', f: 'red5', r: 'red4', d: 'red3', x: 'red2',
+  H: 'yellow7', y: 'yellow5', Y: 'yellow3',
+  l: 'teal6', t: 'teal4', T: 'teal3',
+  b: 'blue5', B: 'blue3',
+  p: 'pink5', P: 'pink3',
+  v: 'purple4', V: 'purple3',
+  G: 'glass6', g: 'glass4', q: 'glass2',
+  i: 'ink3', j: 'ink2',
+}
+
+/** A wrapped prize: slab, ribbon cross and a small bow above the lid. */
+const prizeBox = (
+  g: string[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  [body, lit, shade]: [string, string, string],
+  [rib, ribLit]: [string, string],
+): void => {
+  slab(g, x, y, w, h, body, lit, shade)
+  const rx = x + (w >> 1) - 1
+  vline(g, rx, y, h, rib)
+  vline(g, rx + 1, y, h, ribLit)
+  const ry = y + (h >> 1) - 1
+  hline(g, x, ry, w, rib)
+  hline(g, x, ry + 1, w, ribLit)
+  // bow: two loops and a knot, sitting on the lid
+  put(g, rx - 3, y - 3, `${ribLit}${rib}.${rib}${ribLit}`)
+  put(g, rx - 3, y - 2, `${rib}${ribLit}${ribLit}${ribLit}${rib}`)
+  put(g, rx - 1, y - 1, `${ribLit}${rib}`)
+}
+
+/** A round-eared plushie: two ear discs, a head and a body, all top-left lit. */
+const plushie = (g: string[], cx: number, base: number, rad: number, [body, lit, shade, dark]: string[]): void => {
+  const er = Math.max(2, rad - 3)
+  for (const ex of [cx - rad + 1, cx + rad - 1]) {
+    disc(g, ex, base - rad * 2 - 1, er, er, body)
+    disc(g, ex - 1, base - rad * 2 - 2, er - 1, er - 1, lit)
+    disc(g, ex, base - rad * 2 - 1, er - 2, er - 2, dark)
+  }
+  disc(g, cx, base - rad - 3, rad, rad - 1, body)
+  disc(g, cx, base - 2, rad + 1, rad - 1, body)
+  disc(g, cx - 2, base - rad - 4, rad - 2, rad - 3, lit)
+  disc(g, cx - 2, base - 3, rad - 2, rad - 3, lit)
+  disc(g, cx + rad - 3, base - 1, 2, 2, shade)
+  // muzzle + face, two value steps apart so it reads without an outline
+  disc(g, cx, base - rad - 1, 3, 2, lit)
+  put(g, cx - 2, base - rad - 4, dark)
+  put(g, cx + 2, base - rad - 4, dark)
+  put(g, cx, base - rad - 2, dark)
+  hline(g, cx - 1, base - rad, 3, dark)
+}
+
+/* ---- int_claw: the prize crane, 64×96 × 2 (marquee bulbs alternate) ---- */
+
+const clawBase = (() => {
+  const g = grid(64, 96)
+
+  // ---- cabinet body, banded with the tent's stripes along the top ----
+  slab(g, 4, 68, 56, 27, 'r', 'f', 'x')
+  for (let i = 0; i < 7; i++) {
+    const sx = 5 + i * 8
+    box(g, sx, 69, 4, 6, i % 2 ? 'c' : 'r')
+    vline(g, sx, 69, 6, i % 2 ? 'C' : 'f')
+    vline(g, sx + 3, 69, 6, i % 2 ? 'e' : 'd')
+  }
+  hline(g, 5, 75, 54, 'y')
+  slab(g, 7, 77, 50, 13, 'd', 'r', 'x')
+  // prize chute, low on the left where a won box drops out
+  slab(g, 10, 78, 22, 12, 'm', 'N', 'k')
+  box(g, 12, 80, 18, 8, 'j')
+  box(g, 12, 80, 18, 3, 'q')
+  hline(g, 12, 80, 18, 'g')
+  // coin mech on the right
+  slab(g, 38, 78, 15, 12, 'N', 'A', 'm')
+  box(g, 44, 80, 3, 5, 'k')
+  put(g, 44, 80, 'A')
+  box(g, 41, 86, 9, 3, 'k')
+  hline(g, 41, 85, 9, 'A')
+  // plinth
+  slab(g, 4, 90, 56, 5, 'm', 'N', 'k')
+  hline(g, 4, 94, 56, 'k')
+  box(g, 6, 95, 6, 1, 'k')
+  box(g, 52, 95, 6, 1, 'k')
+
+  // ---- control deck ----
+  slab(g, 2, 56, 60, 13, 'N', 'A', 'm')
+  hline(g, 2, 57, 60, 'M')
+  box(g, 24, 65, 32, 3, 'k')
+  hline(g, 24, 65, 32, 'm')
+  // joystick
+  disc(g, 15, 65, 7, 3, 'k')
+  disc(g, 15, 64, 5, 2, 'm')
+  vline(g, 15, 59, 6, 'M')
+  vline(g, 14, 59, 6, 'A')
+  disc(g, 15, 58, 4, 4, 'r')
+  disc(g, 14, 57, 2, 2, 'f')
+  put(g, 13, 56, 's')
+  // two buttons
+  for (const [bx, top, mid] of [[36, 'y', 'Y'], [47, 't', 'T']] as [number, string, string][]) {
+    disc(g, bx, 61, 5, 4, 'k')
+    disc(g, bx, 60, 4, 3, mid)
+    disc(g, bx - 1, 59, 3, 2, top)
+  }
+
+  // ---- glass case ----
+  slab(g, 2, 16, 60, 41, 'M', 'A', 'm')
+  box(g, 5, 19, 54, 35, 'k')
+  box(g, 6, 20, 52, 33, 'g')
+  hline(g, 6, 20, 52, 'G')
+  vline(g, 6, 20, 33, 'G')
+  vline(g, 57, 20, 33, 'q')
+  // brushed tray the pile sits on
+  slab(g, 6, 49, 52, 4, 'N', 'A', 'm')
+  hline(g, 6, 52, 52, 'k')
+  // three prizes waiting on the tray
+  prizeBox(g, 8, 38, 15, 11, ['t', 'l', 'T'], ['y', 'H'])
+  prizeBox(g, 26, 42, 13, 7, ['p', 'C', 'P'], ['v', 'V'])
+  prizeBox(g, 42, 40, 15, 9, ['b', 'G', 'B'], ['s', 'f'])
+  // gantry rail and the crane, hanging in front of the pile
+  hline(g, 8, 21, 48, 'm')
+  hline(g, 8, 22, 48, 'N')
+  slab(g, 25, 23, 13, 5, 'N', 'A', 'm')
+  vline(g, 31, 28, 5, 'A')
+  vline(g, 32, 28, 5, 'm')
+  slab(g, 26, 33, 11, 4, 'M', 'A', 'm')
+  // three fingers splaying as they drop
+  for (let i = 0; i < 8; i++) {
+    const k = Math.round(i * 0.5)
+    put(g, 27 - k, 37 + i, i < 6 ? 'A' : 'M')
+    put(g, 28 - k, 37 + i, i < 6 ? 'M' : 'N')
+    put(g, 35 + k, 37 + i, i < 6 ? 'm' : 'N')
+    put(g, 36 + k, 37 + i, i < 6 ? 'N' : 'M')
+  }
+  vline(g, 31, 37, 8, 'A')
+  vline(g, 32, 37, 8, 'M')
+  put(g, 31, 44, 'N')
+  put(g, 32, 44, 'N')
+  // raking reflection on the glass itself, clear of the crane
+  for (let i = 0; i < 13; i++) {
+    put(g, 11 + i, 34 - i, 'G')
+    put(g, 12 + i, 34 - i, 'G')
+  }
+  for (let i = 0; i < 7; i++) put(g, 18 + i, 31 - i, 'G')
+
+  // ---- marquee ----
+  slab(g, 2, 3, 60, 13, 'r', 'f', 'x')
+  slab(g, 6, 5, 52, 9, 'x', 'd', 'j')
+  const GIFT = [
+    '..H..H..',
+    '.HHHHHH.',
+    '..HYYH..',
+    'HHHHHHHH',
+    'H..YY..H',
+    'H..YY..H',
+    'HHHHHHHH',
+  ]
+  for (let i = 0; i < GIFT.length; i++) put(g, 28, 6 + i, GIFT[i].replace(/\./g, 'x'))
+  for (const sx of [14, 44]) {
+    put(g, sx + 2, 7, 'Y')
+    put(g, sx + 2, 8, 'H')
+    put(g, sx, 9, 'YHHHY')
+    put(g, sx + 2, 10, 'H')
+    put(g, sx + 2, 11, 'Y')
+  }
+  return g
+})()
+
+/** Marquee bulb row; `phase` decides which half of the string is lit. */
+const clawBulbs = (phase: number): string[] => {
+  const g = grid(64, 2)
+  for (let i = 0; i < 7; i++) {
+    const bx = 4 + i * 9
+    const on = i % 2 === phase
+    put(g, bx, 0, on ? '.H.' : '.Y.')
+    put(g, bx, 1, on ? 'HyH' : 'YkY')
+  }
+  return g
+}
+
+furn(
+  'int_claw',
+  join(splice(clawBase, 0, 1, clawBulbs(0)), splice(clawBase, 0, 1, clawBulbs(1))),
+  FAIRPAL,
+  { frames: 2, anchor: [32, 92] },
+)
+
+/* ---- int_prizeshelf: the wall of prizes behind Sol's counter, 96×48 ---- */
+
+furn(
+  'int_prizeshelf',
+  (() => {
+    const g = grid(96, 48)
+    // carcass: two side panels, a back and a top cap
+    box(g, 6, 2, 84, 44, 'K')
+    slab(g, 3, 2, 9, 44, 'u', 'w', 'D')
+    slab(g, 84, 2, 9, 44, 'u', 'o', 'K')
+    slab(g, 2, 1, 92, 5, 'o', 'W', 'D')
+    speckle(g, 'K', 'D', 7, 3)
+    // two shelf boards
+    for (const by of [20, 40]) {
+      slab(g, 4, by, 88, 4, 'o', 'W', 'K')
+      hline(g, 4, by + 4, 88, 'K')
+    }
+    hline(g, 6, 45, 84, 'K')
+    // upper shelf: box, plushie, box
+    prizeBox(g, 15, 9, 19, 11, ['t', 'l', 'T'], ['y', 'H'])
+    plushie(g, 48, 20, 7, ['h', 'e', 'E', 'K'])
+    prizeBox(g, 65, 11, 17, 9, ['p', 'C', 'P'], ['v', 'V'])
+    // lower shelf: plushie, box
+    plushie(g, 26, 40, 7, ['t', 'l', 'T', 'j'])
+    prizeBox(g, 52, 28, 26, 12, ['b', 'G', 'B'], ['s', 'f'])
+    return g
+  })(),
+  FAIRPAL,
+  { anchor: [48, 44] },
+)
+
+/* ---- int_cabinet: Mira's Crew Drop cabinet, 48×80 × 2 ---- */
+
+/** The Crew Drop board: hex-drop tiles with beans on them. `gone` is the tile that has fallen. */
+const crewScreen = (gone: number): string[] => {
+  const g = grid(36, 21, 'j')
+  // starfield behind the board
+  for (let i = 0; i < 9; i++) put(g, (i * 13) % 35, (i * 7) % 20, 'V')
+  const tileY = (rw: number): number => 4 + rw * 6
+  for (let c = 0; c < 5; c++)
+    for (let rw = 0; rw < 3; rw++) {
+      if (c + rw * 5 === gone) continue
+      slab(g, 1 + c * 7, tileY(rw), 6, 4, 'T', 'l', 'B')
+      hline(g, 1 + c * 7, tileY(rw) + 4, 6, 'B')
+    }
+  const beans: [number, number, string, string][] = [
+    [1, 0, 'r', 'f'],
+    [3, 1, 'b', 'G'],
+    [2, 2, 'y', 'H'],
+  ]
+  for (const [c, rw, body, lit] of beans) {
+    if (c + rw * 5 === gone) continue
+    const x = 2 + c * 7
+    const y = tileY(rw) - 4
+    put(g, x + 1, y, `${body}${body}`)
+    put(g, x, y + 1, `${lit}GG${body}`)
+    put(g, x, y + 2, `${body}${body}${body}${body}`)
+    put(g, x, y + 3, `${lit}${body}${body}${body}`)
+    put(g, x, y + 4, `${body}..${body}`)
+  }
+  return g
+}
+
+const cabinetBase = (() => {
+  const g = grid(48, 80)
+  // body: side art — two diagonal ribbons on a dark panel under a gold rule
+  slab(g, 5, 48, 38, 31, 'V', 'v', 'j')
+  slab(g, 8, 51, 32, 24, 'j', 'V', 'j')
+  hline(g, 8, 50, 32, 'y')
+  for (let y = 51; y < 75; y++)
+    for (const [off, band] of [[0, ['l', 't', 't', 'T', 'T']], [13, ['v', 'V', 'V']]] as [number, string[]][])
+      band.forEach((ch, k) => {
+        const x = 8 + off + Math.round((y - 51) * 0.85) + k
+        if (x >= 8 && x < 40) put(g, x, y, ch)
+      })
+  slab(g, 15, 60, 18, 12, 'm', 'N', 'k')
+  box(g, 22, 63, 3, 6, 'k')
+  put(g, 22, 63, 'A')
+  box(g, 19, 68, 9, 2, 'k')
+  slab(g, 5, 74, 38, 5, 'j', 'm', 'k')
+  hline(g, 5, 78, 38, 'k')
+  // control panel, tilted toward the player
+  slab(g, 2, 40, 44, 10, 'N', 'A', 'm')
+  hline(g, 2, 41, 44, 'M')
+  disc(g, 12, 46, 6, 3, 'k')
+  disc(g, 12, 45, 4, 2, 'm')
+  vline(g, 12, 41, 5, 'M')
+  vline(g, 11, 41, 5, 'A')
+  disc(g, 12, 40, 3, 3, 'r')
+  put(g, 11, 39, 'f')
+  for (const [bx, top, mid] of [[27, 'y', 'Y'], [36, 't', 'T']] as [number, string, string][]) {
+    disc(g, bx, 46, 4, 3, 'k')
+    disc(g, bx, 45, 3, 2, mid)
+    put(g, bx - 1, 44, top)
+  }
+  // screen bezel
+  slab(g, 2, 12, 44, 29, 'm', 'N', 'k')
+  box(g, 5, 15, 38, 23, 'k')
+  // marquee
+  slab(g, 3, 2, 42, 11, 'V', 'v', 'j')
+  slab(g, 6, 4, 36, 7, 'j', 'V', 'j')
+  for (let i = 0; i < 3; i++) {
+    const bx = 12 + i * 10
+    const c = ['r', 'b', 'y'][i]
+    put(g, bx + 1, 5, `${c}${c}`)
+    put(g, bx, 6, `G${c}${c}${c}`)
+    put(g, bx, 7, `${c}${c}${c}${c}`)
+    put(g, bx, 8, `${c}${c}${c}${c}`)
+    put(g, bx, 9, `${c}..${c}`)
+  }
+  return g
+})()
+
+furn(
+  'int_cabinet',
+  join(splice(cabinetBase, 6, 16, crewScreen(-1)), splice(cabinetBase, 6, 16, crewScreen(7))),
+  FAIRPAL,
+  { frames: 2, anchor: [24, 76] },
+)
+
+/* ---- int_bunting / int_balloons: the tent's indoor dressing ---- */
+
+furn(
+  'int_bunting',
+  (() => {
+    const g = grid(96, 16)
+    const ropeY = (x: number): number => Math.round(4 * Math.sin((Math.PI * x) / 95))
+    for (let x = 0; x < 96; x++) {
+      put(g, x, ropeY(x), 'c')
+      put(g, x, ropeY(x) + 1, 'h')
+    }
+    const ramp: [string, string, string][] = [
+      ['r', 'f', 'd'],
+      ['t', 'l', 'T'],
+      ['y', 'H', 'Y'],
+    ]
+    for (let k = 0; k < 8; k++) {
+      const cx = 6 + k * 12
+      const [body, lit, shade] = ramp[k % 3]
+      const top = ropeY(cx) + 2
+      for (let i = 0; i <= 8; i++) {
+        const half = Math.round(4 * (1 - i / 9))
+        hline(g, cx - half, top + i, half * 2 + 1, body)
+        if (half > 0) {
+          put(g, cx - half, top + i, lit)
+          put(g, cx + half, top + i, shade)
+        }
+      }
+      hline(g, cx - 4, top, 3, lit)
+      put(g, cx, top - 1, 'C')
+    }
+    return g
+  })(),
+  FAIRPAL,
+  { anchor: [48, 12] },
+)
+
+furn(
+  'int_balloons',
+  (() => {
+    const g = grid(32, 48)
+    // strings first, so every knot sits on top of them
+    for (const [sx, sy] of [[23, 18], [9, 21], [16, 33]] as [number, number][])
+      for (let y = sy; y <= 38; y++) {
+        const t = (y - sy) / (38 - sy)
+        put(g, Math.round(sx + (16 - sx) * t + Math.sin(t * Math.PI) * (sx < 16 ? 1.8 : -1.8)), y, y % 5 ? 'h' : 'c')
+      }
+    // ribbon knot and the weight it is tied to
+    slab(g, 13, 38, 6, 4, 'e', 'C', 'h')
+    slab(g, 11, 41, 10, 6, 'u', 'w', 'K')
+    hline(g, 11, 46, 10, 'K')
+    const bloom = (cx: number, cy: number, [body, lit, shade, spec]: string[]): void => {
+      disc(g, cx, cy, 7, 8, body)
+      disc(g, cx - 1, cy - 1, 6, 6, lit)
+      disc(g, cx + 3, cy + 3, 4, 4, shade)
+      disc(g, cx - 2, cy - 3, 2, 2, spec)
+      for (let i = 0; i < 3; i++) hline(g, cx - (2 - i), cy + 8 + i, 5 - i * 2, shade)
+    }
+    bloom(23, 11, ['t', 'l', 'T', 'G'])
+    bloom(9, 14, ['r', 'f', 'd', 's'])
+    bloom(16, 26, ['y', 'H', 'Y', 'C'])
+    return g
+  })(),
+  FAIRPAL,
+  { anchor: [16, 44] },
+)
+
 export const INTERIOR_DEFS: SpriteDef[] = D

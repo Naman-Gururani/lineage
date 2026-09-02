@@ -10,7 +10,7 @@ import { clearSave, loadSave, writeSave } from '../core/save'
 import { PROFILE } from '../data/content'
 import { closeModal, el, esc, focusables, isLocked, openModal } from './modal'
 
-const PITCH = 'I build real-time systems that move money — this island is my résumé. Explore it.'
+const PITCH = 'I build real-time systems that move money — this island is my résumé. Bo will show you around.'
 const FOOT = 'Prefer plain text? Reader Mode has everything.'
 
 type HowRow = { k: string; v: string }

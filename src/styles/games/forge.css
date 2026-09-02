@@ -1,0 +1,223 @@
+/* Word Forge (letter wheel) — owned by the forge renderer.
+
+   The wheel is placed by maths, not by layout. Every tile carries its own angle
+   as `--a` and is pushed out to the ring by rotate → translate → un-rotate, so
+   the letter itself stays upright while its seat moves round the circle. The
+   `translate()` distance below is the same radius `ui/minigames/forge.ts` uses to
+   plot the drag trail into a 300-unit viewBox — change one and the line stops
+   meeting the tiles. */
+.mg[data-game='forge'] {
+  --fg-wheel: 300px;
+  --fg-tile: 52px;
+}
+
+/* ---------- the wall: one slot per word ---------- */
+.fg-slots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.8rem 1.5rem;
+  margin: 0.9rem var(--pad) 0;
+  padding: 0;
+  list-style: none;
+}
+.fg-slot {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+}
+.fg-clue {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.fg-word {
+  display: flex;
+  gap: 4px;
+}
+.fg-tile {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 34px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  font-family: var(--font-accent);
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--accent);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.fg-tile.on {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.fg-slot.found .fg-tile {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.fg-slot.found .fg-clue {
+  color: var(--accent);
+}
+.fg-slot.flash .fg-tile {
+  animation: fg-land 420ms var(--ease);
+}
+@keyframes fg-land {
+  0% {
+    transform: translateY(-6px);
+    opacity: 0.4;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ---------- the bench: the word being spelled, and why it bounced ---------- */
+.fg-bench {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  margin: 1rem var(--pad) 0;
+  min-height: 3.2rem;
+}
+.fg-current {
+  margin: 0;
+  min-height: 1.7rem;
+  font-family: var(--font-accent);
+  font-size: 1.55rem;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.fg-current.shake {
+  animation: fg-shake 420ms var(--ease);
+  color: var(--danger);
+}
+@keyframes fg-shake {
+  10%,
+  90% {
+    transform: translateX(-4px);
+  }
+  30%,
+  70% {
+    transform: translateX(6px);
+  }
+  50% {
+    transform: translateX(-6px);
+  }
+}
+.fg-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+/* ---------- the wheel ---------- */
+.fg-ring {
+  position: relative;
+  width: var(--fg-wheel);
+  height: var(--fg-wheel);
+  margin: 0.2rem auto 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.05), transparent 68%);
+  /* the drag is the input: the browser must not read it as a scroll or a
+     text selection halfway through a word */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fg-path {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.fg-path polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+}
+.fg-letter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--fg-tile);
+  height: var(--fg-tile);
+  margin: calc(var(--fg-tile) / -2) 0 0 calc(var(--fg-tile) / -2);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-family: var(--font-accent);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  transform: rotate(var(--a)) translate(110px) rotate(calc(-1 * var(--a)));
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.fg-letter:hover {
+  background: var(--surface-3);
+}
+.fg-letter.picked {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.fg-letter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* `.mg-keys` already carries the footer's auto margin, so the hint button just
+   sits in the run of controls at the right. */
+.fg-hintbtn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* the panel takes the keys itself; the focus ring belongs on the controls */
+.mg[data-game='forge']:focus-visible {
+  outline: none;
+}
+
+/* A narrower panel gets a smaller wheel. The radius is scaled by exactly the
+   ratio the viewBox is scaled by (250 / 300), so the trail keeps meeting the
+   tiles it is drawn between. */
+@media (max-width: 430px) {
+  .mg[data-game='forge'] {
+    --fg-wheel: 250px;
+    --fg-tile: 44px;
+  }
+  .fg-letter {
+    font-size: 1.15rem;
+    transform: rotate(var(--a)) translate(91.7px) rotate(calc(-1 * var(--a)));
+  }
+  .fg-tile {
+    width: 26px;
+    height: 30px;
+  }
+}
+
+/* Reduced motion: the states still land, they just stop performing. */
+.reduce-motion .fg-current.shake,
+.reduce-motion .fg-slot.flash .fg-tile {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fg-current.shake,
+  .fg-slot.flash .fg-tile {
+    animation: none;
+  }
+}

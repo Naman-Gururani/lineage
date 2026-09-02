@@ -3,13 +3,13 @@ import Phaser from 'phaser'
 import { ATLAS, frameDataURL, hasFrame } from '../art/atlas'
 import { sfx } from '../audio/sfx'
 import { soundtrack } from '../systems/Soundtrack'
-import { uiState } from '../ui/state'
+import { uiState, type Objective } from '../ui/state'
 import { TILE, WORLD_H, WORLD_SEED, WORLD_W } from '../config'
 import { events, touchInput } from '../core/events'
 import { hooks } from '../core/hooks'
 import { isBound, keys } from '../core/keys'
 import { makeRng, type Rng } from '../core/rng'
-import { hadV1Save, loadSave, loadSettings, type Save, type Settings } from '../core/save'
+import { hadLegacySave, loadSave, loadSettings, type Save, type Settings } from '../core/save'
 import { Chest } from '../entities/Chest'
 import { Companion } from '../entities/Companion'
 import { Critters } from '../entities/Critters'
@@ -37,12 +37,13 @@ import { Wind } from '../systems/Wind'
 import { BLUEPRINT, type Landmark } from '../world/blueprint'
 import type { Blocked, Solid } from '../world/collision'
 import { HOP_TIME, LEDGE_ARC, LEDGE_TILES, boxBlocked, planHop } from '../world/hop'
-import { regionAt } from '../world/regions'
+import { regionAt, type Vec2 } from '../world/regions'
 import type { Decor } from '../world/scatter'
 import { HOPPABLE_TERRAIN, LOW_KINDS, T, isWalkable, isWater, ledgeAt, type Grid, type LedgeDir } from '../world/terrain'
 import type { WorldData } from './BootScene'
 import { ZONES } from '../data/content'
 import { ROOMS } from '../data/rooms'
+import { STATIONS, stationSpot, type StoryStep } from '../data/story'
 import type { Dir } from '../entities/Player'
 import { acceptsRoomWake, type Mode } from './transitions'
 
@@ -58,7 +59,7 @@ const FACING: Record<Dir, { sx: number; sy: number; ledge: LedgeDir }> = {
 const COMING_SOON = 'Opening soon.'
 
 /** Buildings with no zone entry still need a name over their door. */
-const PLAIN_NAMES: Record<string, string> = { warehouse: 'The Warehouse' }
+const PLAIN_NAMES: Record<string, string> = { warehouse: 'Harbor Arcade' }
 
 /** Play a sound by name if the audio module provides it (some land later). */
 const play = (name: string, fallback?: string) => {
@@ -102,13 +103,13 @@ const SOLID_BOX: Record<string, { w: number; h: number }> = {
   log: { w: 18, h: 6 },
 }
 
+// Outdoors only. Mira hosts the arcade and Sol the prize tent, so they stand in
+// their rooms (`data/rooms.ts`) and not on the grass as well; Lou and Devi are
+// gone. Bo is idle by design: he holds his station until the story moves it.
 const NPC_CAST: NpcDef[] = [
-  { id: 'mira', name: 'Captain Mira', x: 0, y: 0, behaviour: { kind: 'wander', radius: 28 }, facing: 'down' },
+  { id: 'dockmaster', name: 'Bo', x: 0, y: 0, behaviour: { kind: 'idle' }, facing: 'down' },
   { id: 'tomas', name: 'Old Tomas', x: 0, y: 0, behaviour: { kind: 'idle' }, facing: 'down' },
   { id: 'pip', name: 'Pip', x: 0, y: 0, behaviour: { kind: 'wander', radius: 48 } },
-  { id: 'lou', name: 'Baker Lou', x: 0, y: 0, behaviour: { kind: 'wander', radius: 24 } },
-  { id: 'sol', name: 'Operator Sol', x: 0, y: 0, behaviour: { kind: 'wander', radius: 30 } },
-  { id: 'devi', name: 'Nana Devi', x: 0, y: 0, behaviour: { kind: 'idle' }, facing: 'down' },
   { id: 'arjun', name: 'Arjun', x: 0, y: 0, behaviour: { kind: 'wander', radius: 36 } },
   { id: 'ilse', name: 'Keeper Ilse', x: 0, y: 0, behaviour: { kind: 'wander', radius: 20 } },
 ]
@@ -219,6 +220,14 @@ export class WorldScene extends Phaser.Scene {
       ),
     )
     this.unsub.push(events.on('settings:changed', () => this.applySettings()))
+    // The story moved on: re-point the chip and send Bo to his new station.
+    this.unsub.push(
+      events.on('story:changed', () => {
+        this.refreshObjective()
+        this.relocateBo()
+      }),
+    )
+    this.unsub.push(events.on('facet:unlocked', () => this.refreshObjective()))
     this.unsub.push(events.on('game:reader', () => this.state?.ach.unlock('well_read')))
     // Phaser leaves scene-level listeners in place across `restart()`, so this
     // one has to be taken off by hand — otherwise every title → play cycle adds
@@ -435,13 +444,16 @@ export class WorldScene extends Phaser.Scene {
       }
       if (p.solid) this.addSolid({ x: p.solid.x * TILE, y: p.solid.y * TILE, w: p.solid.w * TILE, h: p.solid.h * TILE }, LOW_KINDS.has(p.kind))
       const signDef = p.kind === 'sign_finger' ? signById(p.id ?? '') : undefined
+      // The telescope is the last talkative prop. The well, the stall, the boat,
+      // the mailbox, the bell and the fountain lost their trees when the island
+      // stopped being chatty: they are scenery now, and a prompt with nothing
+      // behind it is worse than no prompt at all.
       if (signDef) {
         const s = new Sign(this, img ?? this.add.image(x, y, ATLAS, 'sign_finger').setDepth(y), signDef, (id) => this.readSign(id))
         this.signs.push(s)
         this.interact.add(s.interactable)
-      } else if (p.kind === 'telescope' || p.kind === 'well' || p.kind === 'stall' || p.kind === 'boat' || p.kind === 'mailbox' || p.kind === 'bell' || p.kind === 'fountain') {
-        const kind = p.kind
-        this.interact.add({ x, y, radius: 22, prompt: kind === 'bell' ? 'Ring bell' : kind === 'telescope' ? 'Look through telescope' : `Inspect ${kind}`, onInteract: () => this.talkObject(kind) })
+      } else if (p.kind === 'telescope') {
+        this.interact.add({ x, y, radius: 22, prompt: 'Look through telescope', onInteract: () => this.useTelescope() })
       }
     }
     // packets & chests
@@ -461,7 +473,7 @@ export class WorldScene extends Phaser.Scene {
     this.interact.add({ x: f.x * TILE + 8, y: f.y * TILE + 8, radius: 20, prompt: 'Fish', onInteract: () => this.fish(), enabled: () => !!this.state && this.state.quests.isStarted('fishing') })
     // viewpoint
     const v = BLUEPRINT.viewpoint
-    this.interact.add({ x: v.x * TILE + 8, y: v.y * TILE + 8, radius: 26, prompt: 'Take in the view', onInteract: () => this.talkObject('telescope'), priority: -1 })
+    this.interact.add({ x: v.x * TILE + 8, y: v.y * TILE + 8, radius: 26, prompt: 'Take in the view', onInteract: () => this.useTelescope(), priority: -1 })
   }
 
   private buildParticles() {
@@ -547,6 +559,9 @@ export class WorldScene extends Phaser.Scene {
     if (minimapSrc && minimapSrc.toDataURL) uiState.minimapURL = minimapSrc.toDataURL()
     this.state.handlers = {
       sleep: (to) => this.sleep(to),
+      // A dialogue that offers a game opens the cabinet through the panel layer;
+      // the host mounts it and hands the reward back to this same save.
+      minigame: (id) => events.emit('ui:panel', { id: 'minigame', data: id }),
       teleport: (id) => this.travelTo(id),
       cutscene: (id) => void this.runCutscene(id),
       panel: (id) => this.openPanel(id),
@@ -554,8 +569,15 @@ export class WorldScene extends Phaser.Scene {
       sfx: (id) => (sfx as unknown as Record<string, (() => void) | undefined>)[id]?.(),
       hat: (id) => this.player?.setHat(id),
       isNight: () => this.dayNight.isNight,
-      celebrate: () => {
-        events.emit('ui:banner', { title: '100%', sub: 'You found everything. Thank you for exploring!' })
+      // Two endings, one set of fireworks. Finishing Bo's tour is not finishing
+      // the island, and the banner has to say so — otherwise the last chapter
+      // congratulates you on a hundred per cent you have not reached.
+      celebrate: (reason) => {
+        const banner =
+          reason === 'story'
+            ? { title: 'The whole story', sub: 'Pier to lighthouse. Explore all you like.' }
+            : { title: '100%', sub: 'You found everything. Thank you for exploring!' }
+        events.emit('ui:banner', banner)
         this.setFireworks(this.player?.x ?? 80 * TILE, (this.player?.y ?? 66 * TILE) - 30)
         soundtrack.fanfare()
       },
@@ -590,6 +612,10 @@ export class WorldScene extends Phaser.Scene {
       if (this.player.running && !this.reduced) this.dust.emitParticleAt(this.player.x, this.player.y + 1, 1)
     }
     this.buildNpcs()
+    // The guide stands where the save says the story got to — no walk, nobody
+    // watching yet.
+    this.relocateBo(true)
+    this.refreshObjective()
     // open already-opened chests, remove collected packets
     for (const c of this.chests)
       if (this.state.save.chests.includes(c.id)) {
@@ -611,7 +637,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Islands from before the reshape are gone; say so once rather than silently. */
   private greetReturningPlayer() {
-    if (WorldScene.greeted || this.state.save.welcomeSeen || !hadV1Save()) return
+    if (WorldScene.greeted || this.state.save.welcomeSeen || !hadLegacySave()) return
     WorldScene.greeted = true
     events.emit('ui:toast', { kind: 'info', icon: '🏝️', title: 'The island got a big upgrade — fresh start!' })
   }
@@ -662,6 +688,10 @@ export class WorldScene extends Phaser.Scene {
     this.setLocked(false)
     this.refreshSoundtrack()
     this.registry.set('state', this.state)
+    // A room hid the whole island while you were in it: whatever the story did
+    // in there, Bo takes his new station now, unseen.
+    this.relocateBo(true)
+    this.refreshObjective()
     if (d?.cutscene) void this.runCutscene(d.cutscene)
   }
 
@@ -798,15 +828,25 @@ export class WorldScene extends Phaser.Scene {
     events.emit('ui:panel', { id: 'sign', data: id })
   }
 
-  private talkObject(kind: string) {
-    if (kind === 'telescope') this.state.ach.unlock('summit')
-    if (kind === 'bell') play('bell')
-    const tree = getTree(kind) ?? linesTree(kind, kind.charAt(0).toUpperCase() + kind.slice(1), [`You inspect the ${kind}.`])
-    void this.runDialogue(tree)
+  /**
+   * The telescope is the one prop left with anything to say — every other one
+   * lost its tree when the island stopped being chatty. There is deliberately
+   * no synthetic "You inspect the …" fallback: a prop either has authored lines
+   * or has no prompt at all.
+   */
+  private useTelescope() {
+    this.state.ach.unlock('summit')
+    const tree = getTree('telescope')
+    if (tree) void this.runDialogue(tree)
   }
 
-  private async talkTo(npc: Npc) {
-    if (this.locked) return
+  /**
+   * `force` is for the arrival alone: it has already waited for every modal to
+   * close, and a stray lock silently swallowing Bo's last line would leave the
+   * player standing on the pier with no idea where to go.
+   */
+  private async talkTo(npc: Npc, force = false) {
+    if (this.locked && !force) return
     const tree = getTree(npc.def.id) ?? linesTree(npc.def.id, npc.def.name, ['...', 'Lovely weather on the isle today.'])
     npc.talkStart(this.player.x, this.player.y)
     this.player.face(npc.x, npc.y)
@@ -830,7 +870,11 @@ export class WorldScene extends Phaser.Scene {
         if (runner.advance() === 'choice') runner.choose(0)
       }
     }
-    this.setLocked(false)
+    // A tree whose closing effect opened a card or a cabinet (`effectsAtEnd`)
+    // ends with that modal still up and owning the keyboard — releasing the
+    // world here would let the hero walk off while the player types. The modal
+    // layer's own `ui:lock false` lets go when it closes.
+    this.setLocked(document.body.classList.contains('modal-open'))
     this.emitState()
   }
 
@@ -954,6 +998,115 @@ export class WorldScene extends Phaser.Scene {
     this.emitState()
   }
 
+  /* ---------------- the guide ---------------- */
+
+  /** Bo, if he is on the island — he is the one villager the story moves about. */
+  private get bo(): Npc | null {
+    return this.npcs.find((n) => n.def.id === 'dockmaster') ?? null
+  }
+
+  /** Where the guide should be standing right now, in world pixels. */
+  private boStation(): Vec2 {
+    const t = stationSpot(this.state.storyNext())
+    return { x: t.x * TILE + 8, y: t.y * TILE + 12 }
+  }
+
+  /**
+   * Keep Bo at the station the story is pointing at — without ever being seen
+   * to jump. Off-camera (the view plus two tiles) he simply is somewhere else;
+   * on-camera he sets off walking and the snap happens once he is out of sight.
+   */
+  private relocateBo(force = false) {
+    const bo = this.bo
+    // Mid-conversation he belongs exactly where he is standing.
+    if (!bo || !this.state || bo.talking) return
+    const s = this.boStation()
+    if (bo.home.x === s.x && bo.home.y === s.y) return
+    const v = this.cameras.main.worldView
+    const pad = 2 * TILE
+    const seen = bo.x > v.x - pad && bo.x < v.right + pad && bo.y > v.y - pad && bo.y < v.bottom + pad
+    const dx = s.x - bo.x
+    const dy = s.y - bo.y
+    const d = Math.hypot(dx, dy)
+    // Arrived under his own steam, or nobody is looking: take up the station.
+    if (force || !seen || d < 2) {
+      this.boWalk = null
+      bo.rehome(s.x, s.y)
+      return
+    }
+    // A straight line at a headland is sometimes a wall. If the last errand left
+    // him exactly where it found him, walking him at the same station again only
+    // makes him twitch on the spot twice a second: let him stand and wait for the
+    // camera to look away.
+    const last = this.boWalk
+    if (last && last.sx === s.x && last.sy === s.y && Math.hypot(bo.x - last.x, bo.y - last.y) < 1) return
+    // A few tiles at a time, recomputed twice a second: he heads off the way you
+    // are being sent, and stops being your problem the moment he leaves frame.
+    const step = Math.min(4 * TILE, d)
+    this.boWalk = { x: bo.x, y: bo.y, sx: s.x, sy: s.y }
+    bo.walkTo(bo.x + (dx / d) * step, bo.y + (dy / d) * step)
+  }
+
+  /** The chip's text and the tile it points at, for the step the story is on. */
+  private objectiveFor(step: StoryStep | null): Objective | null {
+    if (!step) return null
+    const st = STATIONS[step]
+    // A station names the door it is sending you to. The two the story holds at
+    // the pier name the `PIER` sentinel instead — no landmark answers to it, so
+    // they land on the fallback, which is exactly where Bo is standing.
+    const spot = BLUEPRINT.landmarks.find((l) => l.id === st.landmark)?.door ?? BLUEPRINT.npcSpots.dockmaster
+    return { step, text: st.hint, landmark: st.landmark, tx: spot.x, ty: spot.y }
+  }
+
+  /**
+   * Hand the panels the chapter list and the next stop, as the save has them.
+   *
+   * A copy, not the save's own array: the panel layer treats `uiState` as its
+   * own scratch space and pushes into it, and a chapter invented there must
+   * never end up in the file. Refreshed on every state tick and on every
+   * `facet:unlocked`, so the copy is never more than a beat behind.
+   */
+  private refreshObjective() {
+    if (!this.state) return
+    uiState.unlocked = [...this.state.save.unlocked]
+    uiState.objective = this.objectiveFor(this.state.storyNext())
+  }
+
+  /**
+   * Resolve once nothing is holding the screen. One modal routinely opens
+   * another — a mini-game closes and the chapter it just unlocked opens over
+   * the world — and a conversation started in that gap would be swallowed by
+   * the lock the new card takes.
+   */
+  private waitForModals(): Promise<void> {
+    const open = () => document.body.classList.contains('modal-open')
+    if (!open()) return Promise.resolve()
+    return new Promise((resolve) => {
+      const off = events.on('ui:closed', () => {
+        // A step later: whatever follows this close has opened by then.
+        setTimeout(() => {
+          if (open()) return
+          off()
+          resolve()
+        }, 0)
+      })
+      // A scene shutdown mid-wait (title screen) must not leave it listening.
+      this.unsub.push(off)
+    })
+  }
+
+  /** Resolve once the panel layer says that modal has closed. */
+  private waitForClose(id: string): Promise<void> {
+    return new Promise((resolve) => {
+      const off = events.on('ui:closed', (e) => {
+        if (e.id !== id) return
+        off()
+        resolve()
+      })
+      this.unsub.push(off)
+    })
+  }
+
   /* ---------------- cutscenes ---------------- */
 
   private async runCutscene(id: string): Promise<void> {
@@ -988,21 +1141,66 @@ export class WorldScene extends Phaser.Scene {
     } else this.player.setPosition(dockX, dockEndY - 6)
     await cs.wait(400)
     wake?.destroy()
-    // Mira walks over
-    const mira = this.npcs.find((n) => n.def.id === 'mira')
-    if (mira) {
-      mira.talkStart(this.player.x, this.player.y)
-      await cs.moveTo(mira, this.player.x - 4, this.player.y - 26, 60, () => {
-        mira.setDepth(mira.y)
+    // Bo walks over. He is the guide: the arrival waits on his introduction, on
+    // the card it opens, and on the puzzle he offers at the end of it.
+    const bo = this.bo
+    if (bo && !cs.skipped) {
+      bo.talkStart(this.player.x, this.player.y)
+      // Alongside on the planks, not a tile in front: at HD sprite heights a
+      // greeter standing above the hero simply covers him up.
+      await cs.moveTo(bo, this.player.x - 26, this.player.y - 8, 60, () => {
+        bo.setDepth(bo.y)
       })
-      mira.face(this.player.x, this.player.y)
-      this.player.face(mira.x, mira.y)
+      bo.face(this.player.x, this.player.y)
+      this.player.face(bo.x, bo.y)
     }
     cs.end()
-    this.inCutscene = false
+    // The Esc that skipped the cutscene is still in flight: the world defers its
+    // own menu by a tick (see `create`), and that tick must still find a
+    // cutscene running or skipping would drop the player into the pause panel.
+    if (cs.skipped) setTimeout(() => (this.inCutscene = false), 0)
+    else this.inCutscene = false
     this.state.ach.unlock('first_steps')
-    if (mira) await this.talkTo(mira)
-    else events.emit('ui:hint', { text: 'WASD / arrows to move · Space to hop · E to talk' })
+    // Who Naman is, is given rather than won — and it has to be on the record
+    // before the tree flushes its `panel: zone:about` effect, or the first card
+    // the player ever sees is the locked one. Skipping the arrival still gives
+    // it: Esc asks to get on with the game, not to be told less.
+    this.state.unlockFacet('about', false)
+    // Esc asked to get on with it: no walk, no speech, and Bo waits at the pier
+    // with the puzzle still on offer. (`cs.end()` took the skip key off, so this
+    // reads the same answer the walk above did.)
+    if (bo && !cs.skipped) {
+      // Everything from here to his follow-up is one exchange, and he is held in
+      // it (`talking`) so the story cannot walk him off mid-sentence. The
+      // `finally` is what guarantees he is handed back: an exchange that threw,
+      // or one the world lock cut short, would otherwise leave him frozen for
+      // the rest of the run — `Npc.update` and `relocateBo` both skip a talker.
+      try {
+        const tree = getTree('dockmaster')
+        if (tree) {
+          bo.talkStart(this.player.x, this.player.y)
+          this.player.face(bo.x, bo.y)
+          this.state.talked('dockmaster')
+          // `intro` is deliberately absent from the entry ladder, so that walking
+          // up to Bo later never re-opens with the arrival speech. It is run by
+          // hand here exactly as a room host's greeting is.
+          await this.runDialogue({ ...tree, entry: [{ node: 'intro' }] }, 'dockmaster')
+        }
+        this.state.unlockFacet('about', false)
+        // "Let's solve it" opened the cabinet as the dialogue ended. His follow-up
+        // is about the puzzle, so it waits for the puzzle — and then for the
+        // chapter card the win opens over the top of it.
+        if (minigames.openId === 'wordle') await this.waitForClose('minigame')
+        await this.waitForModals()
+        // One more line, from the entry ladder: won → west to the fair; not won →
+        // the puzzle keeps. Forced past the world lock: nothing is on screen by
+        // now, and the arrival's last line must not be dropped in silence.
+        await this.talkTo(bo, true)
+      } finally {
+        bo.talkEnd()
+      }
+    }
+    events.emit('ui:hint', { text: 'WASD / arrows to move · Space to hop · E to talk' })
     events.emit('ui:banner', { title: 'Harbor', sub: 'Lineage Isle' })
     this.state.save.tutorialDone = true
     this.state.dirty = true
@@ -1048,6 +1246,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private bubbleT = 0
+  /** Twice a second is often enough to notice the guide has somewhere else to be. */
+  private boT = 0
+  /** Where the last walk order left from, and for which station — see `relocateBo`. */
+  private boWalk: { x: number; y: number; sx: number; sy: number } | null = null
 
   /** Quest givers show ! when they have a quest, ? when you can turn in. */
   private refreshBubbles() {
@@ -1056,21 +1258,19 @@ export class WorldScene extends Phaser.Scene {
     const turnIn: Record<string, () => boolean> = {
       pip: () => q.isActive('shells') && this.state.has('shell', 5),
       tomas: () => q.isActive('fishing') && this.state.has('fish', 3),
-      ravi: () => q.isActive('gear') && this.state.has('gear', 1),
-      sol: () => q.isActive('gear') && !this.state.flag('gotGear'),
     }
     const gives: Record<string, string> = { pip: 'shells', tomas: 'fishing', ilse: 'beacon' }
     for (const n of this.npcs) {
       const id = n.def.id
       if (turnIn[id]?.()) n.setBubble('quest')
       else if (gives[id] && !q.isStarted(gives[id])) n.setBubble('excl')
-      else if (id === 'ravi' && !q.isStarted('gear')) n.setBubble('excl')
       else n.setBubble(null)
     }
   }
 
   private emitState() {
     if (!this.state) return
+    this.refreshObjective()
     const st = this.state.save
     uiState.stats.steps = st.stats.steps
     uiState.stats.playSeconds = st.stats.playSeconds
@@ -1078,9 +1278,9 @@ export class WorldScene extends Phaser.Scene {
     uiState.stats.fish = st.fish ?? {}
     uiState.stats.bonks = st.stats.bonks
     uiState.stats.grassCut = st.grassCut
-    // Packet Rush pays out in packets as well, so the tally can run past the
-    // twenty that lie about the island. Both readouts count progress towards the
-    // twenty the Vault asks for, not the routes they arrived by.
+    // Every packet is one of the ones lying about the island now, so the tally
+    // and the total agree; the clamp is only there so a save carrying an id the
+    // blueprint no longer has cannot read as more than the Vault asks for.
     const packets = Math.min(st.packets.length, BLUEPRINT.packetSpots.length)
     uiState.stats.packets = packets
     uiState.stats.discoveries = st.discoveries
@@ -1254,6 +1454,11 @@ export class WorldScene extends Phaser.Scene {
       if (this.bubbleT > 1200) {
         this.bubbleT = 0
         this.refreshBubbles()
+      }
+      this.boT += dms
+      if (this.boT > 500) {
+        this.boT = 0
+        this.relocateBo()
       }
       this.autosaveT += dms
       if (this.autosaveT > 10000) {

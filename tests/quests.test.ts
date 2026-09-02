@@ -1,24 +1,26 @@
 // The quest and achievement tables as data: every quest is winnable, every
-// giver is a villager who exists, and the mini-game quests line up with the
-// games (five boards, six levels) rather than with a number someone typed twice.
+// giver is a villager who exists, and the story quest's steps line up with the
+// story spine rather than with a list someone typed out twice.
 import { describe, expect, it } from 'vitest'
 import { ACHIEVEMENTS } from '../src/data/achievements'
 import { ZONES } from '../src/data/content'
 import { NPC_INFO } from '../src/data/npcs'
 import { QUESTS } from '../src/data/quests'
-import { STUDY_BOARDS } from '../src/games/lightsout'
-import { CARGO_LEVELS } from '../src/games/sokoban'
+import { STORY_ORDER } from '../src/data/story'
 import { QuestLog } from '../src/systems/Quests'
 import { BLUEPRINT } from '../src/world/blueprint'
 
 const byId = (id: string) => QUESTS.find((q) => q.id === id)!
 
 describe('quest table', () => {
-  it('holds the ten designed quests', () => {
-    expect(QUESTS.map((q) => q.id).sort()).toEqual(
-      ['beacon', 'cargo', 'climb', 'explore', 'fishing', 'gear', 'packetrush', 'packets', 'shells', 'studyhall'].sort(),
-    )
+  it('holds the designed quests and none of the retired ones', () => {
+    expect(QUESTS.map((q) => q.id).sort()).toEqual(['beacon', 'crew', 'explore', 'fishing', 'packets', 'shells', 'story'])
     expect(new Set(QUESTS.map((q) => q.id)).size).toBe(QUESTS.length)
+  })
+
+  it('puts the story at the top of the journal, already running', () => {
+    expect(QUESTS[0].id).toBe('story')
+    expect(QUESTS[0].auto).toBe(true)
   })
 
   it('gives every quest a reward, a step and a target above zero', () => {
@@ -48,52 +50,35 @@ describe('quest table', () => {
     expect(BLUEPRINT.packetSpots.length).toBe(20)
   })
 
-  it('sizes the mini-game quests to the games themselves', () => {
-    expect(byId('studyhall').giver).toBe('professor')
-    expect(byId('studyhall').steps[0].target).toBe(STUDY_BOARDS.length)
-    expect(byId('studyhall').reward.hat).toBe('grad')
-
-    expect(byId('cargo').giver).toBe('dockmaster')
-    expect(byId('cargo').steps[0].target).toBe(CARGO_LEVELS.length)
-    expect(byId('cargo').reward.hat).toBe('captain')
-
-    expect(byId('packetrush').giver).toBe('sol')
-    expect(byId('packetrush').steps[0].target).toBe(30)
-    expect(byId('packetrush').reward.hat).toBe('goggles')
-    expect(byId('packetrush').reward.text).toContain('5 packets')
-
-    expect(byId('climb').giver).toBe('ada')
-    expect(byId('climb').steps[0].target).toBe(1)
-    expect(byId('climb').reward.hat).toBe('hardhat')
-    expect(byId('climb').reward.flag).toBe('tower_express')
-    expect(byId('climb').reward.text).toContain('Tower Express')
-    // Ravi's errand may have paid the hard hat already: the line promises the
-    // route, and the wardrobe announces the cap only when it is genuinely new.
-    expect(byId('climb').reward.text.toLowerCase()).not.toContain('hard hat')
+  it('walks the story quest through the spine, three prizes counting as one chapter', () => {
+    const story = byId('story')
+    expect(story.steps.map((s) => s.id)).toEqual([...STORY_ORDER])
+    expect(story.steps.map((s) => s.target)).toEqual([1, 1, 3, 1, 1, 1])
+    expect(story.reward).toEqual({ xp: 200, flag: 'story_done', text: 'You’ve heard the whole story.' })
   })
 
-  it('starts none of the mini-game quests on its own — the cabinet hands them out', () => {
-    for (const id of ['studyhall', 'cargo', 'packetrush', 'climb']) expect(byId(id).auto).toBeFalsy()
+  it('makes Mira’s dare a single round, paid in the cap', () => {
+    const crew = byId('crew')
+    expect(crew.giver).toBe('mira')
+    expect(crew.auto).toBeUndefined()
+    expect(crew.steps.map((s) => s.id)).toEqual(['win'])
+    expect(crew.reward.hat).toBe('captain')
+    expect(crew.reward.xp).toBe(100)
   })
 
-  // `GameState.creditMinigameQuest` credits `steps[0]` and nothing else.
-  it('keeps every mini-game errand to a single step', () => {
-    for (const id of ['studyhall', 'cargo', 'packetrush', 'climb']) expect(byId(id).steps.length).toBe(1)
-  })
-
-  it('completes a mini-game quest through its single step', () => {
+  it('completes a quest through its single step', () => {
     const log = new QuestLog({}, () => {})
-    log.start('cargo')
-    log.advance('cargo', byId('cargo').steps[0].id, 6)
-    expect(log.isDone('cargo')).toBe(true)
-    expect(log.progress('cargo')).toEqual({ done: 6, total: 6 })
+    log.start('beacon')
+    log.advance('beacon', byId('beacon').steps[0].id, 1)
+    expect(log.isDone('beacon')).toBe(true)
+    expect(log.progress('beacon')).toEqual({ done: 1, total: 1 })
   })
 })
 
 describe('achievement table', () => {
-  it('holds twenty-one badges, each with a title, a line and an icon', () => {
-    expect(ACHIEVEMENTS.length).toBe(21)
+  it('holds a badge per line of the game, each with a title, a line and an icon', () => {
     expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length)
+    expect(ACHIEVEMENTS.length).toBe(23)
     for (const a of ACHIEVEMENTS) {
       expect(a.title.length).toBeGreaterThan(0)
       expect(a.desc.length).toBeGreaterThan(0)
@@ -101,18 +86,32 @@ describe('achievement table', () => {
     }
   })
 
-  it('adds one badge per cabinet, one for the set, and the fish nobody expects', () => {
+  it('adds one badge per game, one for the set, one for the story, and the fish nobody expects', () => {
     const title = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)?.title
-    expect(title('ach_studyhall')).toBe("Dean's List")
-    expect(title('ach_cargo')).toBe('Shipshape')
-    expect(title('ach_packetrush')).toBe('Backpressure? Never')
-    expect(title('ach_climb')).toBe('Corner Office')
+    expect(title('ach_wordle')).toBe('Five Letters')
+    expect(title('ach_claw')).toBe('Prize Winner')
+    expect(title('ach_flappy')).toBe('Frequent Flyer')
+    expect(title('ach_forge')).toBe('Full Stack')
+    expect(title('ach_crew')).toBe('Last Bean Standing')
+    expect(title('story')).toBe('The Whole Story')
     expect(title('arcade')).toBe('Arcade Legend')
     expect(title('goldfish')).toBe('One in a Million')
   })
 
-  it('keeps the badge ids clear of the quest ids they shadow', () => {
+  it('has forgotten the cabinets that are gone', () => {
+    const ids = new Set(ACHIEVEMENTS.map((a) => a.id))
+    for (const id of ['ach_studyhall', 'ach_cargo', 'ach_packetrush', 'ach_climb']) expect(ids.has(id), id).toBe(false)
+  })
+
+  it('counts all five games in the badge for the set', () => {
+    expect(ACHIEVEMENTS.find((a) => a.id === 'arcade')!.desc).toContain('five')
+  })
+
+  it('keeps the badge ids clear of the quest ids they shadow, bar the one the story hands out', () => {
+    // Every game badge is prefixed, so a badge and an errand can never collide
+    // by accident. `story` is the deliberate exception: that badge *is* the
+    // quest's ending, and naming it twice would only invent a second word for it.
     const quests = new Set(QUESTS.map((q) => q.id))
-    for (const a of ACHIEVEMENTS) expect(quests.has(a.id)).toBe(false)
+    expect(ACHIEVEMENTS.filter((a) => quests.has(a.id)).map((a) => a.id)).toEqual(['story'])
   })
 })

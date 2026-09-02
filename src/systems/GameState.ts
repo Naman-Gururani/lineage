@@ -2,7 +2,9 @@
 import { events } from '../core/events'
 import { defaultSave, writeSave, type Save } from '../core/save'
 import { ACHIEVEMENTS } from '../data/achievements'
+import { ZONES } from '../data/content'
 import { QUESTS } from '../data/quests'
+import { FACET_STEP, nextStep, type StoryStep } from '../data/story'
 import { Achievements } from './Achievements'
 import type { Cond, Ctx, Effect } from './Dialogue'
 import { QuestLog } from './Quests'
@@ -12,41 +14,53 @@ export type EffectHandlers = {
   sleep?: (to: 'morning' | 'night') => void
   teleport?: (id: string) => void
   cutscene?: (id: string) => void
+  minigame?: (id: string) => void
   panel?: (id: string) => void
   companion?: (on: boolean) => void
   sfx?: (id: string) => void
   hat?: (id: string) => void
   isNight?: () => boolean
-  celebrate?: () => void
+  /**
+   * Fireworks, and the banner that says what they are for. The island has two
+   * endings and they are not the same one: `story` is Bo's tour finished (there
+   * is still an island to roam), `complete` is every discovery, quest and badge.
+   */
+  celebrate?: (reason: 'story' | 'complete') => void
 }
 
-const ITEM_NAMES: Record<string, string> = { shell: 'Seashell', fish: 'Sunfish', gear: 'Spare gear', coin: 'Coin' }
+const ITEM_NAMES: Record<string, string> = { shell: 'Seashell', fish: 'Sunfish', coin: 'Coin' }
 
 /**
- * What each mini-game pins on your head the first time you finish it. `climb`
- * and Ravi's spare-gear errand both pay the hard hat; `unlockHat` returns false
- * the second time, so whichever lands first is the one that gets announced.
+ * What each game pins on your head the first time you finish it. Bo's word
+ * puzzle is the one with nothing to give: it hands over a whole chapter instead.
  */
-export const MINIGAME_HATS: Record<string, string> = { studyhall: 'grad', cargo: 'captain', packetrush: 'goggles', climb: 'hardhat' }
-/** Coins paid out for a first clear (Cargo Cove is honest dock work). */
-export const MINIGAME_COINS: Record<string, number> = { cargo: 40 }
+export const MINIGAME_HATS: Record<string, string> = { claw: 'goggles', flappy: 'grad', forge: 'hardhat', crew: 'captain' }
 
 /**
- * The four cabinets, for the "all of them" badge. Kept here rather than imported
+ * The five games, for the "all of them" badge. Kept here rather than imported
  * from `systems/Minigame` on purpose: that module is the DOM-side host, and the
  * save layer must not drag the whole panel stack in behind it. `minigame.test.ts`
  * pins the two lists together.
  */
-export const ARCADE_GAMES = ['studyhall', 'cargo', 'packetrush', 'climb'] as const
+export const ARCADE_GAMES = ['wordle', 'claw', 'flappy', 'forge', 'crew'] as const
 
 /**
- * Packet Rush pays out in real packets. Five synthetic ids, collected down the
- * same pathway a packet in the grass takes, so the count, the quest, the seal on
- * the Ridge and the badges all agree without any of them learning a new rule.
- * The island still hides twenty and the Vault still wants twenty: these five are
- * a second route to some of them, not five more to find.
+ * The résumé chapters a win hands over. This is the whole gating rule: the games
+ * know nothing about the story, and the story knows nothing about how a game is
+ * played. Crew Drop is missing on purpose — the arcade gates no chapter.
  */
-export const RUSH_PACKET_IDS = ['pr_1', 'pr_2', 'pr_3', 'pr_4', 'pr_5'] as const
+export const MINIGAME_FACETS: Record<string, string[]> = {
+  wordle: ['experience'],
+  claw: ['lineage', 'safestride', 'stealth'],
+  flappy: ['education'],
+  forge: ['skills'],
+}
+
+/** Chapters nothing has to be won for. Reaching Naman is never a prize. */
+export const FREE_FACETS = ['contact']
+
+/** What a first clear is worth. Harder games pay more; none of them pay twice. */
+export const MINIGAME_XP: Record<string, number> = { wordle: 90, claw: 110, flappy: 100, forge: 110, crew: 100 }
 
 /** Landmarks that must be found before the island calls it a day. */
 export const DISCOVERIES_FOR_100 = 8
@@ -82,12 +96,6 @@ export class GameState {
   ach: Achievements
   dirty = false
   handlers: EffectHandlers = {}
-  /**
-   * While set, per-step quest toasts are held back. A batch of credits — the
-   * five packets a Packet Rush run is worth — says its piece once at the end
-   * instead of pushing four other toasts off the stack.
-   */
-  private batching = false
 
   constructor(save: Save | null) {
     this.save = save ?? defaultSave()
@@ -102,7 +110,7 @@ export class GameState {
    * Rebuild the wardrobe for a save written before there was one.
    *
    * Those saves kept only the hat being worn, so a player who finished the shell
-   * errand *and* the gear errand came back owning one hat instead of two. Take
+   * errand *and* Mira's dare came back owning one hat instead of two. Take
    * back everything the save can still prove: the hat on your head, the reward
    * of every finished quest, and the cap for every mini-game already beaten.
    * Ownership only — nothing is put on, and nothing is announced: this runs at
@@ -124,7 +132,11 @@ export class GameState {
     this.dirty = true
     if (e.type === 'started') events.emit('ui:toast', { kind: 'quest', icon: '📜', title: 'New quest', sub: q.title })
     else if (e.type === 'progress') {
-      if (this.batching) return
+      // The story is announced a chapter at a time by `unlockFacet`, and it is
+      // the only quest whose steps are not all the same shape: `progress()`
+      // headlines the largest step (the three prizes), so a step toast here
+      // would put a fraction of the prizes against every chapter you open.
+      if (e.id === 'story') return
       const p = this.quests.progress(e.id)
       events.emit('ui:toast', { kind: 'quest', icon: '📜', title: q.title, sub: `${p.done} / ${p.total}` })
     } else {
@@ -137,6 +149,12 @@ export class GameState {
       if (q.reward.hat && this.unlockHat(q.reward.hat) && this.save.hat !== q.reward.hat) this.announceHat(q.reward.hat)
       if (q.reward.flag) this.setFlag(q.reward.flag)
       if (q.reward.item) this.give(q.reward.item[0], q.reward.item[1])
+      // The story is the island's ending, so it gets the island's ending: the
+      // badge that says you heard all of it, and the fireworks over the harbor.
+      if (q.id === 'story') {
+        this.ach.unlock('story')
+        this.handlers.celebrate?.('story')
+      }
       this.checkComplete()
     }
   }
@@ -172,7 +190,7 @@ export class GameState {
       this.ach.unlock('complete')
       // The one hat that overrules whatever you were wearing.
       this.unlockHat('crown', true)
-      this.handlers.celebrate?.()
+      this.handlers.celebrate?.('complete')
     }
   }
 
@@ -277,7 +295,7 @@ export class GameState {
   /** Record an attempt: one more play, and the best score so far (higher is better). */
   minigamePlayed(id: string, score = 0): void {
     this.recordPlay(id, score)
-    this.creditMinigameQuest(id, score)
+    if (id === 'crew') this.offerCrewDare()
   }
 
   private recordPlay(id: string, score: number): void {
@@ -289,99 +307,95 @@ export class GameState {
   }
 
   /**
-   * Move the errand attached to a cabinet to the score the round reached.
-   *
-   * Each mini-game quest shares the game's id, so the whole hook-up is a lookup
-   * — no table to keep in step with the games. Only `steps[0]` is credited,
-   * which is every one of them today: all four are single-step. A mini-game
-   * quest that grows a second step needs a rule for it here first.
-   *
-   * **The contract a renderer signs.** The score it reports *is* the progress —
-   * boards cleared, pallets stacked, points — and it is a high-water mark, so
-   * quitting halfway still counts and a worse second run never takes it back.
-   *
-   * **Except when the step is a yes/no.** A step with `target: 1` asks a
-   * question ("did you reach the roof?") that only a win may answer: a quit
-   * score measures how far you got — floors climbed, metres — and `min(1, …)`
-   * would read one floor as the whole tower and pay the reward for it. So a
-   * one-target step moves on `minigameWon` alone. Sitting down at the cabinet
-   * still hands the errand out either way; the step toast is left to the game,
-   * which just showed you the number on its own scoreboard.
+   * Mira's dare is the one errand a game owns, so her cabinet hands it out the
+   * first time you sit down at it. Everything else a game is worth is a chapter,
+   * and chapters are not errands.
    */
-  private creditMinigameQuest(id: string, score: number, won = false): void {
-    const def = this.quests.def(id)
-    if (!def) return
-    if (!this.quests.isStarted(id)) this.quests.start(id)
-    const step = def.steps[0]
-    if (step.target === 1 && !won) return
-    // A win answers a yes/no step outright, whatever number the game reports.
-    const reached = step.target === 1 && won ? step.target : Math.min(step.target, Math.floor(score))
-    const gained = reached - this.quests.stepProgress(id, step.id)
-    if (gained <= 0) return
-    this.batching = true
-    try {
-      this.quests.advance(id, step.id, gained)
-    } finally {
-      this.batching = false
-    }
+  private offerCrewDare(): void {
+    if (!this.quests.isStarted('crew')) this.quests.start('crew')
   }
 
   /**
-   * Packet Rush hands back real packets: five synthetic ids down the ordinary
-   * collect pathway, so the quest, the seal on the Ridge and the badges all move
-   * without learning a special case. Already-held ids are skipped, so a second
-   * clear pays nothing, and the batch speaks once rather than five times.
-   */
-  private creditRushPackets(): void {
-    const before = this.save.packets.length
-    this.batching = true
-    try {
-      for (const id of RUSH_PACKET_IDS) this.collectPacket(id)
-    } finally {
-      this.batching = false
-    }
-    const got = this.save.packets.length - before
-    if (!got) return
-    const p = this.quests.progress('packets')
-    events.emit('ui:toast', { kind: 'item', icon: '◈', title: `${got} packets recovered`, sub: `${p.done} / ${p.total} to the Engine` })
-  }
-
-  /**
-   * A finished mini-game: records the play, then pays out once — the hat into
-   * the wardrobe, coins where the game earns them, and a line about it.
+   * A finished game: records the clear, then pays out once — the badge, the XP,
+   * the cap into the wardrobe — and hands over the chapters it was guarding.
    *
-   * The game's own payout comes first and the errand it also finishes last, so
-   * the cap is announced as the cap and the quest gets the closing word. A
-   * repeat clear still credits the quest: a save from before these errands
-   * existed has a `won` game and an untouched quest.
+   * The chapters are handed over on *every* clear, not just the first: handing
+   * one over twice is a no-op, and a save written before a chapter hung off this
+   * game has a `won` game with no chapter to show for it.
    */
   minigameWon(id: string, score = 0): void {
     const first = !this.save.minigames[id]?.won
     this.recordPlay(id, score)
     this.save.minigames[id].won = true
     this.dirty = true
-    // One badge per cabinet, one for the set. `unlock` shrugs at an id it does
-    // not know, so a game with no badge — or none yet — costs nothing here.
+    // One badge per game, one for the set. `unlock` shrugs at an id it does not
+    // know, so a game with no badge — or none yet — costs nothing here.
     this.ach.unlock(`ach_${id}`)
     if (ARCADE_GAMES.every((g) => this.save.minigames[g]?.won)) this.ach.unlock('arcade')
-    if (id === 'packetrush') this.creditRushPackets()
-    if (!first) {
+    // Mira's dare closes before the payout below, so the order you read is the
+    // order it happened: the errand's own line first, then the badge and the XP.
+    if (id === 'crew') {
+      this.offerCrewDare()
+      this.quests.advance('crew', 'win', 1)
+    }
+    if (first) {
+      this.handlers.sfx?.('achievement')
+      const xp = MINIGAME_XP[id]
+      if (xp) this.addXp(xp)
+      const hat = MINIGAME_HATS[id]
+      // A hat already in the wardrobe (won elsewhere, or granted by a quest) is
+      // not news: no second "unlocked".
+      if (hat && this.unlockHat(hat)) this.announceHat(hat)
+    } else {
       events.emit('ui:toast', { kind: 'info', icon: '🎮', title: 'Cleared it again.' })
       this.handlers.sfx?.('pickup')
-      this.creditMinigameQuest(id, score, true)
-      return
     }
-    this.handlers.sfx?.('achievement')
-    const hat = MINIGAME_HATS[id]
-    // A hat already in the wardrobe (won elsewhere, or granted by a quest) is
-    // not news: no second "unlocked".
-    if (hat && this.unlockHat(hat)) this.announceHat(hat)
-    const coins = MINIGAME_COINS[id]
-    if (coins) {
-      this.give('coin', coins)
-      events.emit('ui:toast', { kind: 'item', icon: '🪙', title: `+${coins} coins`, sub: 'Dock work pays' })
+    for (const zone of MINIGAME_FACETS[id] ?? []) this.unlockFacet(zone)
+  }
+
+  /* ---------- résumé chapters ---------- */
+
+  /** A free chapter is readable from the first minute; every other one is won. */
+  isUnlocked(zoneId: string): boolean {
+    return FREE_FACETS.includes(zoneId) || this.save.unlocked.includes(zoneId)
+  }
+
+  /**
+   * Hand a résumé chapter over: write it down, credit the story step it belongs
+   * to, and say so. Returns true only the first time.
+   *
+   * A free chapter is recorded here like any other — `FREE_FACETS` decides what
+   * you may *read*, never what the story has heard. Contact is readable on
+   * arrival and still has to be opened before the story is told.
+   *
+   * `announce` is for whoever is listening, not for the credit: a game that
+   * shows the card itself (the claw, one prize at a time) passes false so the
+   * panel layer does not open a second one over the top of it.
+   */
+  unlockFacet(zoneId: string, announce = true): boolean {
+    const first = !this.save.unlocked.includes(zoneId)
+    if (first) {
+      this.save.unlocked.push(zoneId)
+      const step = FACET_STEP[zoneId]
+      if (step) this.quests.advance('story', step, 1)
+      const zone = ZONES.find((z) => z.id === zoneId)
+      if (zone) events.emit('ui:toast', { kind: 'info', icon: '📖', title: `New chapter: ${zone.label}` })
     }
-    this.creditMinigameQuest(id, score, true)
+    // Reading what Naman did at the tower is what puts the lift on the map.
+    if (zoneId === 'experience') this.setFlag('tower_express')
+    this.dirty = true
+    events.emit('facet:unlocked', { id: zoneId, first, announce })
+    events.emit('story:changed', { next: this.storyNext() })
+    return first
+  }
+
+  /** The step the guide is waiting on, or null once the story has been told. */
+  storyNext(): StoryStep | null {
+    const def = this.quests.def('story')
+    return nextStep((s) => {
+      const step = def?.steps.find((x) => x.id === s)
+      return !!step && this.quests.stepProgress('story', s) >= step.target
+    })
   }
 
   /* ---------- collectibles & discoveries ---------- */
@@ -426,7 +440,7 @@ export class GameState {
       // included, or "Talk to every villager" would be a lie you could earn
       // without meeting them. Both greet on room entry (InteriorScene.greet
       // calls talked()), so the badge stays reachable without a detour.
-      const all = ['mira', 'tomas', 'pip', 'lou', 'ada', 'ravi', 'sol', 'devi', 'arjun', 'ilse', 'naman', 'professor', 'dockmaster']
+      const all = ['dockmaster', 'tomas', 'pip', 'ada', 'ravi', 'sol', 'arjun', 'ilse', 'naman', 'professor', 'mira']
       if (all.every((n) => this.save.talked.includes(n))) this.ach.unlock('full_house')
     }
   }
@@ -451,6 +465,8 @@ export class GameState {
     if (c.packets !== undefined && this.save.packets.length < c.packets) return false
     if (c.discovered && !this.save.discoveries.includes(c.discovered)) return false
     if (c.night !== undefined && !!this.handlers.isNight?.() !== c.night) return false
+    if (c.unlocked && !this.isUnlocked(c.unlocked)) return false
+    if (c.locked && this.isUnlocked(c.locked)) return false
     return true
   }
 
@@ -479,6 +495,8 @@ export class GameState {
       if (e.sleep) this.handlers.sleep?.(e.sleep)
       if (e.teleport) this.handlers.teleport?.(e.teleport)
       if (e.cutscene) this.handlers.cutscene?.(e.cutscene)
+      if (e.minigame) this.handlers.minigame?.(e.minigame)
+      if (e.unlockFacet) this.unlockFacet(e.unlockFacet)
       if (e.sfx) this.handlers.sfx?.(e.sfx)
       if (e.toast) events.emit('ui:toast', { kind: 'info', ...e.toast })
     }

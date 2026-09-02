@@ -41,6 +41,15 @@ const outdoorSpots = () => [
   { id: 'fishing', p: BLUEPRINT.fishingSpot },
   { id: 'viewpoint', p: BLUEPRINT.viewpoint },
 ]
+/**
+ * The guide's stations. Kept apart from `outdoorSpots` for one reason: several
+ * of them share a tile on purpose — the pier serves two story steps, and it is
+ * also where Bo lives — so they take the ground checks but not the "no two
+ * spots on one tile" check.
+ */
+const guideStations = () => Object.entries(BLUEPRINT.storySpots).map(([id, p]) => ({ id: `station ${id}`, p }))
+/** Everything a person stands on: the spots above plus the guide's stations. */
+const standableSpots = () => [...outdoorSpots(), ...guideStations()]
 
 describe('BLUEPRINT rasterisation', () => {
   it('has the world size', () => {
@@ -71,7 +80,7 @@ describe('BLUEPRINT rasterisation', () => {
     const reach = floodMask(grid, s.x, s.y, dry)
     const at = (p: { x: number; y: number }) => reach[Math.floor(p.y) * grid.w + Math.floor(p.x)]
     for (const lm of BLUEPRINT.landmarks) expect(at(lm.door), `door of ${lm.id}`).toBe(1)
-    for (const { id, p } of outdoorSpots()) expect(at(p), `${id} at ${p.x},${p.y}`).toBe(1)
+    for (const { id, p } of standableSpots()) expect(at(p), `${id} at ${p.x},${p.y}`).toBe(1)
     expect(floodCount(grid, s.x, s.y, dry)).toBeGreaterThan(3000)
   })
 
@@ -258,7 +267,7 @@ describe('roads', () => {
 
 describe('spots and props', () => {
   it('stands every outdoor spot on walkable ground, clear of buildings', () => {
-    for (const { id, p } of outdoorSpots()) {
+    for (const { id, p } of standableSpots()) {
       expect(isWalkable(grid.get(Math.floor(p.x), Math.floor(p.y))), `${id} at ${p.x},${p.y}`).toBe(true)
       for (const lm of BLUEPRINT.landmarks) expect(footprintContains(lm, p.x, p.y), `${id} inside ${lm.id}`).toBe(false)
       for (const pr of BLUEPRINT.props)
@@ -285,6 +294,23 @@ describe('spots and props', () => {
     let dockNear = false
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (grid.get(BLUEPRINT.spawn.x + dx, BLUEPRINT.spawn.y + dy) === T.DOCK) dockNear = true
     expect(dockNear, 'spawn is not by the pier').toBe(true)
+  })
+
+  it('dresses the fairground on open ground, clear of the paving, the buildings and their doors', () => {
+    const kinds = new Set(['bunting', 'balloons', 'stall'])
+    const dressing = BLUEPRINT.props.filter((p) => kinds.has(p.kind) && regionAt(BLUEPRINT.regions, p.x + 0.5, p.y + 0.5)?.id === 'engine')
+    expect(dressing.map((p) => p.kind).sort()).toEqual(['balloons', 'balloons', 'bunting', 'bunting', 'bunting', 'stall', 'stall'])
+    // Land is not enough: a plank, a road or the plaza is somewhere people walk,
+    // and dressing dropped on one reads as litter rather than as a fairground.
+    const paved = new Set<number>([T.PATH, T.PLAZA, T.DOCK, T.BRIDGE])
+    for (const p of dressing) {
+      expect(isLand(grid.get(p.x, p.y)), `${p.kind} at ${p.x},${p.y}`).toBe(true)
+      expect(paved.has(grid.get(p.x, p.y)), `${p.kind} on paving at ${p.x},${p.y}`).toBe(false)
+      for (const lm of BLUEPRINT.landmarks) {
+        expect(footprintContains(lm, p.x, p.y), `${p.kind} inside ${lm.id}`).toBe(false)
+        expect(p.x === lm.door.x && (p.y === lm.door.y || p.y === lm.door.y + 1), `${p.kind} in the doorway of ${lm.id}`).toBe(false)
+      }
+    }
   })
 
   it('keeps prop collision boxes off the roads', () => {

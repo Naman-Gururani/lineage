@@ -11,6 +11,10 @@ export type Cond = {
   packets?: number
   discovered?: string
   night?: boolean
+  /** a résumé chapter (zone id) the player has unlocked */
+  unlocked?: string
+  /** a résumé chapter (zone id) still locked */
+  locked?: string
 }
 
 export type Effect = {
@@ -31,6 +35,10 @@ export type Effect = {
   cutscene?: string
   sfx?: string
   toast?: { title: string; sub?: string; icon?: string }
+  /** open a mini-game cabinet by id (`ui:panel` → minigame) */
+  minigame?: string
+  /** hand over a résumé chapter (zone id) — the lens does this for Contact */
+  unlockFacet?: string
 }
 
 export type Emote = 'happy' | 'sad' | 'think' | 'shout' | 'wink'

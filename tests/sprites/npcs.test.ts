@@ -70,8 +70,13 @@ const CAT_ANCHOR: [number, number] = [16, 27]
  * Everyone who needs a walking rig once the campus and warehouse open.
  * Byte is excluded by the controller's ruling: her body is not a 32×48 humanoid
  * rig, only her portrait (`face_cat`) belongs to this contract.
+ *
+ * `V1_IDS` is folded in because the art outlives the cast: Lou and Devi were
+ * cut from `NPC_INFO` in v3 but their sprites stay in the pack (the rename
+ * guard above still wants them), and a rig nobody speaks for is still a rig
+ * this contract covers.
  */
-const HD_IDS = [...new Set([...Object.keys(NPC_INFO).filter((id) => id !== 'cat'), 'professor', 'dockmaster'])]
+const HD_IDS = [...new Set([...Object.keys(NPC_INFO).filter((id) => id !== 'cat'), ...V1_IDS, 'professor', 'dockmaster'])]
 
 describe('npc pack — structural validity (any resolution)', () => {
   itIsAWellFormedPack('npcs')

@@ -244,9 +244,9 @@ export class InteriorScene extends Phaser.Scene {
   /**
    * First visit to a room: its host crosses the floor and says where you are.
    * Once only — `greet_<room>` remembers it — and skippable exactly like every
-   * other conversation. Rooms whose host stands outdoors (the Engine, Safe
-   * Stride, the lamp room) still get the greeting; there is simply nobody to
-   * walk it over.
+   * other conversation. Rooms whose host stands outdoors (Arjun at the Safe
+   * Stride clinic, Ilse at the lamp room) still get the greeting; there is
+   * simply nobody to walk it over.
    */
   private maybeGreetHost() {
     const hostId = ROOM_HOSTS[this.roomId]
@@ -447,7 +447,12 @@ export class InteriorScene extends Phaser.Scene {
         console.log(`[${runner.line.who}] ${runner.line.text}`)
         if (runner.advance() === 'choice') runner.choose(0)
       }
-    this.setLocked(false)
+    // A tree whose closing effect opened a card (`effectsAtEnd` — the lighthouse
+    // lens ends on `panel: zone:contact`) ends with that card still up and
+    // owning the keyboard; releasing the room here would let the hero walk about
+    // behind it. The modal layer's own `ui:lock false` lets go when it closes.
+    // `WorldScene.runDialogue` holds the same line — the two must not disagree.
+    this.setLocked(document.body.classList.contains('modal-open'))
     if (this.pendingCutscene) this.leave()
   }
 

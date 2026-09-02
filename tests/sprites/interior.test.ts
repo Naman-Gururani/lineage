@@ -78,6 +78,21 @@ const CENTRED = ['gear_big', ...TOOLS]
 /** New rooms opened by the campus and warehouse landmarks (spec §Task 2). */
 const HD_NEW = ['int_desk', 'int_lectern', 'int_bookrow', 'int_cratestack', 'int_pallet', 'int_ropecoil']
 
+/**
+ * The prize-tent and arcade set (Story Isle spec §9): name → [w, h, frames, anchor].
+ * These five are the exception to the bottom-centre rule below, so their anchors
+ * are pinned individually — each sits 4px above the frame foot so the cabinet
+ * front / shelf underside overlaps the cell in front of it instead of stopping
+ * dead on the grid line.
+ */
+const FAIR: Record<string, [number, number, number, [number, number]]> = {
+  int_claw: [64, 96, 2, [32, 92]],
+  int_prizeshelf: [96, 48, 1, [48, 44]],
+  int_cabinet: [48, 80, 2, [24, 76]],
+  int_bunting: [96, 16, 1, [48, 12]],
+  int_balloons: [32, 48, 1, [16, 44]],
+}
+
 /** Anchor + outline conventions. Resolution-agnostic: derived from each def's own frame. */
 function expectConventions(): void {
   for (const d of INTERIOR_DEFS) {
@@ -87,7 +102,10 @@ function expectConventions(): void {
       expect(d.outline, `${d.name} outline`).toBeUndefined()
     } else {
       expect(d.outline, `${d.name} outline`).toBe('outline')
-      expect(d.anchor, `${d.name} anchor`).toEqual(CENTRED.includes(d.name) ? [f.w / 2, f.w / 2] : [f.w / 2, f.h])
+      const pinned = FAIR[d.name]
+      expect(d.anchor, `${d.name} anchor`).toEqual(
+        pinned ? pinned[3] : CENTRED.includes(d.name) ? [f.w / 2, f.w / 2] : [f.w / 2, f.h],
+      )
     }
   }
 }
@@ -126,6 +144,14 @@ describe('32px HD contract', () => {
 
   it('draws the new furniture at least one 32px cell wide', () => {
     for (const name of HD_NEW) expectAtLeast(byName, name, 32, 16)
+  })
+
+  it('adds the prize-tent and arcade set at its pinned size, frame count and anchor', () => {
+    for (const [name, [w, h, frames, anchor]] of Object.entries(FAIR)) {
+      const d = expectFrame(byName, name, w, h)
+      expect(frameOf(d).frames, `${name} frames`).toBe(frames)
+      expect(d.anchor, `${name} anchor`).toEqual(anchor)
+    }
   })
 
   it('still follows the tile / furniture anchor and outline conventions', () => {

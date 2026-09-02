@@ -1,14 +1,14 @@
 // Inter carries every word of running text; Pixelify Sans is the accent face
-// for headings, kickers and numerals. Press Start 2P is kept for one place the
-// DOM cannot reach — the engine console's canvas labels.
+// for headings, kickers and numerals — including the labels the canvas games
+// paint, which cannot reach the DOM's stylesheet and name the family instead.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/500.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/pixelify-sans/400.css'
 import '@fontsource/pixelify-sans/600.css'
-import '@fontsource/press-start-2p/400.css'
 import './styles/ui.css'
 import './styles/panels.css'
+import './styles/games.css'
 
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
@@ -18,7 +18,8 @@ import { clearSave } from './core/save'
 import { events } from './core/events'
 import { parseFishFlag, setForcedFish } from './data/fish'
 
-// `?fresh=1` starts from nothing: clear the current save *and* the legacy key.
+// `?fresh=1` starts from nothing: clear the current save *and* the legacy keys
+// (v1 and v2), so a reload cannot restore what the flag just threw away.
 if (new URLSearchParams(location.search).has('fresh')) {
   try {
     clearSave()

@@ -3,7 +3,10 @@
 import { sfx } from '../audio/sfx'
 import { ZONES } from '../data/content'
 import { el, esc, openModal } from './modal'
-import { panelHead, registerPanel, wireClose } from './panels'
+import { isUnlocked, panelHead, registerPanel, wireClose } from './panels'
+
+/** The pinned note on the locked wall — the hooks are up, the tools are not. */
+const UNSPELLED = 'Spell them out at the bench and Ravi hangs them up.'
 
 const ICONS: Record<string, string> = {
   Java: '☕',
@@ -28,8 +31,11 @@ export function openToolwall(data?: unknown): void {
   if (!zone || !groups.length) return
   const want = Number((data as { group?: number } | undefined)?.group ?? 0)
   let g = Number.isFinite(want) ? Math.min(Math.max(0, Math.trunc(want)), groups.length - 1) : 0
+  // Until Ravi's word game is won the wall is hooks and silhouettes: the shape
+  // of the toolkit, none of its names.
+  const locked = !isUnlocked('skills')
 
-  const box = el('div', 'toolwall')
+  const box = el('div', 'toolwall' + (locked ? ' locked' : ''))
   box.dataset.width = '720px'
   box.innerHTML = `${panelHead('The Workshop', 'TOOL WALL')}
     <div class="toolwall-sub"><h3 class="tw-label"></h3><span class="tw-count"></span></div>
@@ -55,13 +61,14 @@ export function openToolwall(data?: unknown): void {
     tools.innerHTML = grp.items
       .map(
         (t, i) =>
-          `<li class="tool" style="--i:${i}"><span class="tool-hook" aria-hidden="true"></span>` +
-          `<span class="tool-ic" aria-hidden="true">${ICONS[t] ?? '🔧'}</span><span class="tool-name">${esc(t)}</span></li>`,
+          `<li class="tool${locked ? ' locked' : ''}" style="--i:${i}"><span class="tool-hook" aria-hidden="true"></span>` +
+          `<span class="tool-ic" aria-hidden="true">${locked ? '🔧' : (ICONS[t] ?? '🔧')}</span>` +
+          `<span class="tool-name">${locked ? '???' : esc(t)}</span></li>`,
       )
       .join('')
-    const showNote = g === 0 && !!zone.content.sub
+    const showNote = locked || (g === 0 && !!zone.content.sub)
     note.hidden = !showNote
-    if (showNote) noteP.textContent = zone.content.sub ?? ''
+    if (showNote) noteP.textContent = locked ? UNSPELLED : (zone.content.sub ?? '')
     dots.textContent = groups.map((_, i) => (i === g ? '●' : '○')).join(' ')
   }
   const nav = (d: number) => {

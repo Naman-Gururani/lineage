@@ -1,10 +1,12 @@
 // Panel router (`ui:panel`), the shared content renderer used by zone panels,
-// Reader Mode and the Engine console, and the small Controls / Credits panels.
+// the locked-chapter card and Reader Mode, and the small Controls / Credits
+// panels.
 import { events } from '../core/events'
 import { PROFILE, ZONES, type Content, type Zone } from '../data/content'
 import { signById, type SignDef, type SignDir } from '../data/signs'
-import { closeModal, el, esc, initModals, openModal } from './modal'
-import { applyMotionClass, reducedMotion } from './state'
+import { STORY_HINTS } from '../data/story'
+import { closeModal, el, esc, initModals, isModalOpen, openModal, topModalId } from './modal'
+import { applyMotionClass, reducedMotion, uiState } from './state'
 
 type Handler = (data?: unknown) => void
 const handlers = new Map<string, Handler>()
@@ -100,9 +102,83 @@ export function panelHead(title: string, kicker?: string): string {
 
 /* ---------------- zone "book" panel ---------------- */
 
+/**
+ * Is this résumé chapter readable yet? Every chapter but one is won by a game;
+ * Contact never is — the way to reach Naman is always one interaction away.
+ *
+ * The list is `uiState.unlocked`, which the scenes mirror from the save. Panels
+ * never reach into `GameState` for it (that would drag the game into the DOM
+ * layer), so this is deliberately the same rule written twice.
+ */
+export function isUnlocked(id: string): boolean {
+  return id === 'contact' || uiState.unlocked.includes(id)
+}
+
+/**
+ * One chapter as a row in a list (the Journal's Résumé tab, Sol's prize shelf).
+ * A locked row shows the hint in place of the title — never the title itself,
+ * which is already half the chapter.
+ *
+ * The venue *is* shown on a locked row: it is not résumé content (the map has
+ * named it all along), and without it the three projects would be three
+ * identical "Project" rows carrying the same hint.
+ */
+export function zoneRow(z: Zone): string {
+  const on = isUnlocked(z.id)
+  return (
+    `<button type="button" class="rs-row${on ? '' : ' locked'}" data-zone="${esc(z.id)}" style="--accent:${accentOf(z)}">` +
+    `<span class="rs-mark" aria-hidden="true">${on ? '✓' : '🔒'}</span>` +
+    `<span class="rs-label">${esc(z.label)}${on ? '' : `<span class="rs-where"> · ${esc(z.name)}</span>`}</span>` +
+    `<span class="rs-note">${esc(on ? z.content.title : (STORY_HINTS[z.id] ?? ''))}</span>` +
+    `<span class="sr-only">${on ? 'Unlocked' : 'Locked'}</span></button>`
+  )
+}
+
+/**
+ * The card a chapter shows before it has been won: the lock, the chapter's
+ * *label*, and the one line `STORY_HINTS` allows about where the game that
+ * opens it is played. No kicker, no title, no body, no chips — a locked card
+ * that leaked its own content would hand over the ending on the first click.
+ */
+function openLockedZone(z: Zone): void {
+  const modalId = `zone:${z.id}`
+  const box = el('article', 'book locked')
+  box.style.setProperty('--accent', accentOf(z))
+  box.dataset.width = '460px'
+  box.innerHTML = `
+    <div class="book-stripe" aria-hidden="true"></div>
+    <button type="button" class="modal-x book-x" aria-label="Close">✕</button>
+    <div class="book-page">
+      <span class="book-lock" aria-hidden="true">🔒</span>
+      <p class="d-kicker">LOCKED</p>
+      <h2 class="d-title">${esc(z.label)}</h2>
+      <p class="d-body">${esc(STORY_HINTS[z.id] ?? '')}</p>
+    </div>
+    <footer class="book-foot"><span class="book-tag">${esc(z.name)}</span>
+      <button type="button" class="pbtn" data-act="map">Show on map</button>
+      <button type="button" class="pbtn" data-act="close">Close</button></footer>`
+  box.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-act="map"]')) return
+    // Landmark ids and zone ids are the same registry (tests/registry.test.ts).
+    closeModal(modalId)
+    events.emit('ui:panel', { id: 'map', data: { focus: z.id } })
+  })
+  wireClose(box, modalId)
+  openModal({ id: modalId, el: box, label: `${z.label} — locked` })
+}
+
 export function openZone(id: string): void {
   const z = ZONES.find((x) => x.id === id)
   if (!z) return
+  // Already the card on top: opening it again would stack a second copy and
+  // close it, which is exactly what the lighthouse lens used to do — its
+  // `signal` node unlocks `contact` (the queue opens the card) *and* carries a
+  // `panel: 'zone:contact'` effect, so the same card arrived twice.
+  if (topModalId() === `zone:${id}`) return
+  if (!isUnlocked(id)) {
+    openLockedZone(z)
+    return
+  }
   const modalId = `zone:${id}`
   const box = el('article', 'book')
   box.style.setProperty('--accent', accentOf(z))
@@ -224,6 +300,21 @@ export function openCredits(): void {
   openModal({ id: 'credits', el: box, label: 'Credits' })
 }
 
+/* ---------------- chapters won mid-game ---------------- */
+
+/**
+ * Chapters won while something else is on screen. A mini-game ends inside its
+ * own modal, so the card it earned queues behind it and opens on the next
+ * `ui:closed` — one card at a time, in the order they were won (the claw hands
+ * over three).
+ */
+const facetQueue: string[] = []
+
+function flushFacets(): void {
+  if (!facetQueue.length || isModalOpen()) return
+  openZone(facetQueue.shift()!)
+}
+
 /* ---------------- router ---------------- */
 
 export function initPanels(): void {
@@ -243,4 +334,22 @@ export function initPanels(): void {
     }
     handlers.get(id)?.(data)
   })
+  events.on('facet:unlocked', ({ id, first, announce }) => {
+    // Record it first, whatever the announcement asks for: a game that opens
+    // the card itself (the claw, `announce: false`) must not find it locked.
+    // The scenes mirror the save into `unlocked` too — this is idempotent.
+    if (!uiState.unlocked.includes(id)) uiState.unlocked.push(id)
+    if (!announce || !first) return
+    facetQueue.push(id)
+    flushFacets()
+  })
+  events.on('ui:closed', () => flushFacets())
+  // Leaving the island drops whatever was still waiting to be read: quitting
+  // closes every modal, and each of those `ui:closed` events would otherwise
+  // pop a chapter card up over the title screen and shut it again.
+  const drop = () => {
+    facetQueue.length = 0
+  }
+  events.on('game:title', drop)
+  events.on('game:new', drop)
 }

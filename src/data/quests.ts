@@ -10,6 +10,27 @@ export type QuestDef = {
 }
 
 export const QUESTS: QuestDef[] = [
+  // The main quest, and the reason the island exists. It runs from the moment
+  // you land, so the journal always opens on the thing you are actually doing;
+  // its steps are `STORY_ORDER` (see `data/story.ts`), and every one of them is
+  // credited by `GameState.unlockFacet` rather than by any venue in particular.
+  // The order is a suggestion: the steps fill in whatever order you find them.
+  {
+    id: 'story',
+    title: 'Naman’s Story',
+    giver: 'dockmaster',
+    desc: 'Bo has the whole story to tell, a chapter at a time. Follow him from the pier to the lighthouse.',
+    steps: [
+      { id: 'meet', text: 'Meet Bo at the pier', target: 1 },
+      { id: 'experience', text: 'Hear where Naman works', target: 1 },
+      { id: 'projects', text: 'Win all three prizes', target: 3 },
+      { id: 'education', text: 'Fly the chalkboard course', target: 1 },
+      { id: 'skills', text: 'Spell out the toolkit', target: 1 },
+      { id: 'contact', text: 'Send a signal from the lighthouse', target: 1 },
+    ],
+    reward: { xp: 200, flag: 'story_done', text: 'You’ve heard the whole story.' },
+    auto: true,
+  },
   {
     id: 'explore',
     title: 'Explore Lineage Isle',
@@ -21,8 +42,9 @@ export const QUESTS: QuestDef[] = [
   {
     id: 'packets',
     title: 'Lost Packets',
-    giver: 'sol',
-    desc: 'Motes have fallen out of the Stream. Return every lost packet to the Engine.',
+    // No giver: nobody hands this one out. It starts itself the first time you
+    // pick a packet up, and the Vault door is the only thing waiting on it.
+    desc: 'Motes have fallen out of the Stream. Gather every lost packet and the Vault will open.',
     steps: [{ id: 'collect', text: 'Recover packets', target: 20 }],
     reward: { xp: 120, text: 'The Vault unseals.' },
     auto: true,
@@ -50,17 +72,6 @@ export const QUESTS: QuestDef[] = [
     reward: { xp: 80, text: 'Byte the cat follows you now.' },
   },
   {
-    id: 'gear',
-    title: 'Spare Parts',
-    giver: 'ravi',
-    desc: 'Ravi needs a spare gear. Sol at the Engine Works might have one.',
-    steps: [
-      { id: 'gear', text: 'Find a spare gear', target: 1 },
-      { id: 'return', text: 'Bring it to Ravi', target: 1 },
-    ],
-    reward: { xp: 70, hat: 'hardhat', text: 'A hard hat, for safety.' },
-  },
-  {
     id: 'beacon',
     title: 'Light the Beacon',
     giver: 'ilse',
@@ -68,44 +79,15 @@ export const QUESTS: QuestDef[] = [
     steps: [{ id: 'light', text: 'Light the lens', target: 1 }],
     reward: { xp: 100, text: 'The beam sweeps the sea again.' },
   },
-  // The four arcade errands. Each shares its id with the mini-game it belongs to
-  // — that is the whole hook-up: `GameState.minigamePlayed` looks a quest up by
-  // the game's own id and moves its single step to the score the round reached.
-  // None of them is `auto`: the cabinet hands the errand out the first time you
-  // sit down at it, so the journal never opens on four games you have not found.
+  // The one errand that hangs off a game. It gates no chapter — the story is
+  // already spoken for — so it is handed out at the cabinet rather than started
+  // for you, and `GameState.minigameWon` closes it on the winning round.
   {
-    id: 'studyhall',
-    title: 'Lights Out',
-    giver: 'professor',
-    desc: 'Prof. Iyer left the chalkboard lit. Five boards, and every light off by the end of office hours.',
-    steps: [{ id: 'boards', text: 'Clear boards', target: 5 }],
-    reward: { xp: 90, hat: 'grad', text: 'A graduation cap, at a hard-earned angle.' },
-  },
-  {
-    id: 'cargo',
-    title: 'Dock Work',
-    giver: 'dockmaster',
-    desc: 'Dockmaster Bo has six pallets in the wrong places. Push every crate onto its mark.',
-    steps: [{ id: 'levels', text: 'Clear pallets', target: 6 }],
-    reward: { xp: 100, hat: 'captain', text: "A captain's cap, and the run of the warehouse." },
-  },
-  {
-    id: 'packetrush',
-    title: 'Packet Rush',
-    giver: 'sol',
-    desc: 'Sol will run the Stream hot and let you catch what falls out of it. Score thirty.',
-    steps: [{ id: 'score', text: 'Score', target: 30 }],
-    reward: { xp: 110, hat: 'goggles', text: 'Engine goggles — and 5 packets recovered from the run.' },
-  },
-  {
-    id: 'climb',
-    title: 'The Long Way Up',
-    giver: 'ada',
-    desc: 'Ada says nobody has taken the tower scaffold to the roof. The lift is out. Prove her wrong.',
-    steps: [{ id: 'roof', text: 'Reach the roof', target: 1 }],
-    // The flag is what puts the Tower Express on the map (see `ui/map.ts`). The
-    // line promises only the route: Ravi's errand may already have paid the hard
-    // hat, and the wardrobe announces that one itself when it is genuinely new.
-    reward: { xp: 120, hat: 'hardhat', flag: 'tower_express', text: 'Tower Express unlocked — the roof is one hop away.' },
+    id: 'crew',
+    title: 'Mira’s Dare',
+    giver: 'mira',
+    desc: 'Mira keeps the arcade in the old warehouse. Nobody has out-lasted her on the dropping floor yet.',
+    steps: [{ id: 'win', text: 'Be the last bean standing', target: 1 }],
+    reward: { xp: 100, hat: 'captain', text: 'A captain’s cap, and the run of the arcade.' },
   },
 ]

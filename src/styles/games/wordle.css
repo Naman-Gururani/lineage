@@ -1,0 +1,239 @@
+/* Bo's Word Puzzle (Wordle) — owned by the wordle renderer.
+
+   The three tile colours are the ones everyone already reads without a legend,
+   so they are hard-coded rather than derived from the island's teal palette:
+   a green that does not mean "correct" would cost more than it gained. Every
+   other surface here is the shared token set. */
+.mg[data-game='wordle'] {
+  --wd-g: #538d4e;
+  --wd-y: #b59f3b;
+  --wd-x: #3a3a3c;
+  --wd-tile: 52px;
+  --wd-gap: 5px;
+}
+
+/* ---------- Bo's hint row ---------- */
+.wd-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.9rem;
+  margin: 0.9rem var(--pad) 0;
+}
+.wd-hint-slots {
+  display: grid;
+  grid-template-columns: repeat(5, 26px);
+  gap: 4px;
+}
+.wd-hint-slot {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  font-family: var(--font-accent);
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--accent);
+}
+.wd-hint-slot:not(:empty) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.wd-bo {
+  margin: 0;
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--ink-mute);
+}
+
+/* ---------- the board ---------- */
+.wd-board {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 0.8rem var(--pad) 0;
+}
+.wd-grid {
+  display: grid;
+  gap: var(--wd-gap);
+}
+.wd-row {
+  display: grid;
+  grid-template-columns: repeat(5, var(--wd-tile));
+  gap: var(--wd-gap);
+}
+.wd-tile {
+  display: grid;
+  place-items: center;
+  height: var(--wd-tile);
+  border: 2px solid var(--line-strong);
+  border-radius: 3px;
+  background: transparent;
+  font-family: var(--font-accent);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+  text-transform: uppercase;
+  user-select: none;
+}
+.wd-tile[data-state='filled'] {
+  border-color: var(--ink-mute);
+}
+.wd-tile[data-state='g'] {
+  border-color: var(--wd-g);
+  background: var(--wd-g);
+}
+.wd-tile[data-state='y'] {
+  border-color: var(--wd-y);
+  background: var(--wd-y);
+}
+.wd-tile[data-state='x'] {
+  border-color: var(--wd-x);
+  background: var(--wd-x);
+}
+
+/* the reveal: JS paints each tile at the halfway point of its own turn, so the
+   colour appears edge-on and the two halves read as one flip */
+@keyframes wd-flip {
+  0% {
+    transform: rotateX(0deg);
+  }
+  50% {
+    transform: rotateX(90deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+.wd-tile.flip {
+  animation: wd-flip var(--wd-flip, 500ms) ease-in-out both;
+  animation-delay: calc(var(--i, 0) * var(--wd-step, 180ms));
+}
+
+@keyframes wd-shake {
+  10%,
+  90% {
+    transform: translateX(-4px);
+  }
+  20%,
+  80% {
+    transform: translateX(7px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-9px);
+  }
+  40%,
+  60% {
+    transform: translateX(9px);
+  }
+}
+.wd-row.shake {
+  animation: wd-shake 460ms ease-in-out;
+}
+
+/* "Not in word list" — a pill over the top of the board, the way the site does
+   it, so a rejected word never shoves the grid down the panel */
+.wd-note {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- the keyboard ---------- */
+.wd-kbd {
+  display: grid;
+  gap: 6px;
+  width: min(100% - 2 * var(--pad), 380px);
+  margin: 0.9rem auto 0;
+}
+.wd-kbd-row {
+  display: flex;
+  gap: 5px;
+}
+/* the classic half-key inset on the home row; the other two rows are ten units
+   wide either way, since ⏎ and ⌫ each take a key and a half */
+.wd-kbd-row:nth-child(2) {
+  padding: 0 5%;
+}
+.wd-key {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 46px; /* thumb-sized: the board has to work on a phone */
+  padding: 0 2px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-family: var(--font-accent);
+  font-size: 1.02rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.wd-key.wide {
+  flex: 1.5 1 0;
+  font-size: 1.15rem;
+}
+.wd-key:hover {
+  background: var(--line-strong);
+}
+.wd-key:active {
+  transform: translateY(1px);
+}
+.wd-key[data-state='g'] {
+  background: var(--wd-g);
+}
+.wd-key[data-state='y'] {
+  background: var(--wd-y);
+}
+.wd-key[data-state='x'] {
+  background: var(--wd-x);
+  color: var(--ink-mute);
+}
+
+.wd-hintbtn {
+  margin-right: auto;
+}
+.wd-hintbtn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* the panel takes the keys itself; the focus ring belongs on the controls */
+.mg[data-game='wordle']:focus-visible {
+  outline: none;
+}
+
+@media (max-width: 480px) {
+  .mg[data-game='wordle'] {
+    --wd-tile: 44px;
+  }
+  .wd-key {
+    font-size: 0.92rem;
+  }
+}
+
+/* Reduced motion: the states still land, they just stop performing. */
+.reduce-motion .wd-tile.flip,
+.reduce-motion .wd-row.shake {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wd-tile.flip,
+  .wd-row.shake {
+    animation: none;
+  }
+}

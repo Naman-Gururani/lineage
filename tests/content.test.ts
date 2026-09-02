@@ -62,10 +62,12 @@ describe('the CGPA is 9.63', () => {
 
   it('never says 9.57 anywhere on the island — zone cards or villager dialogue', () => {
     expect(allText).not.toContain('9.57')
-    // the scan really does cover both halves, so it cannot quietly shrink back
-    // to the cards and let a stale figure live on in a dialogue tree
-    expect(allDialogueText).toContain('9.63')
+    // The scan really does cover both halves. The cards are now the only half
+    // that may carry a figure at all: v3 moved every number out of the dialogue
+    // and `tests/dialogue-data.test.ts` keeps it out, so a stale CGPA can only
+    // survive on a card — where this assertion is looking.
     expect(allCardText).toContain('9.63')
+    expect(allDialogueText, 'figures live on cards, never in a dialogue box').not.toMatch(/\d/)
   })
 })
 

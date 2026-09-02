@@ -1662,6 +1662,216 @@ const lantern = (day: G, night: G, x: number, y: number): void => {
   push('bld_warehouse', day, night)
 }
 
+/* ================ 10. Sol's Prize Tent (Fairground) — 192×128 ================ */
+/*
+ * Replaces the Engine landmark on its 6×4-tile plot, so the sprite is pinned to
+ * the plot exactly (no roof overhang): the world puts the door on footprint
+ * column 3, which is x 96..127 — hence the entrance axis at DX = 112 while the
+ * canvas cone stays centred on CX = 96. The two axes are reconciled by hanging
+ * the prize sign and the flap-tied entrance off the tent's right of centre, the
+ * way a real marquee's porch sits wherever the midway path meets it.
+ */
+{
+  const W = 192
+  const H = 128
+  const day = grid(W, H)
+  const night = grid(W, H)
+
+  const CX = 96 // canvas axis (the pole)
+  const DX = 112 // doorway axis = centre of footprint column 3
+  const APEX = 10 // top row of the canvas cone
+  const EAVE = 56 // row the cone stops and the valance hangs from
+  const HEM = 127 // ground line
+  const WALL_HW = 81 // the wall is set 11px inside the eave, so the roof reads as an overhang
+
+  /** clamp a fractional position onto a 1-based ramp array */
+  const step = (R: string[], i: number): string => R[Math.max(1, Math.min(R.length - 1, Math.round(i)))]
+  /** canvas profile: near-straight cone with the skirt flaring out at the eave */
+  const roofHW = (y: number): number => 3 + 89 * Math.pow(Math.max(0, (y - APEX) / (EAVE - APEX)), 1.25)
+  /** which stripe a roof pixel falls in — the wedges converge on the peak */
+  const roofBand = (u: number, hw: number): string[] => (hw < 9 ? RR : Math.floor((u + 1) * 7) % 2 === 0 ? RR : CR)
+
+  // ---- canvas cone: 14 stripes radiating from the peak, lit on the left flank ----
+  for (let y = APEX; y <= EAVE; y++) {
+    const hw = roofHW(y)
+    const t = (y - APEX) / (EAVE - APEX)
+    const x0 = Math.round(CX - hw)
+    const x1 = Math.round(CX + hw)
+    for (let x = x0; x <= x1; x++) {
+      const u = (x - CX) / hw
+      const R = roofBand(u, hw)
+      // sparse 2×1 dither near the ridge only (art-direction §4)
+      const d = t < 0.42 && (x * 3 + y * 5) % 11 === 0 ? 0.6 : 0
+      put(day, x, y, step(R, 4 - u * 1.3 - t * 0.35 + d))
+    }
+    // 2-step AA: brightest run on the lit edge, darkest on the shaded one
+    for (let k = 0; k < 2; k++) {
+      const xa = x0 + k
+      const xb = x1 - k
+      if (xa <= x1) put(day, xa, y, step(roofBand((xa - CX) / hw, hw), 6 - k))
+      if (xb >= x0) put(day, xb, y, step(roofBand((xb - CX) / hw, hw), 2 + k))
+    }
+    // seam where each stripe meets the next, one step down — texture, not a line
+    if (hw >= 12)
+      for (let b = 1; b < 14; b++) {
+        const sx = Math.round(CX + (b / 7 - 1) * hw)
+        put(day, sx, y, step(roofBand((sx - CX) / hw, hw), 4 - ((sx - CX) / hw) * 1.3 - 1.1))
+      }
+  }
+
+  // ---- king pole + pennant streaming off the peak ----
+  vline(day, CX, 1, APEX + 2, WD[3])
+  vline(day, CX - 1, 1, APEX + 2, WD[5])
+  put(day, CX - 1, 0, WD[6])
+  put(day, CX, 0, WD[4])
+  for (let i = 0; i < 17; i++) {
+    const fh = Math.max(1, 8 - Math.round(i * 0.45))
+    const fy = 1 + Math.round(Math.sin(i * 0.34) * 1.7)
+    for (let k = 0; k < fh; k++) put(day, CX + 1 + i, fy + k, k === 0 ? TL[6] : k < fh - 1 ? TL[4] : TL[3])
+  }
+  discAA(day, CX - 0.5, APEX + 2, 3.4, RR[4], RR[2])
+  put(day, CX - 2, APEX + 1, RR[6])
+
+  // ---- tent wall: a cylinder of vertical stripes, narrowing toward the edges ----
+  for (let x = CX - WALL_HW; x <= CX + WALL_HW; x++) {
+    const u = (x - CX) / WALL_HW
+    const phi = Math.asin(Math.max(-1, Math.min(1, u)))
+    const R = Math.floor((phi / Math.PI + 0.5) * 13) % 2 === 0 ? CR : RR
+    for (let y = EAVE + 6; y <= HEM; y++) put(day, x, y, step(R, 4 - u * 1.25 - (y - EAVE) * 0.011))
+    // rim on the left return, shade down the right one
+    if (u < -0.97) vline(day, x, EAVE + 6, HEM - EAVE - 5, step(R, 6))
+    if (u > 0.97) vline(day, x, EAVE + 6, HEM - EAVE - 5, step(R, 2))
+  }
+  // hem: a rope-weighted skirt, one step down, grounded by a dark base line
+  for (let x = CX - WALL_HW; x <= CX + WALL_HW; x++) {
+    const u = (x - CX) / WALL_HW
+    const R = Math.floor((Math.asin(Math.max(-1, Math.min(1, u))) / Math.PI + 0.5) * 13) % 2 === 0 ? CR : RR
+    const wob = Math.round(Math.sin(x * 0.19) * 1.2)
+    for (let y = HEM - 5 + wob; y <= HEM; y++) put(day, x, y, step(R, 3 - u * 1.1))
+    put(day, x, HEM - 5 + wob, step(R, 5 - u))
+  }
+  hline(day, CX - WALL_HW + 2, HEM, WALL_HW * 2 - 3, OUT)
+
+  // ---- guy ropes pegged out beyond the skirt ----
+  for (const dir of [-1, 1] as const) {
+    const ex = CX + dir * (WALL_HW + 4)
+    const px = CX + dir * (WALL_HW + 10)
+    for (let i = 0; i <= 58; i++) {
+      const rx = Math.round(ex + ((px - ex) * i) / 58)
+      const ry = EAVE + 6 + i
+      put(day, rx, ry, i % 4 === 0 ? CR[5] : CR[3])
+    }
+    rect(day, px - 1, HEM - 9, 3, 9, WD[3])
+    vline(day, px - 1, HEM - 9, 9, WD[5])
+    put(day, px + 1, HEM - 9, WD[2])
+  }
+
+  // ---- scalloped valance hanging off the eave, with a bulb at every nadir ----
+  const SC = 16
+  const scallopBottom = (x: number): number => EAVE + 1 + 4 + Math.round(7 * Math.sin((Math.PI * ((x - 4) % SC)) / SC))
+  for (let x = 4; x <= 188; x++) {
+    const u = (x - CX) / 92
+    const R = Math.floor((x - 4) / SC) % 2 === 0 ? CR : RR
+    const b = scallopBottom(x)
+    for (let y = EAVE + 1; y <= b; y++) put(day, x, y, step(R, 4 - u * 1.5 - (y - EAVE) * 0.06))
+    hline(day, x, EAVE + 1, 1, step(R, 6 - u * 0.8))
+    put(day, x, b, step(R, 2))
+  }
+  hline(day, 4, EAVE, 185, RR[2])
+  const BULBS: number[] = []
+  for (let bx = 12; bx <= 180; bx += SC) if (bx < 88 || bx > 136) BULBS.push(bx)
+  for (const bx of BULBS) {
+    const by = scallopBottom(bx) + 1
+    put(day, bx, by, MT[3])
+    discAA(day, bx, by + 3, 2.4, YW[4], YW[2])
+    put(day, bx - 1, by + 2, YW[6])
+    softDisc(night, bx, by + 3, 6, '~')
+    discAA(night, bx, by + 3, 2.4, 'H', 'Y')
+  }
+
+  // ---- prize sign, hung off the valance above the entrance ----
+  const SX = 92
+  const SY = 68
+  const SW = 41
+  const SH = 18
+  for (const cx of [SX + 3, SX + SW - 4]) {
+    vline(day, cx, EAVE + 4, SY - EAVE - 3, MT[3])
+    put(day, cx, EAVE + 5, MT[5])
+  }
+  rect(day, SX, SY, SW, SH, CR[4])
+  hline(day, SX, SY, SW, CR[6])
+  vline(day, SX, SY, SH, CR[5])
+  hline(day, SX, SY + SH - 1, SW, CR[2])
+  vline(day, SX + SW - 1, SY, SH, CR[3])
+  rect(day, SX + 3, SY + 3, SW - 6, SH - 6, RR[2])
+  hline(day, SX + 3, SY + 3, SW - 6, RR[3])
+  hline(day, SX + 3, SY + SH - 4, SW - 6, RR[1])
+  const STAR = [
+    '......L......',
+    '.....LLL.....',
+    '.....LSS.....',
+    'LLLLLLSSSSSSS',
+    '.LLLLLSSSSSS.',
+    '..LLLLSSSSS..',
+    '...LLLSSSS...',
+    '...LLLSSSS...',
+    '..LLL...SSS..',
+    '..LL.....SS..',
+    '.LL.......SS.',
+  ]
+  stamp(day, DX - 6, SY + 3, STAR, { L: YW[6], S: YW[4] })
+  for (const sx of [SX + 5, SX + SW - 11]) {
+    stamp(day, sx, SY + 7, ['.L.', 'LSL', '.S.'], { L: YW[5], S: YW[3] })
+    put(day, sx + 1, SY + 7, YW[7])
+  }
+  rect(night, SX + 3, SY + 3, SW - 6, SH - 6, 'o')
+  stamp(night, DX - 6, SY + 3, STAR, { L: 'H', S: 'Y' })
+  for (const sx of [SX + 5, SX + SW - 11]) stamp(night, sx, SY + 7, ['.L.', 'LSL', '.S.'], { L: 'H', S: 'Y' })
+  halo(night, SX, SY, SW, SH, '~', 5)
+
+  // ---- entrance: cream surround, dark opening, flaps tied back ----
+  arched(day, DX, 104, HEM, 18, CR[4])
+  arched(day, DX, 103, HEM, 16, CR[6])
+  arched(day, DX, 105, HEM, 15, CR[3])
+  for (let k = 0; k <= 16; k++) {
+    const a = Math.PI + (k * Math.PI) / 16
+    const vx = Math.round(DX + Math.cos(a) * 17)
+    const vy = Math.round(104 + Math.sin(a) * 17)
+    put(day, vx, vy, k < 8 ? CR[6] : CR[3])
+  }
+  arched(day, DX, 106, HEM, 15, IK[3])
+  arched(day, DX, 107, HEM, 13, IK[2])
+  // lamplight inside falling on the sawdust floor — keeps the doorway off pure black
+  for (let y = 119; y <= HEM; y++) hline(day, DX - 12 + (y - 119), y, 25 - (y - 119) * 2, y > 123 ? OR[2] : IK[1])
+  // canvas flaps gathered back against the jambs, roped at waist height
+  for (const dir of [-1, 1] as const) {
+    const fx = DX + dir * 13
+    for (let y = 94; y <= HEM; y++) {
+      const bulge = 2.2 * Math.sin(((y - 94) / (HEM - 94)) * Math.PI)
+      const half = 2 + Math.round(bulge)
+      for (let k = -half; k <= half; k++) {
+        const x = fx + k
+        const nd = (x - fx + dir * 0.8) / (half + 0.01)
+        put(day, x, y, step(CR, 4 - nd * 1.7 - 0.2))
+      }
+      // vertical folds, one step down, so the cloth reads gathered not tubular
+      put(day, fx - dir * (half - 1), y, step(CR, 3))
+    }
+    rect(day, fx - 5, 110, 11, 3, WD[3])
+    hline(day, fx - 5, 110, 11, WD[5])
+    put(day, fx + dir * 6, 111, WD[2])
+  }
+  lantern(day, night, 80, 92)
+  lantern(day, night, 138, 92)
+  arched(night, DX, 108, HEM, 12, 'y')
+  arched(night, DX, 116, HEM, 8, 'H')
+  halo(night, DX - 12, 96, 25, 32, '~', 6)
+  hline(night, DX - 12, HEM, 25, 'H')
+  softDisc(night, DX, HEM, 17, '~')
+
+  push('bld_fair', day, night)
+}
+
 /* ================ particles ================ */
 
 defs.push({

@@ -8,16 +8,13 @@ import { initDialogue, openDialogue } from './dialogue'
 import { initElevator } from './elevator'
 import { initHud } from './hud'
 import { initJournal } from './journal'
-import { initLineage } from './lineage'
 import { initLoading } from './loading'
 import { initMinigames } from '../systems/Minigame'
 import { initMap, initMinimap } from './map'
-import { initCargo } from './minigames/cargo'
-import { initClimb } from './minigames/climb'
-import { initPacketRush } from './minigames/packetrush'
-import { initStudyHall } from './minigames/studyhall'
+import { initMinigameRenderers } from './minigames'
 import { initPanels } from './panels'
 import { initPause } from './pause'
+import { initPrizes } from './prizes'
 import { initPrompt } from './prompt'
 import { initReader } from './reader'
 import { initSettings } from './settings'
@@ -50,12 +47,9 @@ export function initUI(): void {
   initPause()
   initElevator()
   initToolwall()
-  initLineage()
+  initPrizes()
   initMinigames()
-  initStudyHall()
-  initCargo()
-  initPacketRush()
-  initClimb()
+  initMinigameRenderers()
   hooks.openDialogue = (runner) => openDialogue(runner)
 
   // Esc from the world (no modal open) is handled by scenes; keep a global fallback

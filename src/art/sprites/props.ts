@@ -44,6 +44,9 @@ const CANVAS: Ramp = ['roofRed1', 'roofRed2', 'roofRed3', 'roofRed4', 'roofRed5'
 const CORK: Ramp = ['path1', 'path2', 'path3', 'path4', 'path5', 'path6']
 const SLATE: Ramp = ['roofGreen1', 'roofGreen2', 'roofGreen3', 'roofGreen4', 'roofGreen5', 'roofGreen6']
 const RED: Ramp = ['red1', 'red2', 'red3', 'red4', 'red5', 'red6']
+const TEAL: Ramp = ['teal1', 'teal2', 'teal3', 'teal4', 'teal5', 'teal6']
+/** The fairground's three-colour rotation: red → teal → gold, in that order. */
+const FAIR: readonly Ramp[] = [RED, TEAL, BRASS]
 
 /** Clamp a fractional ramp position to a palette key. */
 const tone = (ramp: Ramp, i: number): PalKey => ramp[Math.max(0, Math.min(ramp.length - 1, Math.round(i)))]
@@ -866,6 +869,93 @@ function paintNoticeboard(r: Raster): void {
 }
 
 /* ------------------------------------------------------------------ *
+ * fairground dressing — bunting and balloons around Sol's Prize Tent
+ * ------------------------------------------------------------------ */
+
+/**
+ * bunting — 96×24, anchored on the rope line at [48,20] rather than at a foot,
+ * so a run of them strings end to end along the midway. `flat` in the world, so
+ * nothing may lean on ground contact to read: the two poles and the sag of the
+ * rope carry the whole silhouette.
+ */
+function paintBunting(r: Raster): void {
+  withOutline(r, (s) => {
+    // poles, planted just inside the frame so the outline has room
+    for (const x of [3, 90]) {
+      slab(s, x, 4, 3, 18, WOOD, 4)
+      box(s, x + 1, 5, 1, 16, tone(WOOD, 5))
+      box(s, x, 20, 3, 2, tone(WOOD, 1))
+      orb(s, x + 1, 3, 2, 2, WOOD, 4.4, 1.4)
+    }
+    /** catenary between the pole heads */
+    const ropeY = (x: number): number => 4 + Math.round(5 * Math.sin((Math.PI * (x - 5)) / 85))
+    for (let x = 4; x <= 91; x++) {
+      const y = ropeY(x)
+      px(s, x, y, tone(CLOTH, 4))
+      px(s, x, y + 1, tone(CLOTH, 2))
+    }
+    // seven pennants, red → teal → gold
+    for (let k = 0; k < 7; k++) {
+      const cx = 11 + k * 12
+      const ramp = FAIR[k % 3]
+      const top = ropeY(cx) + 1
+      for (let i = 0; i <= 10; i++) {
+        const half = Math.round(5 * (1 - i / 11))
+        for (let dx = -half; dx <= half; dx++) {
+          const n = dx / (half + 0.01)
+          px(s, cx + dx, top + i, tone(ramp, 3.9 - n * 1.5 - i * 0.06))
+        }
+        if (half > 0) px(s, cx - half, top + i, tone(ramp, 5.2))
+      }
+      // hem along the top of the cloth, and the loop over the rope
+      box(s, cx - 5, top, 11, 1, tone(ramp, 5))
+      px(s, cx, top - 1, tone(CLOTH, 5))
+    }
+  })
+}
+
+/** One balloon: an ellipse tapering into a knot, lit from the top-left. */
+function balloonAt(s: Raster, cx: number, cy: number, rx: number, ry: number, ramp: Ramp): void {
+  orb(s, cx, cy, rx, ry, ramp, 3.6, 2.1)
+  for (let i = 0; i < 3; i++) {
+    const half = Math.max(0, 2 - i)
+    for (let dx = -half; dx <= half; dx++) px(s, cx + dx, cy + ry + i, tone(ramp, 3 - dx * 0.4))
+  }
+  px(s, cx, cy + ry + 2, tone(ramp, 2))
+  // specular: two pixels of the ramp's brightest step, never a ring
+  px(s, cx - Math.round(rx * 0.42), cy - Math.round(ry * 0.5), tone(ramp, 5.6))
+  px(s, cx - Math.round(rx * 0.42) + 1, cy - Math.round(ry * 0.5), tone(ramp, 5))
+  px(s, cx - Math.round(rx * 0.42), cy - Math.round(ry * 0.5) + 1, tone(ramp, 5))
+}
+
+/** String from a balloon's knot down to the peg, bowing with its own weight. */
+function balloonString(s: Raster, x0: number, y0: number, x1: number, y1: number): void {
+  const n = y1 - y0
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const x = Math.round(x0 + (x1 - x0) * t + Math.sin(t * Math.PI) * (x0 < x1 ? -2.2 : 2.2))
+    px(s, x, y0 + i, i % 5 === 0 ? tone(CLOTH, 5) : tone(CLOTH, 3))
+  }
+}
+
+/** balloons — 32×56, three on strings tied to a peg; anchored at the peg [16,54]. */
+function paintBalloons(r: Raster): void {
+  withOutline(r, (s) => {
+    // peg first, so the strings land on top of the rope wrap
+    slab(s, 14, 44, 4, 11, WOOD, 4)
+    box(s, 15, 45, 1, 9, tone(WOOD, 5))
+    box(s, 13, 46, 6, 3, tone(WOOD, 3))
+    box(s, 13, 46, 6, 1, tone(WOOD, 5))
+    balloonString(s, 23, 19, 16, 45)
+    balloonString(s, 9, 22, 16, 45)
+    balloonString(s, 16, 36, 16, 45)
+    balloonAt(s, 23, 11, 7, 8, FAIR[1])
+    balloonAt(s, 9, 14, 7, 8, FAIR[0])
+    balloonAt(s, 16, 28, 7, 8, FAIR[2])
+  })
+}
+
+/* ------------------------------------------------------------------ *
  * items — small hand-drawn icons, anchored at their centre
  * ------------------------------------------------------------------ */
 
@@ -1056,6 +1146,8 @@ export const PROP_DEFS: SpriteDef[] = [
   { name: 'sign_finger', w: 40, h: 56, legend: {}, paint: paintSignFinger, anchor: [20, 56] },
   { name: 'prop_chalkboard', w: 56, h: 40, legend: {}, paint: paintChalkboard, anchor: [28, 40] },
   { name: 'prop_noticeboard', w: 48, h: 40, legend: {}, paint: paintNoticeboard, anchor: [24, 40] },
+  { name: 'bunting', w: 96, h: 24, legend: {}, paint: paintBunting, anchor: [48, 20] },
+  { name: 'balloons', w: 32, h: 56, legend: {}, paint: paintBalloons, anchor: [16, 54] },
   ascii(
     'item_gear',
     GEAR_ROWS,

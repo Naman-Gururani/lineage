@@ -93,11 +93,35 @@ export class Npc extends Phaser.GameObjects.Container {
     this.timer = 1500
   }
 
+  /**
+   * Move the villager's whole life somewhere else: new home, new position, no
+   * errand in hand. The guide's station changes as the story does, and this is
+   * how he takes it up — only ever called while he is off-camera, so nobody
+   * sees him jump.
+   */
+  rehome(x: number, y: number): void {
+    this.home.x = x
+    this.home.y = y
+    this.target = null
+    this.moving = false
+    this.setPosition(x, y)
+    this.setDepth(y)
+    this.sprite.setTexture(ATLAS, this.frame('idle', this.dir))
+  }
+
+  /** Send the villager to a spot on foot. Cleared the moment he arrives. */
+  walkTo(x: number, y: number): void {
+    this.target = { x, y }
+  }
+
   update(dtMs: number, blocked: Blocked, solids: Solid[]): void {
     if (this.talking) return
     const b = this.def.behaviour
     this.timer -= dtMs
-    if (b.kind === 'idle') {
+    // An idle villager picks no destinations of his own — but he still walks one
+    // handed to him (`walkTo`), which is how the guide leaves for his next
+    // station. Without a target he only shifts his gaze.
+    if (b.kind === 'idle' && !this.target) {
       if (this.timer <= 0) {
         this.timer = 3000 + Math.random() * 4000
         if (Math.random() < 0.3) {
@@ -111,7 +135,7 @@ export class Npc extends Phaser.GameObjects.Container {
       }
       return
     }
-    if (!this.target && this.timer <= 0) {
+    if (b.kind !== 'idle' && !this.target && this.timer <= 0) {
       if (b.kind === 'wander') {
         const a = Math.random() * Math.PI * 2
         const r = Math.random() * b.radius

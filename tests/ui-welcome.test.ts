@@ -125,7 +125,7 @@ describe('welcome card', () => {
 
   it('shows the pitch, the how-to rows and the reader footer, verbatim', () => {
     show(false)
-    expect(txt('.welcome-pitch')).toBe('I build real-time systems that move money — this island is my résumé. Explore it.')
+    expect(txt('.welcome-pitch')).toBe('I build real-time systems that move money — this island is my résumé. Bo will show you around.')
     expect(rows()).toEqual(['Move — WASD / arrows', 'Run — automatic (Shift to stroll)', 'Jump — Space', 'Interact — E'])
     expect(txt('.welcome-foot')).toBe('Prefer plain text? Reader Mode has everything.')
   })

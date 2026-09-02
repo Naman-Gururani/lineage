@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { TILE } from '../src/config'
+import { ZONES } from '../src/data/content'
+import { NPC_TREES } from '../src/data/npcs'
 import { ROOMS } from '../src/data/rooms'
+import type { MinigameId } from '../src/systems/Minigame'
 import { parseRoom, type ParsedRoom } from '../src/world/rooms'
 import { PACKS } from './sprites/helpers'
 
@@ -18,8 +21,29 @@ for (const defs of Object.values(PACKS))
     else for (let i = 0; i < n; i++) ATLAS_FRAMES.add(`${d.name}_${i}`)
   }
 
-/** Prefixes `InteriorScene.use()` knows how to dispatch. */
-const INTERACT_KINDS = ['tree:', 'panel:', 'minigame:']
+/**
+ * Every interact string a room may carry, resolved rather than merely prefixed:
+ * a prop pointing at a deleted mini-game or a deleted dialogue tree is a prompt
+ * that opens nothing, and `InteriorScene.use()` fails silently on both.
+ *
+ * `MinigameId` is pinned as a `Record` rather than imported at runtime — the
+ * host in `systems/Minigame.ts` reaches for the DOM, and this suite is a data
+ * check. Rename a mini-game and this line stops compiling.
+ */
+const EVERY_MINIGAME: Record<MinigameId, true> = { wordle: true, claw: true, flappy: true, forge: true, crew: true }
+/** Purpose-built panels an interior prop may open, beside the chapter cards. */
+const ROOM_PANELS = ['elevator', 'toolwall', 'prizes']
+
+function interactResolves(target: string): boolean {
+  if (target.startsWith('minigame:')) return target.slice(9) in EVERY_MINIGAME
+  if (target.startsWith('tree:')) return target.slice(5) in NPC_TREES
+  if (target.startsWith('panel:')) {
+    const id = target.slice(6)
+    if (id.startsWith('zone:')) return ZONES.some((z) => z.id === id.slice(5))
+    return ROOM_PANELS.includes(id)
+  }
+  return false
+}
 
 /* ------------------------------------------------------------------ */
 /* Reachability: can the hero actually walk up to each interactable?    */
@@ -103,7 +127,7 @@ function winnerAt(items: ReturnType<typeof interactables>, p: Pt): string | null
 
 describe('rooms', () => {
   it('defines a room behind every landmark door', () => {
-    expect(Object.keys(ROOMS).sort()).toEqual(['about', 'campus', 'contact', 'experience', 'lineage', 'safestride', 'skills', 'stealth', 'warehouse'])
+    expect(Object.keys(ROOMS).sort()).toEqual(['about', 'campus', 'contact', 'experience', 'fair', 'safestride', 'skills', 'stealth', 'warehouse'])
   })
 
   for (const [id, def] of Object.entries(ROOMS)) {
@@ -126,7 +150,7 @@ describe('rooms', () => {
         for (const p of room.props) {
           const frame = p.frames > 1 ? `${p.sprite}_0` : p.sprite
           expect(ATLAS_FRAMES.has(frame), `${p.sprite} is not an atlas frame`).toBe(true)
-          if (p.interact) expect(INTERACT_KINDS.some((k) => p.interact!.startsWith(k)), p.interact).toBe(true)
+          if (p.interact) expect(interactResolves(p.interact), `${p.sprite} points at nothing: ${p.interact}`).toBe(true)
           expect(p.x).toBeGreaterThan(0)
           expect(p.x).toBeLessThan(room.w * TILE)
           expect(p.y).toBeGreaterThan(0)

@@ -67,6 +67,8 @@ export type Blueprint = {
   regions: Region[]
   spawn: Vec2
   npcSpots: Record<string, Vec2>
+  /** Where the guide waits for each story step (`data/story.ts` names them). */
+  storySpots: Record<string, Vec2>
   packetSpots: Vec2[]
   chestSpots: Vec2[]
   shellSpots: Vec2[]
@@ -91,7 +93,7 @@ export const BLUEPRINT: Blueprint = {
     E(72, 19, 18, 12, 0.12), // whispering woods (north-east)
     E(23, 18, 17, 12, 0.1), // tower heights (north-west)
     E(49, 13, 16, 10, 0.1), // stone ridge (north)
-    E(20, 50, 14, 10, 0.1), // engine works (south-west)
+    E(20, 50, 14, 10, 0.1), // the fairground (south-west)
     E(73, 52, 15, 9, 0.08), // willow fields (south-east)
     E(88, 63, 5, 4, 0.06), // the point (lighthouse)
   ],
@@ -122,7 +124,7 @@ export const BLUEPRINT: Blueprint = {
     [V(55, 38), V(60, 30)], // plaza → campus door
     [V(63, 29), V(71, 20)], // campus → workshop door
     [V(45, 32), V(49, 12)], // cottage → vault (up the ridge ramp)
-    [V(41, 42), V(19, 52)], // plaza → engine
+    [V(41, 42), V(19, 52)], // plaza → the fairground
     [V(55, 42), V(73, 52)], // plaza → safe stride (round the pond; the brook is a hop)
     [V(73, 52), V(76, 55)], // safe stride → boardwalk
     [V(47, 58), V(44, 58)], // harbor → warehouse
@@ -131,7 +133,7 @@ export const BLUEPRINT: Blueprint = {
     { id: 'about', tx: 46, ty: 31, w: 5, h: 3, door: V(48, 34), sprite: 'bld_about', room: 'about' },
     { id: 'experience', tx: 20, ty: 17, w: 6, h: 4, door: V(23, 21), sprite: 'bld_experience', room: 'experience' },
     { id: 'skills', tx: 69, ty: 16, w: 5, h: 4, door: V(71, 20), sprite: 'bld_skills', room: 'skills' },
-    { id: 'lineage', tx: 16, ty: 48, w: 6, h: 4, door: V(19, 52), sprite: 'bld_lineage', room: 'lineage' },
+    { id: 'lineage', tx: 16, ty: 48, w: 6, h: 4, door: V(19, 52), sprite: 'bld_fair', room: 'fair' },
     { id: 'stealth', tx: 47, ty: 8, w: 5, h: 3, door: V(49, 11), sprite: 'bld_stealth', room: 'stealth' },
     { id: 'safestride', tx: 71, ty: 49, w: 4, h: 3, door: V(73, 52), sprite: 'bld_safestride', room: 'safestride' },
     { id: 'contact', tx: 87, ty: 61, w: 3, h: 3, door: V(88, 64), sprite: 'bld_contact', room: 'contact' },
@@ -144,22 +146,30 @@ export const BLUEPRINT: Blueprint = {
     { id: 'campus', name: 'Campus Green', poly: P(50, 22, 68, 22, 68, 34, 50, 34) },
     { id: 'woods', name: 'Whispering Woods', poly: P(58, 0, 96, 0, 96, 34, 68, 34, 68, 22, 58, 22) },
     { id: 'meadow', name: 'Sunny Meadow', poly: P(36, 22, 50, 22, 50, 34, 62, 34, 62, 47, 34, 47, 34, 34, 36, 34) },
-    { id: 'engine', name: 'Engine Works', poly: P(0, 34, 34, 34, 34, 47, 38, 47, 38, 72, 0, 72) },
+    { id: 'engine', name: 'The Fairground', poly: P(0, 34, 34, 34, 34, 47, 38, 47, 38, 72, 0, 72) },
     { id: 'harbor', name: 'Harbor', poly: P(38, 47, 62, 47, 62, 72, 38, 72) },
     { id: 'fields', name: 'Willow Fields', poly: P(62, 34, 96, 34, 96, 47, 80, 47, 80, 72, 62, 72) },
     { id: 'point', name: 'The Point', poly: P(80, 47, 96, 47, 96, 72, 80, 72) },
   ],
   spawn: V(48, 59),
   npcSpots: {
-    mira: V(47, 57),
+    dockmaster: V(47, 57),
     tomas: V(49, 61),
     pip: V(52, 57),
-    lou: V(46, 41),
-    sol: V(21, 54),
-    devi: V(62, 31),
     arjun: V(69, 54),
     ilse: V(85, 63),
     cat: V(53, 61),
+  },
+  // Bo walks the story with you: one station per step, each within sight of the
+  // door that step is asking you to knock on. The first two share the pier,
+  // because that is where both of them happen.
+  storySpots: {
+    meet: V(47, 57),
+    experience: V(47, 57),
+    projects: V(21, 53),
+    education: V(62, 31),
+    skills: V(69, 21),
+    contact: V(86, 63),
   },
   // 20 motes: three each in the harbor, meadow and woods; two in every other
   // region; one out on the Point.
@@ -191,6 +201,15 @@ export const BLUEPRINT: Blueprint = {
     { kind: 'barrel', x: 17, y: 55, solid: R(16.5, 54.5, 1, 1) },
     { kind: 'bell', x: 90, y: 64, solid: R(89.5, 63.5, 1, 1) },
     { kind: 'mailbox', x: 52, y: 34, solid: R(51.5, 33.5, 1, 1) },
+    // Fair dressing round Sol's Prize Tent: bunting strung across the approach,
+    // balloons at the corners, two side stalls flanking the ground.
+    { kind: 'bunting', x: 14, y: 46 },
+    { kind: 'bunting', x: 24, y: 46 },
+    { kind: 'bunting', x: 19, y: 55 },
+    { kind: 'balloons', x: 12, y: 53 },
+    { kind: 'balloons', x: 25, y: 48 },
+    { kind: 'stall', x: 12, y: 50, solid: R(10.5, 49, 3, 2) },
+    { kind: 'stall', x: 26, y: 56, solid: R(24.5, 55, 3, 2) },
   ],
 }
 
@@ -329,7 +348,8 @@ export function rasterizeBlueprint(bp: Blueprint, rng: Rng): Grid {
     force(lm.door.x, lm.door.y + 1)
   }
   force(bp.spawn.x, bp.spawn.y)
-  for (const p of [...bp.packetSpots, ...bp.chestSpots, ...Object.values(bp.npcSpots), bp.viewpoint]) force(Math.floor(p.x), Math.floor(p.y))
+  for (const p of [...bp.packetSpots, ...bp.chestSpots, ...Object.values(bp.npcSpots), ...Object.values(bp.storySpots), bp.viewpoint])
+    force(Math.floor(p.x), Math.floor(p.y))
 
   // 3. beach ring (distance to sea) and shallows (distance to land)
   const toSea = distanceField(grid, (t) => t !== T.DEEP)
@@ -413,7 +433,7 @@ export function rasterizeBlueprint(bp: Blueprint, rng: Rng): Grid {
     if (!isWalkable(grid.get(lm.door.x, lm.door.y))) grid.set(lm.door.x, lm.door.y, T.GRASS)
     if (!isWalkable(grid.get(lm.door.x, lm.door.y + 1))) grid.set(lm.door.x, lm.door.y + 1, T.GRASS)
   }
-  for (const p of [...bp.packetSpots, ...bp.chestSpots, ...Object.values(bp.npcSpots), bp.viewpoint, bp.spawn]) {
+  for (const p of [...bp.packetSpots, ...bp.chestSpots, ...Object.values(bp.npcSpots), ...Object.values(bp.storySpots), bp.viewpoint, bp.spawn]) {
     const x = Math.floor(p.x)
     const y = Math.floor(p.y)
     if (!isWalkable(grid.get(x, y))) grid.set(x, y, T.GRASS)

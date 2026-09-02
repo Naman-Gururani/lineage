@@ -59,6 +59,17 @@ const HD_NEW: Dims = {
   prop_noticeboard: [48, 40, 1],
 }
 
+/**
+ * Fairground dressing around Sol's Prize Tent (Story Isle spec §9).
+ * Neither hangs from its own foot, so the anchor is pinned per sprite rather
+ * than derived: the bunting anchors on its rope line so a run of them strings
+ * together, the balloons on the peg the strings are tied to.
+ */
+const FAIR: Record<string, [number, number, number, [number, number]]> = {
+  bunting: [96, 24, 1, [48, 20]],
+  balloons: [32, 56, 1, [16, 54]],
+}
+
 describe('prop pack — structural validity (any resolution)', () => {
   itIsAWellFormedPack('props')
 })
@@ -92,6 +103,14 @@ describe('32px HD contract', () => {
 
   it('anchors the new signage bottom-centre so it plants on the ground', () => {
     for (const [name, [w, h]] of Object.entries(HD_NEW)) expect(need(byName, name).anchor, `${name} anchor`).toEqual([w / 2, h])
+  })
+
+  it('adds the fairground dressing at its pinned size, frame count and anchor', () => {
+    for (const [name, [w, h, frames, anchor]] of Object.entries(FAIR)) {
+      const d = expectFrame(byName, name, w, h)
+      expect(frameOf(d).frames, `${name} frames`).toBe(frames)
+      expect(d.anchor, `${name} anchor`).toEqual(anchor)
+    }
   })
 
   /*

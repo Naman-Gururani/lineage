@@ -35,9 +35,9 @@ describe('QuestLog', () => {
   })
 
   // The full table — ids, givers, targets — is pinned in `quests.test.ts`.
-  it('keeps the six village errands, each with a reward', () => {
+  it('keeps the story and the village errands, each with a reward', () => {
     const ids = new Set(QUESTS.map((q) => q.id))
-    for (const id of ['beacon', 'explore', 'fishing', 'gear', 'packets', 'shells']) expect(ids.has(id)).toBe(true)
+    for (const id of ['beacon', 'crew', 'explore', 'fishing', 'packets', 'shells', 'story']) expect(ids.has(id)).toBe(true)
     for (const q of QUESTS) expect(q.reward.xp).toBeGreaterThan(0)
   })
 })

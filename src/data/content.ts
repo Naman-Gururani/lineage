@@ -20,7 +20,7 @@ export type LandmarkKind =
   | 'home'
   | 'tower'
   | 'workshop'
-  | 'engine'
+  | 'fair'
   | 'vault'
   | 'cottage'
   | 'lighthouse'
@@ -141,9 +141,9 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'lineage',
-    name: 'The Engine',
+    name: "Sol's Prize Tent",
     label: 'Project',
-    kind: 'engine',
+    kind: 'fair',
     tx: 16,
     ty: 42,
     accent: 0x5eead4,

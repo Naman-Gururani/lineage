@@ -32,7 +32,7 @@ const idOf = (file: string) => relative(SRC, file).split('\\').join('/')
  *
  * The clause between the keyword and `from` is matched as either newline-free
  * text or a whole `{ … }` block, so a named import broken over several lines
- * (`ui/minigames/climb.ts` is the live example) still enters the graph. Letting
+ * (`ui/minigames/index.ts` is the live example) still enters the graph. Letting
  * the clause swallow newlines wholesale would instead let one stray `export` at
  * a line start run on until it found somebody else's `from '…'`.
  */
@@ -116,6 +116,6 @@ describe('module graph', () => {
     expect(graph.get('scenes/WorldScene.ts')).toContain('core/keys.ts')
     // A named import broken over several lines: the bite that the single-line
     // regex used to swallow whole, leaving the edge invisible to the guards above.
-    expect(graph.get('ui/minigames/climb.ts')).toContain('games/climb.ts')
+    expect(graph.get('ui/minigames/index.ts')).toContain('systems/Minigame.ts')
   })
 })

@@ -20,6 +20,9 @@ export type UiStats = {
   discoveries: string[]
 }
 
+/** Where the story sends you next: the chip text, the map pin, and the tile to point at. */
+export type Objective = { step: string; text: string; landmark: string; tx: number; ty: number }
+
 export type UiState = {
   quests: QuestLog | null
   achievements: Achievements | null
@@ -37,6 +40,10 @@ export type UiState = {
   wardrobe: WardrobeView
   /** the save's own flag bag — read by panels that unlock (fast travel) */
   flags: Record<string, number>
+  /** résumé chapters (zone ids) unlocked so far; Contact is always readable */
+  unlocked: string[]
+  /** the story's next station, or null once Bo has shown you everything */
+  objective: Objective | null
 }
 
 export const uiState: UiState = {
@@ -62,6 +69,8 @@ export const uiState: UiState = {
   // Replaced by the live view the moment there is a save (see `WorldScene`).
   wardrobe: { hats: [], equipped: '', equip: () => false },
   flags: {},
+  unlocked: [],
+  objective: null,
 }
 
 /** True when motion should be minimised: the OS preference or the in-game toggle. */

@@ -4,11 +4,11 @@
 // the true bearing, so an arrow never lies about where a road goes.
 //
 //   harbor        — the harbor green, where the plaza road meets the warehouse spur
-//   plaza_w       — west side of the village plaza (roads to the Heights and the Engine)
+//   plaza_w       — west side of the village plaza (roads to the Heights and the Fairground)
 //   plaza_e       — east side of the village plaza (roads to the campus and the fields)
 //   campus        — the campus gate, where the workshop road forks off
 //   bridge_tower  — the upper bridge over the Stream
-//   bridge_engine — the lower bridge, on the Engine road
+//   bridge_engine — the lower bridge, on the Fairground road
 //   ridge         — foot of the Stone Ridge ramp, below the Vault
 //   willow        — the Willow Fields road, between the brook and Safe Stride
 
@@ -38,7 +38,7 @@ export const SIGNS: SignDef[] = [
     arms: [
       { dir: 'N', label: 'Village Plaza' },
       { dir: 'S', label: 'Harbor · your boat' },
-      { dir: 'W', label: 'Cargo Warehouse', note: 'puzzles inside' },
+      { dir: 'W', label: 'Harbor Arcade', note: "Mira's crew game" },
       { dir: 'E', label: 'Willow Fields' },
     ],
   },
@@ -48,7 +48,7 @@ export const SIGNS: SignDef[] = [
     ty: 40,
     arms: [
       { dir: 'NW', label: 'Barclays Tower — Experience' },
-      { dir: 'SW', label: 'The Engine — payment lineage project' },
+      { dir: 'SW', label: "The Fairground — Sol's Prize Tent", note: 'his projects, as prizes' },
       { dir: 'S', label: 'Harbor' },
     ],
   },
@@ -86,7 +86,7 @@ export const SIGNS: SignDef[] = [
     tx: 26,
     ty: 51,
     arms: [
-      { dir: 'W', label: 'Engine Works' },
+      { dir: 'W', label: 'The Fairground' },
       { dir: 'E', label: 'Village Plaza & Harbor' },
     ],
   },
@@ -124,13 +124,13 @@ export const SIGN_TARGETS: Record<string, { tx: number; ty: number }> = {
   'Village Plaza & Harbor': { tx: 48, ty: 40 },
   Harbor: { tx: 48, ty: 59 }, // the pier head
   'Harbor · your boat': { tx: 48, ty: 63 }, // your boat, moored halfway down the pier
-  'Cargo Warehouse': { tx: 44, ty: 58 }, // warehouse door
+  'Harbor Arcade': { tx: 44, ty: 58 }, // warehouse door
   'Willow Fields': { tx: 74, ty: 48 }, // the fields, north of Safe Stride
   'Whispering Woods': { tx: 66, ty: 17 }, // the near stand of the woods, above the campus
   'Tower Heights (ramp ahead)': { tx: 23, ty: 21 }, // Barclays Tower door, top of the ramp
   'Barclays Tower — Experience': { tx: 23, ty: 21 },
-  'Engine Works': { tx: 19, ty: 52 }, // The Engine door
-  'The Engine — payment lineage project': { tx: 19, ty: 52 },
+  'The Fairground': { tx: 19, ty: 52 }, // the door of the prize tent
+  "The Fairground — Sol's Prize Tent": { tx: 19, ty: 52 },
   'SRM Campus — Education': { tx: 60, ty: 30 }, // campus door
   'The Workshop — Skills': { tx: 71, ty: 20 }, // workshop door
   'Safe Stride & The Point': { tx: 73, ty: 52 }, // Safe Stride door, first stop on that road

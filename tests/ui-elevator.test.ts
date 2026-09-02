@@ -74,6 +74,9 @@ describe('elevator panel', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="ui"></div>'
     document.body.className = ''
+    // The tower is a re-read spot: these tests are about the ride, so the
+    // Experience chapter is already won (the locked lobby lives in ui-objective).
+    uiState.unlocked = ['experience']
     vi.useFakeTimers()
     for (const k of ['open', 'close', 'select', 'blip', 'pickup'] as const) vi.spyOn(sfx, k).mockImplementation(() => {})
     initPanels()
@@ -84,6 +87,7 @@ describe('elevator panel', () => {
 
   afterEach(() => {
     closeAllModals()
+    uiState.unlocked = []
     unsub()
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
@@ -125,5 +129,25 @@ describe('elevator panel', () => {
     expect(frames).toEqual([1])
     expect(card.textContent).toContain('DevOps Intern')
     expect(card.textContent).toContain('OAuth 2.0')
+  })
+
+  // The floor buttons are not chrome: the roles and the dates printed on them
+  // are the Experience chapter, so a player without the pass must not read them
+  // off the panel the lift refuses to move.
+  it('blanks the floor buttons themselves while the chapter is unwon', () => {
+    uiState.unlocked = []
+    uiState.settings.reducedMotion = true
+    events.emit('ui:panel', { id: 'elevator', data: undefined })
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.ebtn'))
+    expect(buttons.length).toBe(4) // same panel, same count — nothing goes missing
+    expect(buttons[0].textContent).toContain('Lobby')
+    for (const b of buttons.slice(1)) {
+      const t = (b.textContent ?? '').replace(/\s+/g, ' ').trim()
+      expect(t).toBe('?Floor ?') // the round button glyph, then the blanked label
+      for (const leak of ['Engineer', 'Intern', 'Rooftop', 'stack', 'Barclays']) expect(t, leak).not.toContain(leak)
+      expect(t).not.toMatch(/\d/)
+    }
+    // and the one thing the panel does say is where the pass comes from
+    expect(document.querySelector('.elev-card')!.textContent).toContain('visitor pass')
   })
 })

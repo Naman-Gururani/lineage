@@ -1,40 +1,68 @@
+// The dialogue budget, enforced.
+//
+// v3 ("Story Isle") cut the island's conversation down to sixteen trees with a
+// handful of fixed lines each: Bo the guide, seven room hosts, the three quest
+// villagers, the cat, and four objects. Every résumé fact left the dialogue for
+// the cards — which is why the hardest rule in here is the simplest one: a
+// spoken line may not contain a digit. Figures live on cards, where they can be
+// read twice and copied.
+//
+// What this suite pins:
+//   · the exact tree list — nothing may be added without deciding to
+//   · the line budget: ≤3 lines a node, ≤120 chars a line, no digits, no emoji
+//   · every tree terminates, and every edge names a node that exists
+//   · every effect names a real quest / step / achievement / mini-game / chapter
+//   · Bo's entry ladder, in order — the guide always speaks to where you are
 import { describe, expect, it } from 'vitest'
 import { ACHIEVEMENTS } from '../src/data/achievements'
 import { ZONES } from '../src/data/content'
-import { NEARBY, NPC_INFO, NPC_TREES, ROOM_HOSTS, greetFlag } from '../src/data/npcs'
+import { NPC_INFO, NPC_TREES, ROOM_HOSTS, STORY_TREE_IDS, greetFlag } from '../src/data/npcs'
 import { QUESTS } from '../src/data/quests'
 import { ROOMS } from '../src/data/rooms'
-import { SIGN_TARGETS, type SignDir } from '../src/data/signs'
 import { DialogueRunner, type Cond, type Ctx, type Effect, type Tree } from '../src/systems/Dialogue'
+import type { MinigameId } from '../src/systems/Minigame'
 import { QuestLog } from '../src/systems/Quests'
-import { BLUEPRINT } from '../src/world/blueprint'
-
-// One dialogue box. The longest authored line is Naman's doorway greeting
-// (125 chars); `.dlg-text` has no fixed height, so it wraps inside a taller box.
-const MAX_LINE = 125
-const MAX_LINES_PER_NODE = 4
-// A bottom-anchored dialogue box grows upward, so a long choice list walks off
-// the top of a short viewport. Seven 44px rows is the authored ceiling.
-const MAX_CHOICES = 7
-const MAX_ADVANCES = 200
-
-const CAST = ['mira', 'tomas', 'pip', 'lou', 'ada', 'ravi', 'sol', 'devi', 'arjun', 'ilse', 'naman', 'cat', 'professor', 'dockmaster']
-const OBJECTS = ['bookshelf', 'bed', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'lens', 'vault_door', 'vault_keeper', 'telescope', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell']
-
-/** Host trees greet on room entry: `intro` is entered by the scene, not by `entry`. */
-const HOST_TREES = Object.entries(ROOM_HOSTS)
-const introOf = (treeId: string): string | undefined => (Object.values(ROOM_HOSTS).includes(treeId) ? 'intro' : undefined)
 
 /**
- * Villagers who also stand out on the island. They can be met without opening a
- * door, so their room greeting must not pay the meeting reward a second time —
- * the gear errand sends you to Sol on the Engine road long before the Engine.
+ * The five cabinets, pinned at compile time rather than imported: the host in
+ * `systems/Minigame.ts` reaches for the DOM, and this suite must stay a pure
+ * data check. `Record<MinigameId, true>` is the drift guard — add or rename a
+ * mini-game and this line stops compiling until it is listed here.
  */
-const OUTDOORS = new Set(Object.keys(BLUEPRINT.npcSpots))
+const EVERY_MINIGAME: Record<MinigameId, true> = { wordle: true, claw: true, flappy: true, forge: true, crew: true }
+const MINIGAME_IDS = Object.keys(EVERY_MINIGAME) as MinigameId[]
+
+/* ------------------------------------------------------------------ */
+/* Budgets                                                             */
+
+/** One dialogue box, and nothing that needs a second breath to read. */
+const MAX_LINE = 120
+/** Three boxes is the most anyone on this island may hold the floor for. */
+const MAX_LINES_PER_NODE = 3
+/** An auto-greet fires before the player has asked for anything: two boxes. */
+const MAX_INTRO_LINES = 2
+/** Bo's arrival cutscene is the one authored exception (spec §7). */
+const MAX_ARRIVAL_LINES = 3
+const MAX_CHOICES = 4
+const MAX_CHOICE_TEXT = 40
+const MAX_ADVANCES = 60
+
+/** Figures live on cards. A spoken figure is spelled out, or it is not spoken. */
+const DIGIT = /\d/
+const EMOJI = /\p{Extended_Pictographic}/u
+/** The client-approved skill set never grew a front end. */
+const UNAPPROVED = /\b(React|Node\.js|NodeJS|JavaScript|TypeScript|Angular|Vue|Phaser)\b/i
 
 const trees = Object.entries(NPC_TREES)
 const questIds = new Set(QUESTS.map((q) => q.id))
 const achievementIds = new Set(ACHIEVEMENTS.map((a) => a.id))
+const zoneIds = new Set(ZONES.map((z) => z.id))
+const minigameIds = new Set<string>(MINIGAME_IDS)
+const hosts = Object.entries(ROOM_HOSTS)
+const hostTrees = new Set(Object.values(ROOM_HOSTS))
+
+/** Chapters the story never gates. `contact` is reachable from the first minute. */
+const FREE_FACETS = new Set(['contact'])
 
 function stepIds(quest: string): Set<string> {
   return new Set(QUESTS.find((q) => q.id === quest)?.steps.map((s) => s.id) ?? [])
@@ -76,26 +104,30 @@ type World = {
   flags: Set<string>
   items: Map<string, number>
   packets: number
-  discovered: Set<string>
+  unlocked: Set<string>
   night: boolean
   quests: QuestLog
   xp: number
   applied: Effect[]
 }
 
-function makeWorld(init: Partial<Pick<World, 'packets' | 'night'>> & { flags?: string[]; items?: Record<string, number>; discovered?: string[] } = {}): World {
-  const w: World = {
+function makeWorld(
+  init: Partial<Pick<World, 'packets' | 'night'>> & { flags?: string[]; items?: Record<string, number>; unlocked?: string[] } = {},
+): World {
+  return {
     flags: new Set(init.flags ?? []),
     items: new Map(Object.entries(init.items ?? {})),
     packets: init.packets ?? 0,
-    discovered: new Set(init.discovered ?? []),
+    unlocked: new Set(init.unlocked ?? []),
     night: init.night ?? false,
     quests: new QuestLog({}, () => {}),
     xp: 0,
     applied: [],
   }
-  return w
 }
+
+/** `GameState.isUnlocked`: the free chapters are always open. */
+const isUnlocked = (w: World, id: string): boolean => FREE_FACETS.has(id) || w.unlocked.has(id)
 
 function ctxFor(w: World): Ctx {
   return {
@@ -108,8 +140,9 @@ function ctxFor(w: World): Ctx {
       if (c.questNotStarted && w.quests.isStarted(c.questNotStarted)) return false
       if (c.item && (w.items.get(c.item[0]) ?? 0) < c.item[1]) return false
       if (c.packets !== undefined && w.packets < c.packets) return false
-      if (c.discovered && !w.discovered.has(c.discovered)) return false
       if (c.night !== undefined && w.night !== c.night) return false
+      if (c.unlocked && !isUnlocked(w, c.unlocked)) return false
+      if (c.locked && isUnlocked(w, c.locked)) return false
       return true
     },
     apply(effects: Effect[]): void {
@@ -122,14 +155,15 @@ function ctxFor(w: World): Ctx {
         if (e.give) w.items.set(e.give[0], (w.items.get(e.give[0]) ?? 0) + e.give[1])
         if (e.take) w.items.set(e.take[0], Math.max(0, (w.items.get(e.take[0]) ?? 0) - e.take[1]))
         if (e.xp) w.xp += e.xp
+        if (e.unlockFacet) w.unlocked.add(e.unlockFacet)
       }
     },
   }
 }
 
 /** Play a tree to the end, answering choices by their text in order. Returns every line shown. */
-function play(id: string, w: World, answers: string[] = []): string[] {
-  const tree = NPC_TREES[id]
+function play(id: string, w: World, answers: string[] = [], from?: string): string[] {
+  const tree = from ? startingAt(NPC_TREES[id], from) : NPC_TREES[id]
   const r = new DialogueRunner(tree, ctxFor(w))
   const seen: string[] = []
   const queue = [...answers]
@@ -147,35 +181,118 @@ function play(id: string, w: World, answers: string[] = []): string[] {
   throw new Error(`"${id}" did not end within ${MAX_ADVANCES} advances`)
 }
 
+/** Which node an entry ladder lands on in a given world. */
+const entersAt = (id: string, w: World): string => new DialogueRunner(NPC_TREES[id], ctxFor(w)).nodeId
+
 /* ------------------------------------------------------------------ */
 
-describe('NPC_TREES structure', () => {
-  it('has every cast member and object tree, keyed by its id', () => {
-    for (const id of [...CAST, ...OBJECTS]) {
-      expect(NPC_TREES[id], `missing tree "${id}"`).toBeDefined()
-      expect(NPC_TREES[id].id).toBe(id)
-    }
-    for (const id of CAST) expect(NPC_INFO[id], `missing NPC_INFO "${id}"`).toBeDefined()
+describe('the cast list', () => {
+  it('holds exactly the sixteen story trees, keyed by their own ids', () => {
+    expect(STORY_TREE_IDS).toEqual(['dockmaster', 'naman', 'ada', 'sol', 'professor', 'ravi', 'mira', 'ilse', 'tomas', 'pip', 'arjun', 'cat', 'bed', 'lens', 'telescope', 'vault_door'])
+    expect(Object.keys(NPC_TREES).sort()).toEqual([...STORY_TREE_IDS].sort())
+    for (const [key, tree] of trees) expect(tree.id, `NPC_TREES["${key}"].id`).toBe(key)
   })
 
-  it('every entry, next and choice target names an existing node', () => {
+  it('kept none of the chatter v2 carried — the villagers and talking props are gone', () => {
+    const cut = ['lou', 'devi', 'vault_keeper', 'bookshelf', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell']
+    for (const id of cut) expect(NPC_TREES[id], `"${id}" should have been deleted`).toBeUndefined()
+  })
+
+  it('names the dockmaster Bo, and gives every speaking part a portrait', () => {
+    expect(NPC_INFO.dockmaster).toEqual({ name: 'Bo', face: 'face_dockmaster' })
     for (const [id, tree] of trees) {
-      expect(tree.entry.length, `"${id}" has no entries`).toBeGreaterThan(0)
-      expect(tree.entry[tree.entry.length - 1].when, `"${id}": last entry must be unconditional`).toBeUndefined()
-      for (const e of tree.entry) expect(tree.nodes[e.node], `"${id}" entry → missing "${e.node}"`).toBeDefined()
-      for (const [nodeId, node] of Object.entries(tree.nodes)) {
-        if (node.next) expect(tree.nodes[node.next], `"${id}/${nodeId}" next → missing "${node.next}"`).toBeDefined()
-        for (const c of node.choices ?? []) expect(tree.nodes[c.next], `"${id}/${nodeId}" choice → missing "${c.next}"`).toBeDefined()
+      const info = NPC_INFO[id]
+      if (!info) continue // objects (the bed, the lens) speak with a nameplate, not a face
+      expect(info.face, `"${id}" face`).toBe(`face_${id}`)
+      for (const { nodeId, line } of allLines(tree)) {
+        expect(line.who, `"${id}/${nodeId}" wrong speaker`).toBe(info.name)
+        expect(line.face, `"${id}/${nodeId}" wrong face`).toBe(info.face)
       }
     }
   })
 
-  it('every node is reachable from an entry, an auto-greet or an edge', () => {
+  it('gives every object tree a nameplate and no portrait', () => {
+    for (const id of ['bed', 'lens', 'telescope', 'vault_door']) {
+      for (const { nodeId, line } of allLines(NPC_TREES[id])) {
+        expect(line.who.trim().length, `"${id}/${nodeId}" nameplate`).toBeGreaterThan(0)
+        expect(line.face, `"${id}/${nodeId}" should not carry a face`).toBeUndefined()
+      }
+    }
+  })
+})
+
+describe('the line budget', () => {
+  it('holds every node to three short boxes with a speaker', () => {
+    for (const [id, tree] of trees) {
+      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+        expect(node.lines.length, `"${id}/${nodeId}" has no lines`).toBeGreaterThan(0)
+        const cap = id === 'dockmaster' && nodeId === 'intro' ? MAX_ARRIVAL_LINES : MAX_LINES_PER_NODE
+        expect(node.lines.length, `"${id}/${nodeId}" holds the floor too long`).toBeLessThanOrEqual(cap)
+        for (const line of node.lines) {
+          expect(line.who.trim().length, `"${id}/${nodeId}" line without speaker`).toBeGreaterThan(0)
+          expect(line.text.trim().length, `"${id}/${nodeId}" empty line`).toBeGreaterThan(0)
+          expect(line.text.length, `"${id}/${nodeId}" too long (${line.text.length}): ${line.text}`).toBeLessThanOrEqual(MAX_LINE)
+          expect(line.text, `"${id}/${nodeId}" contains a newline`).not.toMatch(/\n/)
+        }
+      }
+    }
+  })
+
+  it('never speaks a digit — every figure on this island lives on a card', () => {
+    for (const [id, tree] of trees)
+      for (const { nodeId, line } of allLines(tree))
+        expect(line.text, `"${id}/${nodeId}" speaks a figure: ${line.text}`).not.toMatch(DIGIT)
+  })
+
+  it('never uses emoji and never names an unapproved skill', () => {
+    for (const [id, tree] of trees)
+      for (const { nodeId, line } of allLines(tree)) {
+        expect(line.text, `"${id}/${nodeId}" contains emoji`).not.toMatch(EMOJI)
+        expect(line.text, `"${id}/${nodeId}" names an unapproved skill`).not.toMatch(UNAPPROVED)
+      }
+  })
+
+  it('keeps choice lists short and their labels readable', () => {
+    for (const [id, tree] of trees)
+      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+        expect(node.choices?.length ?? 0, `"${id}/${nodeId}" offers too many choices`).toBeLessThanOrEqual(MAX_CHOICES)
+        for (const c of node.choices ?? []) {
+          expect(c.text.trim().length, `"${id}/${nodeId}" empty choice`).toBeGreaterThan(0)
+          expect(c.text.length, `"${id}/${nodeId}" choice too long`).toBeLessThanOrEqual(MAX_CHOICE_TEXT)
+          expect(c.text, `"${id}/${nodeId}" choice speaks a figure`).not.toMatch(DIGIT)
+        }
+      }
+  })
+
+  it('never opens a topic list — "tell me more" is not a feature any more', () => {
+    for (const [id, tree] of trees)
+      for (const nodeId of ['nearby', 'about_place', 'more', 'topics'])
+        expect(tree.nodes[nodeId], `"${id}" still carries a "${nodeId}" topic`).toBeUndefined()
+  })
+})
+
+describe('structure', () => {
+  it('gives every tree an entry ladder that ends unconditionally', () => {
+    for (const [id, tree] of trees) {
+      expect(tree.entry.length, `"${id}" has no entries`).toBeGreaterThan(0)
+      expect(tree.entry[tree.entry.length - 1].when, `"${id}": last entry must be unconditional`).toBeUndefined()
+      for (const e of tree.entry) expect(tree.nodes[e.node], `"${id}" entry → missing "${e.node}"`).toBeDefined()
+    }
+  })
+
+  it('points every next and every choice at a node that exists', () => {
+    for (const [id, tree] of trees)
+      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+        if (node.next) expect(tree.nodes[node.next], `"${id}/${nodeId}" next → missing "${node.next}"`).toBeDefined()
+        for (const c of node.choices ?? []) expect(tree.nodes[c.next], `"${id}/${nodeId}" choice → missing "${c.next}"`).toBeDefined()
+      }
+  })
+
+  it('leaves no node stranded', () => {
     for (const [id, tree] of trees) {
       const reachable = new Set<string>()
       const stack = tree.entry.map((e) => e.node)
-      const intro = introOf(id)
-      if (intro) stack.push(intro)
+      if (tree.nodes.intro) stack.push('intro') // the scene enters `intro` itself
       while (stack.length) {
         const n = stack.pop()!
         if (reachable.has(n)) continue
@@ -187,78 +304,10 @@ describe('NPC_TREES structure', () => {
       for (const nodeId of Object.keys(tree.nodes)) expect(reachable.has(nodeId), `"${id}/${nodeId}" is unreachable`).toBe(true)
     }
   })
-
-  it('every node has 1–4 short, non-empty lines with a speaker', () => {
-    for (const [id, tree] of trees) {
-      for (const [nodeId, node] of Object.entries(tree.nodes)) {
-        expect(node.lines.length, `"${id}/${nodeId}" has no lines`).toBeGreaterThan(0)
-        expect(node.lines.length, `"${id}/${nodeId}" has too many lines`).toBeLessThanOrEqual(MAX_LINES_PER_NODE)
-        for (const line of node.lines) {
-          expect(line.who.trim().length, `"${id}/${nodeId}" line without speaker`).toBeGreaterThan(0)
-          expect(line.text.trim().length, `"${id}/${nodeId}" empty line`).toBeGreaterThan(0)
-          expect(line.text.length, `"${id}/${nodeId}" too long: ${line.text}`).toBeLessThanOrEqual(MAX_LINE)
-          expect(line.text, `"${id}/${nodeId}" contains a newline`).not.toMatch(/\n/)
-        }
-        expect(node.choices?.length ?? 0, `"${id}/${nodeId}" offers too many choices`).toBeLessThanOrEqual(MAX_CHOICES)
-        for (const c of node.choices ?? []) {
-          expect(c.text.trim().length, `"${id}/${nodeId}" empty choice`).toBeGreaterThan(0)
-          expect(c.text.length, `"${id}/${nodeId}" choice too long`).toBeLessThanOrEqual(40)
-        }
-      }
-    }
-  })
-
-  it('faces look like face_<id>, and cast members speak with their own name and face', () => {
-    for (const [id, tree] of trees) {
-      for (const { nodeId, line } of allLines(tree)) {
-        if (line.face !== undefined) expect(line.face, `"${id}/${nodeId}" odd face "${line.face}"`).toMatch(/^face_[a-z][a-z0-9_]*$/)
-      }
-    }
-    for (const id of CAST) {
-      const info = NPC_INFO[id]
-      expect(info.face).toBe(`face_${id}`)
-      expect(info.name.trim().length).toBeGreaterThan(0)
-      for (const { nodeId, line } of allLines(NPC_TREES[id])) {
-        expect(line.who, `"${id}/${nodeId}" wrong speaker`).toBe(info.name)
-        expect(line.face, `"${id}/${nodeId}" wrong face`).toBe(info.face)
-      }
-    }
-  })
-
-  it('quest, step and achievement ids in effects exist', () => {
-    for (const [id, tree] of trees) {
-      for (const { nodeId, effect } of allEffects(tree)) {
-        const where = `"${id}/${nodeId}"`
-        if (effect.startQuest) expect(questIds.has(effect.startQuest), `${where} unknown quest ${effect.startQuest}`).toBe(true)
-        if (effect.completeQuest) expect(questIds.has(effect.completeQuest), `${where} unknown quest ${effect.completeQuest}`).toBe(true)
-        if (effect.advanceQuest) {
-          const [q, step, n] = effect.advanceQuest
-          expect(questIds.has(q), `${where} unknown quest ${q}`).toBe(true)
-          expect(stepIds(q).has(step), `${where} unknown step ${q}/${step}`).toBe(true)
-          expect(n).toBeGreaterThan(0)
-        }
-        if (effect.achievement) expect(achievementIds.has(effect.achievement), `${where} unknown achievement ${effect.achievement}`).toBe(true)
-      }
-      for (const e of tree.entry) for (const q of [e.when?.questActive, e.when?.questDone, e.when?.questNotStarted]) if (q) expect(questIds.has(q), `"${id}" entry references unknown quest ${q}`).toBe(true)
-      for (const node of Object.values(tree.nodes))
-        for (const c of node.choices ?? []) for (const q of [c.when?.questActive, c.when?.questDone, c.when?.questNotStarted]) if (q) expect(questIds.has(q), `"${id}" choice references unknown quest ${q}`).toBe(true)
-    }
-  })
-
-  it('never names unapproved skills, never uses emoji', () => {
-    const banned = /\b(React|Node\.js|NodeJS|JavaScript|TypeScript|Angular|Vue|Phaser)\b/i
-    const emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u
-    for (const [id, tree] of trees) {
-      for (const { nodeId, line } of allLines(tree)) {
-        expect(line.text, `"${id}/${nodeId}" names an unapproved skill`).not.toMatch(banned)
-        expect(line.text, `"${id}/${nodeId}" contains emoji`).not.toMatch(emoji)
-      }
-    }
-  })
 })
 
-describe('NPC_TREES termination', () => {
-  it('following next alone always terminates (no loop without a choice)', () => {
+describe('termination', () => {
+  it('following next alone always ends (no loop without a choice)', () => {
     for (const [id, tree] of trees) {
       const ids = Object.keys(tree.nodes)
       for (const start of ids) {
@@ -272,14 +321,14 @@ describe('NPC_TREES termination', () => {
     }
   })
 
-  it('runs from every entry and auto-greet (choosing the first option) and ends or returns to a choice already seen', () => {
+  it('runs from every entry and greeting, taking the first option, and stops', () => {
     for (const [id, tree] of trees) {
-      const starts = [...tree.entry.map((e) => ({ node: e.node })), ...(introOf(id) ? [{ node: 'intro' }] : [])]
-      for (const e of starts) {
-        const r = new DialogueRunner(startingAt(tree, e.node), permissive())
+      const starts = [...tree.entry.map((e) => e.node), ...(tree.nodes.intro ? ['intro'] : [])]
+      for (const start of starts) {
+        const r = new DialogueRunner(startingAt(tree, start), permissive())
         const seenChoices = new Set<string>()
         for (let guard = 0; ; guard++) {
-          expect(guard, `"${id}" from "${e.node}" ran away`).toBeLessThan(MAX_ADVANCES)
+          expect(guard, `"${id}" from "${start}" ran away`).toBeLessThan(MAX_ADVANCES)
           const res = drive(r)
           if (res === 'end') break
           if (seenChoices.has(r.nodeId)) break // a loop guarded by a choice is fine
@@ -291,628 +340,310 @@ describe('NPC_TREES termination', () => {
     }
   })
 
-  it('every choice, taken once, leads to an end or another choice', () => {
-    for (const [id, tree] of trees) {
-      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+  it('lands every single choice on an end or another choice', () => {
+    for (const [id, tree] of trees)
+      for (const [nodeId, node] of Object.entries(tree.nodes))
         for (let i = 0; i < (node.choices ?? []).length; i++) {
           const r = new DialogueRunner(startingAt(tree, nodeId), permissive())
           expect(drive(r), `"${id}/${nodeId}" should offer choices`).toBe('choice')
-          expect(r.nodeId).toBe(nodeId)
           r.choose(i)
-          expect(['choice', 'end']).toContain(drive(r))
+          expect(['choice', 'end'], `"${id}/${nodeId}" choice ${i}`).toContain(drive(r))
         }
-      }
-    }
   })
 
-  it('choice nodes with a next also work when no choice passes', () => {
-    for (const [id, tree] of trees) {
+  it('still ends cleanly when no choice on a node passes its condition', () => {
+    for (const [id, tree] of trees)
       for (const [nodeId, node] of Object.entries(tree.nodes)) {
         if (!node.choices?.length) continue
         const r = new DialogueRunner(startingAt(tree, nodeId), { check: (c?: Cond) => !c, apply: () => {} })
-        // every choice on this node is either unconditional (still offered) or the node must end/continue cleanly
-        expect(['choice', 'end']).toContain(drive(r))
+        expect(['choice', 'end'], `"${id}/${nodeId}"`).toContain(drive(r))
       }
-    }
   })
 })
 
-describe('NPC_TREES first meetings and rewards', () => {
-  it('each cast member’s first meeting is guarded and sets met_<id> with some XP', () => {
-    for (const id of CAST) {
-      const tree = NPC_TREES[id]
-      // A host who lives only indoors meets you in their doorway: the auto-greet
-      // `intro`, guarded by the room's greet flag. Anyone you can also meet out
-      // on the island — Sol, Arjun, Ilse and the villagers — meets you at entry[0].
-      const room = OUTDOORS.has(id) ? undefined : Object.keys(ROOM_HOSTS).find((r) => ROOM_HOSTS[r] === id)
-      const guard = room ? greetFlag(room) : tree.entry[0].when?.notFlag
-      const node = room ? tree.nodes.intro : tree.nodes[tree.entry[0].node]
-      expect(guard, `"${id}" first meeting should be guarded by notFlag`).toBeTruthy()
-      expect(node, `"${id}" has no first-meeting node`).toBeDefined()
-      const effects = node.effects ?? []
-      expect(effects.some((e) => e.setFlag === guard), `"${id}" first node must set ${guard}`).toBe(true)
-      expect(effects.some((e) => e.setFlag === `met_${id}`), `"${id}" first node must set met_${id}`).toBe(true)
-      expect(effects.some((e) => (e.xp ?? 0) > 0), `"${id}" first node must grant XP`).toBe(true)
-    }
-  })
-
-  it('pays each villager’s meeting reward once — a room greeting never pays it again', () => {
-    for (const id of CAST) {
-      const intro = NPC_TREES[id].nodes.intro
-      if (!intro || !OUTDOORS.has(id)) continue
-      // `met_<id>` and the greet flag are independent guards: neither implies
-      // the other, so meeting outdoors and then walking in would pay twice.
-      const fx = intro.effects ?? []
-      expect(fx.some((e) => e.setFlag === `met_${id}`), `"${id}/intro" re-awards met_${id} — its outdoor hello already does`).toBe(false)
-      expect(fx.some((e) => (e.xp ?? 0) > 0), `"${id}/intro" re-awards XP — its outdoor hello already does`).toBe(false)
-    }
-  })
-
-  it('never lets two meeting rewards fire in one playthrough', () => {
-    for (const id of CAST) {
-      const tree = NPC_TREES[id]
-      const payers = Object.keys(tree.nodes).filter((n) => (tree.nodes[n].effects ?? []).some((e) => e.setFlag === `met_${id}`))
-      if (payers.length < 2) continue
-      // Only an indoor-only host may carry two. InteriorScene runs `intro`
-      // before the player can move, so the greeting always fires first…
-      expect(payers, `"${id}" has two meeting rewards and no auto-greet to order them`).toContain('intro')
-      expect(OUTDOORS.has(id), `"${id}" can be met outdoors, so both rewards could fire`).toBe(false)
-      // …and every other payer is an entry guarded by a flag that greeting sets,
-      // which makes it unreachable from then on.
-      const introFlags = new Set((tree.nodes.intro.effects ?? []).map((e) => e.setFlag).filter(Boolean) as string[])
-      for (const nodeId of payers) {
-        if (nodeId === 'intro') continue
-        const entries = tree.entry.filter((e) => e.node === nodeId)
-        expect(entries.length, `"${id}/${nodeId}" awards met_${id} but is not an entry`).toBeGreaterThan(0)
-        for (const e of entries)
-          expect(introFlags.has(e.when?.notFlag ?? ''), `"${id}/${nodeId}" is not blocked by anything "${id}/intro" sets`).toBe(true)
-      }
-    }
-  })
-
-  it('XP-granting nodes are entered once and guarded by a flag they set (no XP farming)', () => {
+describe('effects', () => {
+  it('names only quests, steps and achievements that exist', () => {
     for (const [id, tree] of trees) {
-      const targets = new Set<string>()
-      for (const node of Object.values(tree.nodes)) {
-        if (node.next) targets.add(node.next)
-        for (const c of node.choices ?? []) targets.add(c.next)
+      for (const { nodeId, effect } of allEffects(tree)) {
+        const where = `"${id}/${nodeId}"`
+        if (effect.startQuest) expect(questIds.has(effect.startQuest), `${where} unknown quest ${effect.startQuest}`).toBe(true)
+        if (effect.completeQuest) expect(questIds.has(effect.completeQuest), `${where} unknown quest ${effect.completeQuest}`).toBe(true)
+        if (effect.advanceQuest) {
+          const [q, step, n] = effect.advanceQuest
+          expect(questIds.has(q), `${where} unknown quest ${q}`).toBe(true)
+          expect(stepIds(q).has(step), `${where} unknown step ${q}/${step}`).toBe(true)
+          expect(n).toBeGreaterThan(0)
+        }
+        if (effect.achievement) expect(achievementIds.has(effect.achievement), `${where} unknown achievement ${effect.achievement}`).toBe(true)
       }
+      const conds = [...tree.entry.map((e) => e.when), ...Object.values(tree.nodes).flatMap((n) => (n.choices ?? []).map((c) => c.when))]
+      for (const c of conds) {
+        for (const q of [c?.questActive, c?.questDone, c?.questNotStarted]) if (q) expect(questIds.has(q), `"${id}" condition names unknown quest ${q}`).toBe(true)
+        for (const z of [c?.unlocked, c?.locked]) if (z) expect(zoneIds.has(z), `"${id}" condition names unknown chapter ${z}`).toBe(true)
+      }
+    }
+  })
+
+  it('opens only mini-games that exist and only chapters that exist', () => {
+    for (const [id, tree] of trees)
+      for (const { nodeId, effect } of allEffects(tree)) {
+        const where = `"${id}/${nodeId}"`
+        if (effect.minigame) expect(minigameIds.has(effect.minigame), `${where} unknown mini-game ${effect.minigame}`).toBe(true)
+        if (effect.unlockFacet) expect(zoneIds.has(effect.unlockFacet), `${where} unknown chapter ${effect.unlockFacet}`).toBe(true)
+        if (effect.panel?.startsWith('zone:')) expect(zoneIds.has(effect.panel.slice(5)), `${where} unknown card ${effect.panel}`).toBe(true)
+      }
+  })
+
+  it('pays XP only from a node that also sets the flag remembering it', () => {
+    for (const [id, tree] of trees)
       for (const [nodeId, node] of Object.entries(tree.nodes)) {
         if (!node.effects?.some((e) => e.xp)) continue
-        expect(targets.has(nodeId), `"${id}/${nodeId}" grants XP but is reachable from an edge`).toBe(false)
-        // Either a guarded tree entry, or the auto-greet the scene runs once per
-        // room — both are gated by a flag the node itself sets.
-        if (nodeId === introOf(id)) {
-          const room = Object.keys(ROOM_HOSTS).find((r) => ROOM_HOSTS[r] === id)!
-          expect(node.effects.some((x) => x.setFlag === greetFlag(room)), `"${id}/intro" must set ${greetFlag(room)}`).toBe(true)
-          continue
-        }
-        const entries = tree.entry.filter((e) => e.node === nodeId)
-        expect(entries.length, `"${id}/${nodeId}" grants XP but is not an entry`).toBeGreaterThan(0)
-        for (const e of entries) {
-          expect(e.when?.notFlag, `"${id}/${nodeId}" XP entry needs a notFlag guard`).toBeTruthy()
-          expect(node.effects.some((x) => x.setFlag === e.when!.notFlag), `"${id}/${nodeId}" must set its guard flag`).toBe(true)
-        }
-      }
-    }
-  })
-
-  it('give effects are guarded by a flag they set (no duplicate items)', () => {
-    for (const [id, tree] of trees) {
-      for (const [nodeId, node] of Object.entries(tree.nodes)) {
-        if (!node.effects?.some((e) => e.give)) continue
         const flag = node.effects.find((e) => e.setFlag)?.setFlag
-        expect(flag, `"${id}/${nodeId}" gives an item but sets no flag`).toBeTruthy()
-        const guards = [...tree.entry.filter((e) => e.node === nodeId).map((e) => e.when), ...Object.values(tree.nodes).flatMap((n) => (n.choices ?? []).filter((c) => c.next === nodeId).map((c) => c.when))]
-        expect(guards.length).toBeGreaterThan(0)
-        for (const g of guards) expect(g?.notFlag, `"${id}/${nodeId}" give path must be guarded by notFlag ${flag}`).toBe(flag)
+        expect(flag, `"${id}/${nodeId}" pays XP without recording it`).toBeDefined()
+        // …and the node is either the once-only greeting, or guarded by that flag
+        const guarded = tree.entry.some((e) => e.when?.notFlag === flag && e.node === nodeId)
+        expect(nodeId === 'intro' || guarded, `"${id}/${nodeId}" can pay XP twice`).toBe(true)
       }
-    }
   })
 })
 
-/* ------------------------------------------------------------------ */
-/* Hosts: the villager (or voice) that greets you inside a landmark.    */
-
-/** Everything every villager and object can say, as one string. */
-const allDialogueText = trees.flatMap(([, t]) => allLines(t).map(({ line }) => line.text)).join('\n')
-
-/** A fact as the zone card states it — the only place a figure is authored. */
-const cardFact = (zoneId: string, k: string): string => ZONES.find((z) => z.id === zoneId)!.content.facts!.find((f) => f.k === k)!.v
-
 describe('room hosts', () => {
-  it('gives every interior a host whose tree exists', () => {
-    expect(Object.keys(ROOM_HOSTS).sort()).toEqual(Object.keys(ROOMS).sort())
-    for (const [room, host] of HOST_TREES) {
+  it('hosts a room that exists, with a tree that exists, one host apiece', () => {
+    for (const [room, host] of hosts) {
+      expect(ROOMS[room], `ROOM_HOSTS names a room "${room}" that does not exist`).toBeDefined()
       expect(NPC_TREES[host], `room "${room}" host "${host}" has no tree`).toBeDefined()
-      expect(NPC_TREES[host].id).toBe(host)
     }
-    expect(new Set(Object.values(ROOM_HOSTS)).size, 'one host per room').toBe(HOST_TREES.length)
+    expect(new Set(Object.values(ROOM_HOSTS)).size, 'one host per room').toBe(hosts.length)
+  })
+
+  it('leaves the Vault hostless — a covered bench needs no greeter', () => {
+    expect(ROOM_HOSTS.stealth).toBeUndefined()
+    expect(Object.keys(ROOMS).filter((r) => !ROOM_HOSTS[r])).toEqual(['stealth'])
   })
 
   it('names greet flags after the room', () => {
     for (const room of Object.keys(ROOMS)) expect(greetFlag(room)).toBe(`greet_${room}`)
   })
 
-  it('gives every host an `intro` that sets its room’s greet flag', () => {
-    for (const [room, host] of HOST_TREES) {
+  it('gives every host a short `intro` that sets its room’s greet flag', () => {
+    for (const [room, host] of hosts) {
       const intro = NPC_TREES[host].nodes.intro
       expect(intro, `host "${host}" has no intro node`).toBeDefined()
       expect(intro.effects?.some((e) => e.setFlag === greetFlag(room)), `"${host}/intro" must set ${greetFlag(room)}`).toBe(true)
-      expect(intro.lines.length, `"${host}/intro" greeting is over budget`).toBeLessThanOrEqual(3)
+      expect(intro.lines.length, `"${host}/intro" greeting is over budget`).toBeLessThanOrEqual(MAX_INTRO_LINES)
     }
   })
 
-  it('keeps `intro` for the auto-greet alone — never an entry or an edge', () => {
-    for (const [, host] of HOST_TREES) {
-      const tree = NPC_TREES[host]
-      expect(tree.entry.some((e) => e.node === 'intro'), `"${host}" lists intro as an entry`).toBe(false)
+  it('keeps `intro` for the greeting alone — never an entry, never an edge', () => {
+    for (const [id, tree] of trees) {
+      if (!tree.nodes.intro) continue
+      expect(tree.entry.some((e) => e.node === 'intro'), `"${id}" lists intro as an entry`).toBe(false)
       for (const [nodeId, node] of Object.entries(tree.nodes)) {
-        expect(node.next, `"${host}/${nodeId}" leads into intro`).not.toBe('intro')
-        for (const c of node.choices ?? []) expect(c.next, `"${host}/${nodeId}" chooses into intro`).not.toBe('intro')
+        expect(node.next, `"${id}/${nodeId}" leads into intro`).not.toBe('intro')
+        for (const c of node.choices ?? []) expect(c.next, `"${id}/${nodeId}" chooses into intro`).not.toBe('intro')
       }
     }
   })
 
-  it('gives every host the three place topics, reachable and terminating', () => {
-    for (const [, host] of HOST_TREES) {
-      const tree = NPC_TREES[host]
-      for (const topic of ['about_place', 'more', 'nearby']) {
-        const node = tree.nodes[topic]
-        expect(node, `"${host}" has no "${topic}" node`).toBeDefined()
-        expect(node.lines.length, `"${host}/${topic}" is empty`).toBeGreaterThanOrEqual(1)
-        expect(node.lines.length, `"${host}/${topic}" is over budget`).toBeLessThanOrEqual(4)
-        // reachable by choice from somewhere in the tree
-        const chosen = Object.values(tree.nodes).some((n) => (n.choices ?? []).some((c) => c.next === topic))
-        expect(chosen, `"${host}/${topic}" is not offered as a choice`).toBe(true)
-      }
-      expect(tree.nodes.about_place.lines.length, `"${host}/about_place" should be 1–2 boxes`).toBeLessThanOrEqual(2)
-    }
-  })
-
-  it('lets the outdoor villagers point the way too', () => {
-    for (const id of ['mira', 'tomas', 'pip', 'lou', 'devi']) {
-      const tree = NPC_TREES[id]
-      expect(tree.nodes.nearby, `"${id}" has no nearby node`).toBeDefined()
-      expect(Object.values(tree.nodes).some((n) => (n.choices ?? []).some((c) => c.next === 'nearby')), `"${id}" never offers directions`).toBe(true)
-    }
-  })
-
-  it('runs each greeting the way InteriorScene does: flag set, XP once, lands on a hub', () => {
-    for (const [room, host] of HOST_TREES) {
+  it('runs each greeting the way InteriorScene does, and never runs it twice', () => {
+    for (const [room, host] of hosts) {
       const w = makeWorld()
-      // exactly what the scene builds on a first room entry
-      const greeting: Tree = { ...NPC_TREES[host], entry: [{ node: 'intro' }] }
-      const r = new DialogueRunner(greeting, ctxFor(w))
-      const seen: string[] = []
-      for (let i = 0; i < MAX_ADVANCES; i++) {
-        seen.push(r.line.text)
-        const res = r.advance()
-        if (res === 'end') break
-        if (res === 'choice') break // the host's hub — the player takes it from here
-      }
+      play(host, w, [], 'intro')
       expect(w.flags.has(greetFlag(room)), `"${host}" greeting never set ${greetFlag(room)}`).toBe(true)
-      expect(seen.length, `"${host}" greeting says nothing`).toBeGreaterThan(0)
-      // A host you can only meet indoors is met by the greeting, and paid for
-      // it. One you can also meet outdoors is paid out there instead.
-      if (OUTDOORS.has(host)) expect(w.xp, `"${host}" is paid twice — once outdoors, once for the room`).toBe(0)
-      else expect(w.xp, `"${host}" greeting granted no XP`).toBeGreaterThan(0)
-
-      // a second visit is impossible: the flag now routes the tree elsewhere
-      const again = new DialogueRunner(NPC_TREES[host], ctxFor(w))
-      expect(again.nodeId, `"${host}" still enters at intro`).not.toBe('intro')
+      // the flag now routes the tree elsewhere: a second visit cannot re-greet
+      expect(entersAt(host, w), `"${host}" still enters at intro`).not.toBe('intro')
     }
   })
 
-  it('resolves every interpolated content reference — no undefined text', () => {
-    for (const [id, tree] of trees)
-      for (const { nodeId, line } of allLines(tree)) {
-        expect(line.text, `"${id}/${nodeId}" has an unresolved reference`).not.toMatch(/undefined|NaN|\[object|\{\{/)
-        expect(line.who, `"${id}/${nodeId}" has an unresolved speaker`).not.toMatch(/undefined/)
-      }
+  it('points the host of every game room at its cabinet', () => {
+    const room = (id: string) => Object.entries(ROOM_HOSTS).find(([, h]) => h === id)![0]
+    expect(room('sol')).toBe('fair')
+    expect(room('professor')).toBe('campus')
+    expect(room('ravi')).toBe('skills')
+    expect(room('mira')).toBe('warehouse')
+    expect(hostTrees.has('naman')).toBe(true)
   })
 })
 
 /* ------------------------------------------------------------------ */
-/* Directions. The same 8-way bearing maths as tests/signs.test.ts: a   */
-/* host and a finger post must not disagree about where a place is.     */
+/* Bo — the guide. His entry ladder is the story's compass.             */
 
-const DIRS: SignDir[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+describe('Bo the dockmaster', () => {
+  const bo = NPC_TREES.dockmaster
 
-/** Compass bearing in degrees clockwise from North (screen y grows southward). */
-function bearing(fx: number, fy: number, tx: number, ty: number): number {
-  return ((Math.atan2(tx - fx, -(ty - fy)) * 180) / Math.PI + 360) % 360
-}
-
-/** Smallest angle between an 8-way sector centre and an actual bearing. */
-function offBy(dir: SignDir, deg: number): number {
-  const d = Math.abs(deg - DIRS.indexOf(dir) * 45) % 360
-  return d > 180 ? 360 - d : d
-}
-
-/** Where a `NEARBY.from` anchor stands, in tiles. */
-function anchor(from: string): { tx: number; ty: number } {
-  if (from.startsWith('npc:')) {
-    const spot = BLUEPRINT.npcSpots[from.slice(4)]
-    expect(spot, `unknown npc anchor "${from}"`).toBeDefined()
-    return { tx: spot.x, ty: spot.y }
-  }
-  const lm = BLUEPRINT.landmarks.find((l) => l.id === from.slice(3))
-  expect(lm, `unknown landmark anchor "${from}"`).toBeDefined()
-  return { tx: lm!.door.x, ty: lm!.door.y }
-}
-
-describe('host directions', () => {
-  it('measures 8-way sectors clockwise from North', () => {
-    expect(bearing(10, 10, 10, 0)).toBe(0)
-    expect(bearing(10, 10, 20, 10)).toBe(90)
-    expect(bearing(10, 10, 10, 20)).toBe(180)
-    expect(bearing(10, 10, 20, 0)).toBe(45)
-    expect(offBy('N', 350)).toBe(10)
-    expect(offBy('NW', 350)).toBe(35)
+  it('reads the story off the chapters you have not unlocked yet, in order', () => {
+    expect(bo.entry).toEqual([
+      { when: { flag: 'story_done' }, node: 'done' },
+      { when: { locked: 'experience' }, node: 'puzzle_again' },
+      { when: { locked: 'lineage' }, node: 'to_fair' },
+      { when: { locked: 'safestride' }, node: 'to_fair' },
+      { when: { locked: 'stealth' }, node: 'to_fair' },
+      { when: { locked: 'education' }, node: 'to_campus' },
+      { when: { locked: 'skills' }, node: 'to_workshop' },
+      { node: 'to_lighthouse' },
+    ])
   })
 
-  it('covers every host and every outdoor villager, twice over', () => {
-    const want = [...Object.values(ROOM_HOSTS), 'mira', 'tomas', 'pip', 'lou', 'devi']
-    expect(Object.keys(NEARBY).sort()).toEqual([...new Set(want)].sort())
-    for (const [id, def] of Object.entries(NEARBY)) {
-      expect(def.arms.length, `"${id}" should name two places`).toBe(2)
-      expect(def.from, `"${id}" anchor`).toMatch(/^(npc|lm):[a-z_]+$/)
-      for (const a of def.arms) {
-        expect(DIRS, `"${id}" dir ${a.dir}`).toContain(a.dir)
-        expect(SIGN_TARGETS[a.target], `"${id}" unknown target "${a.target}"`).toBeDefined()
-        expect(a.place.trim().length, `"${id}" empty place name`).toBeGreaterThan(0)
-      }
-      expect(new Set(def.arms.map((a) => a.target)).size, `"${id}" names the same place twice`).toBe(2)
-    }
+  it('keeps pointing at the tent while any prize is still on the shelf', () => {
+    const at = (unlocked: string[]) => entersAt('dockmaster', makeWorld({ unlocked }))
+    const won = ['about', 'experience']
+    // One rung per prize: catching them in any order leaves Bo on the fairground
+    // until the shelf is empty. A single `stealth` rung skipped the tent the
+    // moment the mystery box came down, whichever two were still up there.
+    expect(at([...won, 'stealth'])).toBe('to_fair')
+    expect(at([...won, 'stealth', 'lineage'])).toBe('to_fair')
+    expect(at([...won, 'stealth', 'safestride'])).toBe('to_fair')
+    expect(at([...won, 'lineage', 'safestride'])).toBe('to_fair')
+    expect(at([...won, 'lineage', 'safestride', 'stealth'])).toBe('to_campus')
   })
 
-  it('points every arm within ±45° of the as-built place — the finger posts agree', () => {
-    for (const [id, def] of Object.entries(NEARBY)) {
-      const from = anchor(def.from)
-      for (const a of def.arms) {
-        const t = SIGN_TARGETS[a.target]
-        const deg = bearing(from.tx, from.ty, t.tx, t.ty)
-        expect(offBy(a.dir, deg), `"${id}" says ${a.place} is ${a.dir}, but it bears ${deg.toFixed(1)}°`).toBeLessThanOrEqual(45)
-      }
-    }
+  it('sends you to the right place at each stage of the story', () => {
+    const all = ['about', 'experience', 'lineage', 'safestride', 'stealth', 'education', 'skills']
+    const at = (unlocked: string[], flags: string[] = []) => entersAt('dockmaster', makeWorld({ unlocked, flags }))
+    expect(at([])).toBe('puzzle_again')
+    expect(at(['about'])).toBe('puzzle_again')
+    expect(at(['about', 'experience'])).toBe('to_fair')
+    expect(at(['about', 'experience', 'lineage', 'safestride'])).toBe('to_fair')
+    expect(at(['about', 'experience', 'lineage', 'safestride', 'stealth'])).toBe('to_campus')
+    expect(at(['about', 'experience', 'lineage', 'safestride', 'stealth', 'education'])).toBe('to_workshop')
+    expect(at(all)).toBe('to_lighthouse')
+    expect(at(all, ['story_done'])).toBe('done')
   })
 
-  it('speaks every direction it stores — the words and the data cannot drift apart', () => {
-    const WORD: Record<SignDir, string> = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' }
-    for (const [id, def] of Object.entries(NEARBY)) {
-      const said = NPC_TREES[id].nodes.nearby.lines.map((l) => l.text).join(' ').toLowerCase()
-      for (const a of def.arms) {
-        expect(said, `"${id}/nearby" never names ${a.place}`).toContain(a.place.toLowerCase())
-        expect(said, `"${id}/nearby" never says ${WORD[a.dir]}`).toContain(WORD[a.dir])
-      }
-    }
-  })
-})
-
-/* ------------------------------------------------------------------ */
-/* Content drift. Facts live in content.ts; dialogue may only quote     */
-/* them. Numbers cannot be import-compared inside prose, so every       */
-/* figure a villager says must also appear on a zone card.              */
-
-const contentText = [
-  ...Object.values(ZONES).flatMap((z) => [
-    z.name,
-    z.label,
-    z.content.kicker ?? '',
-    z.content.title,
-    z.content.sub ?? '',
-    ...(z.content.body ?? []),
-    ...(z.content.points ?? []),
-    ...(z.content.chips ?? []),
-    ...(z.content.facts ?? []).map((f) => `${f.k} ${f.v}`),
-    ...(z.content.groups ?? []).flatMap((g) => [g.label, ...g.items]),
-    ...(z.content.links ?? []).map((l) => `${l.label} ${l.value}`),
-  ]),
-].join('\n')
-
-describe('facts come from content.ts', () => {
-  it('never says 9.57 — the CGPA is 9.63', () => {
-    expect(allDialogueText).not.toContain('9.57')
-    expect(allDialogueText).toContain('9.63')
-    expect(contentText).toContain('9.63')
-  })
-
-  it('says every figure the zone cards say, and invents none', () => {
-    // decimals (9.63, 2.0) and any run of three or more digits (750, 2024)
-    const figures = (s: string) => new Set(s.match(/\b\d+\.\d+\b|\b\d{3,}\b/g) ?? [])
-    const inContent = figures(contentText)
-    for (const f of figures(allDialogueText)) expect(inContent.has(f), `dialogue says "${f}", no zone card does`).toBe(true)
-  })
-
-  it('carries the headline numbers on both sides', () => {
-    for (const figure of ['9.63', '750', '2020', '2024', '2023']) {
-      expect(contentText, `content.ts lost "${figure}"`).toContain(figure)
-      expect(allDialogueText, `no villager quotes "${figure}"`).toContain(figure)
-    }
-  })
-
-  it('leaves the in-development product unnamed', () => {
-    expect(NPC_TREES.vault_keeper.nodes.about_place.lines.map((l) => l.text).join(' ')).toContain('A consumer product, in development')
-  })
-})
-
-describe('Captain Mira', () => {
-  it('teaches the controls on the first meeting and rewards it once', () => {
+  it('greets you on arrival, opens the About card and offers the word puzzle', () => {
     const w = makeWorld()
-    const text = play('mira', w).join(' ')
-    expect(text).toMatch(/WASD/)
-    expect(text).toMatch(/arrows/i)
-    expect(text).toMatch(/Shift/)
-    expect(text).toMatch(/\bE\b/)
-    expect(text).toMatch(/Esc/)
-    expect(text).toMatch(/\bM\b/)
-    expect(w.flags.has('metMira')).toBe(true)
-    expect(w.flags.has('met_mira')).toBe(true)
-    expect(w.xp).toBe(10)
-    const again = play('mira', w, ['Just passing'])
-    expect(again.join(' ')).not.toMatch(/WASD/)
-    expect(w.xp).toBe(10)
+    const said = play('dockmaster', w, ["Let's solve it"], 'intro')
+    expect(said[0]).toBe("Welcome to Lineage Isle. I'm Bo — I run the docks.")
+    expect(said[said.length - 1]).toBe('Five letters. Six tries. Go on.')
+    expect(w.flags.has('met_dockmaster')).toBe(true)
+    expect(w.xp).toBe(20)
+    expect(w.applied).toContainEqual({ panel: 'zone:about' })
+    expect(w.applied).toContainEqual({ minigame: 'wordle' })
   })
 
-  it('gives directions and remarks on the beam once the beacon is lit', () => {
-    const w = makeWorld({ flags: ['metMira', 'met_mira'] })
-    const dirs = play('mira', w, ["Where's Naman?", 'Just passing']).join(' ')
-    expect(dirs).toMatch(/Cottage/)
-    w.quests.start('beacon')
+  it('holds the arrival greeting to three boxes and opens the card at the end of them', () => {
+    const intro = bo.nodes.intro
+    expect(intro.lines.length).toBe(3)
+    expect(intro.effects).toEqual([{ setFlag: 'met_dockmaster' }, { xp: 20 }, { panel: 'zone:about' }])
+    expect(intro.effectsAtEnd, 'the card must not open over Bo mid-sentence').toBe(true)
+    expect(intro.next).toBe('puzzle')
+  })
+
+  it('lets the puzzle wait, and offers it again every time you pass the pier', () => {
+    const w = makeWorld()
+    play('dockmaster', w, ['Maybe later'], 'intro')
+    expect(w.applied.some((e) => e.minigame)).toBe(false)
+    expect(entersAt('dockmaster', w)).toBe('puzzle_again')
+    const again = makeWorld({ flags: ['met_dockmaster'] })
+    play('dockmaster', again, ['Try the puzzle'])
+    expect(again.applied).toContainEqual({ minigame: 'wordle' })
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* The quest villagers, trimmed to the errand and nothing else.         */
+
+describe('the errands still run', () => {
+  it('Tomas lends the rod, takes three fish and hands over Byte', () => {
+    const w = makeWorld()
+    play('tomas', w)
+    expect(w.quests.isActive('fishing')).toBe(true)
+    w.quests.advance('fishing', 'catch', 3) // the pier does this bit
+    w.items.set('fish', 3)
+    play('tomas', w)
+    expect(w.items.get('fish')).toBe(0)
+    expect(w.applied).toContainEqual({ companion: true })
+    expect(w.quests.isDone('fishing')).toBe(true)
+    // and never a second time
+    const before = w.applied.length
+    play('tomas', w)
+    expect(w.applied.length).toBe(before)
+  })
+
+  it('Pip asks for five shells and takes them once', () => {
+    const w = makeWorld()
+    play('pip', w)
+    expect(w.quests.isActive('shells')).toBe(true)
+    w.quests.advance('shells', 'find', 5) // the beach does this bit
+    w.items.set('shell', 5)
+    play('pip', w)
+    expect(w.items.get('shell')).toBe(0)
+    expect(w.quests.isDone('shells')).toBe(true)
+    const before = w.applied.length
+    play('pip', w)
+    expect(w.applied.length).toBe(before)
+  })
+
+  it('Ilse starts the beacon and remarks on it once it burns', () => {
+    const w = makeWorld()
+    play('ilse', w)
+    expect(w.quests.isActive('beacon')).toBe(true)
     w.quests.advance('beacon', 'light', 1)
     expect(w.quests.isDone('beacon')).toBe(true)
-    const lit = play('mira', w, ['Just passing'])
-    expect(lit[0]).toMatch(/beam/i)
+    expect(entersAt('ilse', w)).toBe('lit')
+  })
+
+  it('Mira hands out her crew game inside the arcade', () => {
+    const w = makeWorld()
+    play('mira', w, [], 'intro')
+    expect(w.quests.isActive('crew')).toBe(true)
   })
 })
 
-describe('Pip — Shell Seeker', () => {
-  it('offers, reminds, takes five shells and thanks', () => {
+/* ------------------------------------------------------------------ */
+/* The four objects.                                                    */
+
+describe('the objects', () => {
+  it('the lens always offers a signal — the Contact chapter is never gated', () => {
+    // dark, mid-errand and lit: every state the lens can be found in
+    for (const node of NPC_TREES.lens.entry.map((e) => e.node)) {
+      const r = new DialogueRunner(startingAt(NPC_TREES.lens, node), permissive())
+      expect(drive(r), `the lens should offer a choice at "${node}"`).toBe('choice')
+      expect(r.choices.map((c) => c.text), `"${node}"`).toContain('Send a signal?')
+    }
     const w = makeWorld()
-    play('pip', w, ["I'll find them"])
-    expect(w.quests.isActive('shells')).toBe(true)
-    expect(w.flags.has('met_pip')).toBe(true)
-    expect(w.xp).toBe(5)
-
-    const reminder = play('pip', w)
-    expect(w.applied.some((e) => e.take)).toBe(false)
-    expect(reminder.join(' ')).toMatch(/shell/i)
-
-    w.items.set('shell', 6)
-    w.quests.advance('shells', 'find', 5)
-    play('pip', w)
-    expect(w.applied).toContainEqual({ take: ['shell', 5] })
-    expect(w.applied).toContainEqual({ advanceQuest: ['shells', 'return', 1] })
-    expect(w.items.get('shell')).toBe(1)
-    expect(w.quests.isDone('shells')).toBe(true)
-
-    const thanks = play('pip', w, ['Bye, Pip'])
-    expect(thanks.join(' ')).toMatch(/hat/i)
-    expect(w.xp).toBe(5)
+    play('lens', w, ['Send a signal?'])
+    expect(w.applied).toContainEqual({ unlockFacet: 'contact' })
+    expect(w.applied).toContainEqual({ panel: 'zone:contact' })
+    expect(w.unlocked.has('contact')).toBe(true)
   })
 
-  it('can be declined and offers again later', () => {
+  it('keeps lighting the lens on Ilse’s beacon path', () => {
     const w = makeWorld()
-    play('pip', w, ['Not now'])
-    expect(w.quests.isStarted('shells')).toBe(false)
-    play('pip', w, ["I'll find them"])
-    expect(w.quests.isActive('shells')).toBe(true)
-  })
-})
-
-describe('Old Tomas — Gone Fishing', () => {
-  it('lends the rod, hints at the pier, and hands over Byte with three fish', () => {
-    const w = makeWorld()
-    const offer = play('tomas', w, ['Lend me the rod'])
-    expect(w.quests.isActive('fishing')).toBe(true)
-    expect(offer.join(' ')).toMatch(/pier/i)
-    expect(offer.join(' ')).toMatch(/\bE\b/)
-
-    play('tomas', w)
-    expect(w.applied.some((e) => e.companion)).toBe(false)
-
-    w.items.set('fish', 3)
-    w.quests.advance('fishing', 'catch', 3)
-    play('tomas', w)
-    expect(w.applied).toContainEqual({ take: ['fish', 3] })
-    expect(w.applied).toContainEqual({ advanceQuest: ['fishing', 'return', 1] })
-    expect(w.applied).toContainEqual({ companion: true })
-    expect(w.items.get('fish')).toBe(0)
-    expect(w.quests.isDone('fishing')).toBe(true)
-
-    const done = play('tomas', w, ['Just sitting']).join(' ')
-    expect(done).toMatch(/Byte/)
-  })
-})
-
-describe('Ravi and Sol — Spare Parts', () => {
-  it('runs the whole gear errand, handing over exactly one gear', () => {
-    const w = makeWorld()
-    play('ravi', w, ["I'll find one"])
-    expect(w.quests.isActive('gear')).toBe(true)
-
-    // First ever chat with Sol while the quest is active: the intro, then the gear via a choice.
-    const sol1 = play('sol', w, ['Ravi sent me for a gear', "That's all"])
-    expect(sol1.join(' ')).toMatch(/gear/i)
-    expect(w.applied).toContainEqual({ give: ['gear', 1] })
-    expect(w.flags.has('gotGear')).toBe(true)
-    expect(w.flags.has('met_sol')).toBe(true)
-    expect(w.quests.stepProgress('gear', 'gear')).toBe(1)
-    expect(w.items.get('gear')).toBe(1)
-
-    // Sol never hands out a second one.
-    const before = w.applied.length
-    play('sol', w, ["That's all"])
-    expect(w.applied.slice(before).some((e) => e.give)).toBe(false)
-    expect(w.items.get('gear')).toBe(1)
-
-    play('ravi', w)
-    expect(w.applied).toContainEqual({ take: ['gear', 1] })
-    expect(w.applied).toContainEqual({ advanceQuest: ['gear', 'return', 1] })
-    expect(w.items.get('gear')).toBe(0)
-    expect(w.quests.isDone('gear')).toBe(true)
-
-    const done = play('ravi', w, ['Back to the bench']).join(' ')
-    expect(done).toMatch(/spec/i)
-  })
-
-  it('Sol hands over the gear directly on a later visit', () => {
-    const w = makeWorld({ flags: ['met_sol'] })
-    w.quests.start('gear')
-    play('sol', w, ["That's all"])
-    expect(w.applied).toContainEqual({ give: ['gear', 1] })
-    expect(w.applied).toContainEqual({ setFlag: 'gotGear' })
-    expect(w.applied).toContainEqual({ advanceQuest: ['gear', 'gear', 1] })
-  })
-
-  it('Ravi reminds you where to look while the gear is missing', () => {
-    const w = makeWorld({ flags: ['met_ravi'] })
-    w.quests.start('gear')
-    expect(play('ravi', w, ['Back to the bench']).join(' ')).toMatch(/Sol/)
-    expect(w.applied.some((e) => e.take)).toBe(false)
-  })
-
-  it('Sol comments on packet progress', () => {
-    const none = play('sol', makeWorld({ flags: ['met_sol'] }), ["That's all"])[0]
-    const half = play('sol', makeWorld({ flags: ['met_sol'], packets: 10 }), ["That's all"])[0]
-    const all = play('sol', makeWorld({ flags: ['met_sol'], packets: 20 }), ["That's all"])[0]
-    expect(new Set([none, half, all]).size).toBe(3)
-    expect(all).toMatch(/twenty/i)
-  })
-})
-
-describe('Keeper Ilse and the lens — Light the Beacon', () => {
-  it('offers the quest, lets you light the lens, then hums', () => {
-    const w = makeWorld()
-    play('ilse', w, ["I'll light it"])
-    expect(w.applied).toContainEqual({ startQuest: 'beacon' })
-    expect(w.quests.isActive('beacon')).toBe(true)
-
+    w.quests.start('beacon')
     play('lens', w, ['Light the lens'])
     expect(w.applied).toContainEqual({ cutscene: 'beacon' })
-
-    w.quests.advance('beacon', 'light', 1)
-    const n = w.applied.length
-    const lit = play('lens', w)
-    expect(lit.join(' ')).toMatch(/hum/i)
-    expect(w.applied.length).toBe(n)
-
-    const proud = play('ilse', w, ['Mind the stairs']).join(' ')
-    expect(proud).toMatch(/Keeper/)
   })
 
-  it('the lens stays dark before the quest and can be left alone during it', () => {
+  it('the vault door stays sealed under twenty packets, then opens the card', () => {
+    expect(entersAt('vault_door', makeWorld({ packets: 19 }))).toBe('sealed')
+    const w = makeWorld({ packets: 20 })
+    play('vault_door', w)
+    expect(w.applied).toContainEqual({ panel: 'zone:stealth' })
+  })
+
+  it('the bed sleeps till morning, till night, or not at all', () => {
+    for (const [answer, effect] of [
+      ['Sleep till morning', { sleep: 'morning' }],
+      ['Nap till night', { sleep: 'night' }],
+    ] as const) {
+      const w = makeWorld()
+      play('bed', w, [answer])
+      expect(w.applied).toContainEqual(effect)
+    }
     const w = makeWorld()
-    play('lens', w)
-    expect(w.applied.some((e) => e.cutscene)).toBe(false)
-    w.quests.start('beacon')
-    play('lens', w, ['Not yet'])
-    expect(w.applied.some((e) => e.cutscene)).toBe(false)
-  })
-})
-
-describe('The Vault door', () => {
-  it('stays sealed under twenty packets and opens the Vault panel at twenty', () => {
-    const sealed = makeWorld({ packets: 19 })
-    expect(play('vault_door', sealed).join(' ')).toMatch(/twenty/i)
-    expect(sealed.applied.some((e) => e.panel)).toBe(false)
-    const open = makeWorld({ packets: 20 })
-    play('vault_door', open)
-    expect(open.applied).toContainEqual({ panel: 'zone:stealth' })
-  })
-})
-
-describe('Naman at his desk', () => {
-  it('rewards the first visit once and answers every question from content.ts', () => {
-    const w = makeWorld()
-    const text = play('naman', w, ['Who are you?', 'What do you work on?', 'How do you work?', 'Just saying hi', 'See you around']).join(' ')
-    expect(w.applied).toContainEqual({ setFlag: 'metNaman' })
-    expect(w.applied).toContainEqual({ setFlag: 'met_naman' })
-    expect(w.xp).toBe(20)
-    expect(text).toMatch(/Barclays/)
-    expect(text).toMatch(/August 2024/)
-    expect(text).toMatch(/SRM IST/)
-    expect(text).toContain(cardFact('education', 'Years'))
-    expect(text).toContain(cardFact('about', 'CGPA').split('/')[0].trim())
-    expect(text).toMatch(/Kafka/)
-    expect(text).toMatch(/IBM MQ/)
-    expect(text).toMatch(/750 million/)
-    expect(text).toMatch(/lineage/i)
-    expect(text).toMatch(/spec/i)
-    expect(w.applied.some((e) => e.panel)).toBe(false)
-
-    const again = play('naman', w, ['See you around'])
-    expect(again.join(' ')).not.toMatch(/made it/)
-    expect(w.xp).toBe(20)
+    play('bed', w, ['Never mind'])
+    expect(w.applied.some((e) => e.sleep)).toBe(false)
   })
 
-  it('"Show me your notes" opens the About panel and ends', () => {
-    const w = makeWorld({ flags: ['metNaman', 'met_naman'] })
-    play('naman', w, ['Show me your notes'])
-    expect(w.applied).toContainEqual({ panel: 'zone:about' })
-  })
-})
-
-describe('Cottage objects', () => {
-  it('the bed sleeps till morning or night, or not at all', () => {
-    const morning = makeWorld()
-    play('bed', morning, ['Sleep till morning'])
-    expect(morning.applied).toContainEqual({ sleep: 'morning' })
-    const night = makeWorld()
-    play('bed', night, ['Nap till night'])
-    expect(night.applied).toContainEqual({ sleep: 'night' })
-    const no = makeWorld()
-    play('bed', no, ['Never mind'])
-    expect(no.applied.some((e) => e.sleep)).toBe(false)
-  })
-
-  it('the bookshelf tells the education facts, straight off the zone card', () => {
-    const text = play('bookshelf', makeWorld()).join(' ')
-    expect(text).toMatch(/SRM IST/)
-    expect(text).toContain(cardFact('about', 'CGPA'))
-    expect(text).toContain(cardFact('education', 'Years'))
-  })
-
-  it('the mailbox has no mail', () => {
-    expect(play('mailbox', makeWorld())[0]).toBe('No new mail. The Stream delivers faster anyway.')
-  })
-})
-
-describe('Island objects', () => {
-  it('the telescope awards Summit', () => {
+  it('the telescope pays the Summit badge', () => {
     const w = makeWorld()
     play('telescope', w)
     expect(w.applied).toContainEqual({ achievement: 'summit' })
   })
 
-  it('the bell rings', () => {
+  it('the cat says one word', () => {
     const w = makeWorld()
-    play('bell', w)
-    expect(w.applied).toContainEqual({ sfx: 'bell' })
-  })
-
-  it('the SOS button explains itself without being pressed', () => {
-    const w = makeWorld()
-    const text = play('sos', w).join(' ')
-    expect(text).toMatch(/fall/i)
-    expect(text).toMatch(/SOS/)
-    expect(w.applied.length).toBe(0)
-    expect(NPC_TREES.sos.nodes[NPC_TREES.sos.entry[0].node].choices ?? []).toHaveLength(0)
-  })
-
-  it('Byte has three meows', () => {
-    const day = play('cat', makeWorld({ flags: ['met_cat'] }))[0]
-    const night = play('cat', makeWorld({ flags: ['met_cat'], night: true }))[0]
-    const friend = makeWorld({ flags: ['met_cat'] })
-    friend.quests.start('fishing')
-    friend.quests.advance('fishing', 'catch', 3)
-    friend.quests.advance('fishing', 'return', 1)
-    const purr = play('cat', friend)[0]
-    expect(new Set([day, night, purr]).size).toBe(3)
-    for (const t of [day, night, purr]) expect(t).toMatch(/^[A-Za-z]+[.?!]/)
+    expect(play('cat', w)).toEqual(['Mrrp.'])
   })
 })
-
-// Finger posts are no longer dialogue: their arms, headings and bearings are
-// checked against the as-built island in tests/signs.test.ts.

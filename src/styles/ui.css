@@ -503,6 +503,42 @@ button {
   text-overflow: ellipsis;
 }
 
+/* ---------- objective chip ----------
+   Where the story goes next, and which way that is from here. The glyph points
+   east at rest, which is where `atan2` puts 0°, so `--rot` (set twice a second
+   by ui/hud.ts) is the bearing itself. Tapping the chip opens the map, so it is
+   a real <button> — which means taking the type and the box back from the UA;
+   the border and the background stay the chip's own. */
+.hud-objective {
+  cursor: pointer;
+  margin: 0;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  appearance: none;
+  border-color: rgba(255, 194, 75, 0.38);
+  background: var(--warm-soft);
+  color: var(--ink);
+}
+.hud-objective:hover {
+  border-color: var(--accent-warm);
+}
+.hud-compass {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-style: normal;
+  line-height: 1;
+  color: var(--accent-warm);
+  transform: rotate(var(--rot, 0deg));
+  transition: transform var(--t-med) var(--ease);
+}
+.hud-obj-text {
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* top-right tool buttons */
 .hud-tools {
   display: flex;
@@ -914,6 +950,9 @@ body.cutscene .touch {
   .hbtn span,
   .hud-region-chip {
     display: none;
+  }
+  .hud-obj-text {
+    max-width: 14ch;
   }
   .hbtn {
     padding: 0 0.6rem;

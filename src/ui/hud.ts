@@ -1,8 +1,16 @@
 // The HUD: one glass chip cluster top-left (avatar, name + XP pill, packets,
 // coins, clock, region) and the tool buttons top-right.
 import { frameDataURL } from '../art/atlas'
+import { TILE } from '../config'
 import { events } from '../core/events'
 import { clockOf, phaseAt } from '../core/time'
+import { uiState } from './state'
+
+/** How often the compass re-reads the player position (twice a second). */
+const OBJECTIVE_MS = 500
+let objectiveTimer = 0
+/** Dropped before a second `initHud` wires a second chip to the same event. */
+let offStory: (() => void) | null = null
 
 export function initHud(root: HTMLElement): void {
   const hud = document.createElement('header')
@@ -20,6 +28,7 @@ export function initHud(root: HTMLElement): void {
           <span class="hud-chip hud-coins" title="Coins"><i class="ic ic-coin"></i><b>0</b></span>
           <span class="hud-chip hud-clock" title="Time of day"><i class="ic ic-sun"></i><b class="hud-time">07:00</b></span>
           <span class="hud-chip hud-region-chip" hidden><span class="hud-region"></span></span>
+          <button type="button" class="hud-chip hud-objective" title="Where the story goes next — open the map" hidden><i class="hud-compass" aria-hidden="true">➤</i><span class="hud-obj-text"></span></button>
         </div>
       </div>
     </div>
@@ -44,6 +53,25 @@ export function initHud(root: HTMLElement): void {
   const clockIcon = q('.hud-clock .ic')
   const regionChip = q('.hud-region-chip')
   const region = q('.hud-region')
+  const objChip = q('.hud-objective')
+  const objText = q('.hud-obj-text')
+  const compass = q('.hud-compass')
+
+  /**
+   * The story's next stop, and which way it lies. The arrow glyph points east
+   * at rest, which is exactly where `atan2` puts 0° — so the bearing from the
+   * player to the middle of the objective tile is the rotation, no offset.
+   * Hidden once the story is told (`objective` null).
+   */
+  const refreshObjective = () => {
+    const o = uiState.objective
+    objChip.hidden = !o
+    if (!o) return
+    objText.textContent = `Next: ${o.text}`
+    const dx = o.tx * TILE + TILE / 2 - uiState.player.x
+    const dy = o.ty * TILE + TILE / 2 - uiState.player.y
+    compass.style.setProperty('--rot', `${((Math.atan2(dy, dx) * 180) / Math.PI).toFixed(1)}deg`)
+  }
 
   // BootScene paints the atlas long after the HUD mounts, so the portrait is
   // asked for lazily — on the first frame the HUD is on screen — and kept once
@@ -58,7 +86,15 @@ export function initHud(root: HTMLElement): void {
   }
 
   hud.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.hbtn')
+    const t = e.target as HTMLElement
+    // Through the scene, like the Map button beside it: `ui:panel` would open
+    // the map over a cutscene or a locked world, which nothing else in the HUD
+    // is allowed to do.
+    if (t.closest('.hud-objective')) {
+      events.emit('world:action', { action: 'map' })
+      return
+    }
+    const b = t.closest<HTMLButtonElement>('.hbtn')
     if (b) events.emit('world:action', { action: b.dataset.act as 'map' | 'journal' | 'menu' })
   })
 
@@ -81,4 +117,12 @@ export function initHud(root: HTMLElement): void {
     region.textContent = s.region
     regionChip.hidden = !s.region
   })
+  // The player moves every frame and the objective changes twice an hour: a
+  // slow poll costs nothing and keeps the arrow honest without a per-frame hook.
+  // Poll and listener are both replaced, never stacked, if the HUD remounts.
+  refreshObjective()
+  offStory?.()
+  offStory = events.on('story:changed', () => refreshObjective())
+  window.clearInterval(objectiveTimer)
+  objectiveTimer = window.setInterval(refreshObjective, OBJECTIVE_MS)
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearSave, defaultSave, defaultSettings, hadV1Save, loadSave, loadSettings, migrate, writeSave, writeSettings } from '../src/core/save'
+import { clearSave, defaultSave, defaultSettings, hadLegacySave, loadSave, loadSettings, migrate, writeSave, writeSettings } from '../src/core/save'
 
 function memStorage(): Storage {
   const m = new Map<string, string>()
@@ -20,13 +20,14 @@ describe('save', () => {
     expect(loadSave(memStorage())).toBeNull()
   })
 
-  it('defaults to a v2 save with the new collections', () => {
+  it('defaults to a v3 save with no chapter unlocked yet', () => {
     const s = defaultSave()
-    expect(s.v).toBe(2)
+    expect(s.v).toBe(3)
     expect(s.hats).toEqual([])
     expect(s.minigames).toEqual({})
     expect(s.fish).toEqual({})
     expect(s.welcomeSeen).toBe(false)
+    expect(s.unlocked).toEqual([])
   })
 
   it('round-trips a save', () => {
@@ -46,12 +47,14 @@ describe('save', () => {
     expect(loadSave(store)).toBeNull()
   })
 
-  it('clears the stale v1 blob too, so a reset really is a reset', () => {
+  it('clears both stale blobs too, so a reset really is a reset', () => {
     const store = memStorage()
     store.setItem('nw2.save.v1', JSON.stringify({ v: 1 }))
+    store.setItem('nw2.save.v2', JSON.stringify({ v: 2 }))
     writeSave(defaultSave(), store)
     clearSave(store)
-    expect(hadV1Save(store)).toBe(false)
+    expect(hadLegacySave(store)).toBe(false)
+    expect(store.getItem('nw2.save.v3')).toBeNull()
   })
 
   it('migrate rejects unknown versions and corrupt data', () => {
@@ -60,12 +63,13 @@ describe('save', () => {
     expect(migrate(null)).toBeNull()
   })
 
-  it('migrate rejects v1 payloads outright', () => {
+  it('migrate rejects every older payload outright', () => {
     expect(migrate({ v: 1, x: 5 })).toBeNull()
+    expect(migrate({ v: 2, x: 5 })).toBeNull()
   })
 
   it('migrate fills missing fields with defaults', () => {
-    const m = migrate({ v: 2, x: 5 })
+    const m = migrate({ v: 3, x: 5 })
     expect(m).not.toBeNull()
     expect(m!.x).toBe(5)
     expect(m!.packets).toEqual([])
@@ -74,46 +78,52 @@ describe('save', () => {
     expect(m!.minigames).toEqual({})
     expect(m!.fish).toEqual({})
     expect(m!.welcomeSeen).toBe(false)
+    expect(m!.unlocked).toEqual([])
   })
 
-  it('migrate keeps the new v2 collections', () => {
+  it('migrate keeps the v3 collections', () => {
     const m = migrate({
-      v: 2,
+      v: 3,
       hats: ['crown', 7, 'cap'],
       minigames: { crab: { won: true, best: 12, plays: 3 } },
       fish: { sardine: 2 },
       welcomeSeen: true,
+      unlocked: ['experience', 9, 'skills'],
     })
     expect(m!.hats).toEqual(['crown', 'cap'])
     expect(m!.minigames).toEqual({ crab: { won: true, best: 12, plays: 3 } })
     expect(m!.fish).toEqual({ sardine: 2 })
     expect(m!.welcomeSeen).toBe(true)
+    expect(m!.unlocked).toEqual(['experience', 'skills'])
   })
 
-  it('ignores a v1 save entirely and reports the upgrade', () => {
-    const store = memStorage()
-    store.setItem('nw2.save.v1', JSON.stringify({ v: 1, x: 900, packets: ['p1'] }))
-    expect(loadSave(store)).toBeNull()
-    expect(hadV1Save(store)).toBe(true)
+  it('ignores an island-shaped save from either older version and reports the upgrade', () => {
+    for (const key of ['nw2.save.v1', 'nw2.save.v2']) {
+      const store = memStorage()
+      store.setItem(key, JSON.stringify({ v: key.endsWith('v1') ? 1 : 2, x: 900, packets: ['p1'] }))
+      expect(loadSave(store), key).toBeNull()
+      expect(hadLegacySave(store), key).toBe(true)
+    }
   })
 
-  it('reports no upgrade for a clean slate or a v2-only store', () => {
+  it('reports no upgrade for a clean slate or a v3-only store', () => {
     const store = memStorage()
-    expect(hadV1Save(store)).toBe(false)
+    expect(hadLegacySave(store)).toBe(false)
     writeSave(defaultSave(), store)
-    expect(hadV1Save(store)).toBe(false)
+    expect(hadLegacySave(store)).toBe(false)
   })
 
-  it('writes to the v2 key', () => {
+  it('writes to the v3 key', () => {
     const store = memStorage()
     writeSave(defaultSave(), store)
-    expect(store.getItem('nw2.save.v2')).not.toBeNull()
+    expect(store.getItem('nw2.save.v3')).not.toBeNull()
+    expect(store.getItem('nw2.save.v2')).toBeNull()
     expect(store.getItem('nw2.save.v1')).toBeNull()
   })
 
   it('ignores corrupt stored JSON', () => {
     const store = memStorage()
-    store.setItem('nw2.save.v2', '{oops')
+    store.setItem('nw2.save.v3', '{oops')
     expect(loadSave(store)).toBeNull()
   })
 })

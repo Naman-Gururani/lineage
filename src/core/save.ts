@@ -6,7 +6,7 @@ export type QuestSave = { started: boolean; done: boolean; progress: Record<stri
 export type MinigameSave = { won: boolean; best: number; plays: number }
 
 export type Save = {
-  v: 2
+  v: 3
   x: number
   y: number
   scene: string
@@ -32,6 +32,8 @@ export type Save = {
   /** species id → how many of it have been landed */
   fish: Record<string, number>
   welcomeSeen: boolean
+  /** résumé chapters (zone ids) the player has unlocked */
+  unlocked: string[]
 }
 
 export type Settings = {
@@ -46,9 +48,13 @@ export type Settings = {
   alwaysRun: boolean
 }
 
-const SAVE_KEY = 'nw2.save.v2'
-/** v1 islands were a different shape; saves from them are dropped, not migrated. */
-const LEGACY_SAVE_KEY = 'nw2.save.v1'
+const SAVE_KEY = 'nw2.save.v3'
+/**
+ * Older islands were a different shape and told a different story; saves from
+ * them are dropped, not migrated. Both keys are still cleared and still counted
+ * as "you had one", so a returning player is told rather than quietly reset.
+ */
+const LEGACY_SAVE_KEYS = ['nw2.save.v1', 'nw2.save.v2']
 const SETTINGS_KEY = 'nw2.settings.v1'
 
 function store(s?: Storage): Storage | null {
@@ -62,7 +68,7 @@ function store(s?: Storage): Storage | null {
 
 export function defaultSave(): Save {
   return {
-    v: 2,
+    v: 3,
     x: 0,
     y: 0,
     scene: 'world',
@@ -86,6 +92,7 @@ export function defaultSave(): Save {
     minigames: {},
     fish: {},
     welcomeSeen: false,
+    unlocked: [],
   }
 }
 
@@ -115,7 +122,7 @@ const isObj = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v)
 export function migrate(raw: unknown): Save | null {
   if (!isObj(raw)) return null
   const r = raw as Record<string, unknown>
-  if (r.v !== 2) return null
+  if (r.v !== 3) return null
   const d = defaultSave()
   const out: Save = { ...d }
   const num = (k: keyof Save) => {
@@ -145,6 +152,7 @@ export function migrate(raw: unknown): Save | null {
   arr('visitedRegions')
   arr('talked')
   arr('hats')
+  arr('unlocked')
   obj('quests')
   obj('flags')
   obj('inventory')
@@ -157,15 +165,16 @@ export function migrate(raw: unknown): Save | null {
 }
 
 /**
- * True when a pre-reshape save is still sitting in storage. The island changed
- * shape, so those saves are dropped — the world greets the player with a
- * "fresh start" toast instead of silently losing their progress.
+ * True when a save from an earlier island is still sitting in storage. The
+ * island changed shape and then changed story, so those saves are dropped — the
+ * world greets the player with a "fresh start" toast instead of silently losing
+ * their progress.
  */
-export function hadV1Save(s?: Storage): boolean {
+export function hadLegacySave(s?: Storage): boolean {
   const st = store(s)
   if (!st) return false
   try {
-    return st.getItem(LEGACY_SAVE_KEY) !== null
+    return LEGACY_SAVE_KEYS.some((k) => st.getItem(k) !== null)
   } catch {
     return false
   }
@@ -197,7 +206,7 @@ export function clearSave(s?: Storage): void {
   const st = store(s)
   if (!st) return
   st.removeItem(SAVE_KEY)
-  st.removeItem(LEGACY_SAVE_KEY)
+  for (const k of LEGACY_SAVE_KEYS) st.removeItem(k)
 }
 
 export function loadSettings(s?: Storage): Settings {

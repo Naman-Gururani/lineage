@@ -85,7 +85,9 @@ export function scatterDecor(grid: Grid, bp: Blueprint, rng: Rng): Decor[] {
     ban(lm.door.x, lm.door.y + 2)
   }
   banRadius(bp.spawn.x, bp.spawn.y, 3)
-  for (const p of Object.values(bp.npcSpots)) banRadius(p.x, p.y, 2)
+  // Villagers and the guide both stand on their spots: a boulder or a tree
+  // scattered onto one would strand whoever the world puts there.
+  for (const p of [...Object.values(bp.npcSpots), ...Object.values(bp.storySpots)]) banRadius(p.x, p.y, 2)
   for (const p of bp.packetSpots) banRadius(p.x, p.y, 1.2)
   for (const p of bp.chestSpots) banRadius(p.x, p.y, 1.2)
   for (const p of bp.shellSpots) banRadius(p.x, p.y, 1)

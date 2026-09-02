@@ -7,16 +7,18 @@ import type { QuestDef } from '../data/quests'
 import { fishSummary } from '../data/fish'
 import { BLUEPRINT } from '../world/blueprint'
 import { closeModal, el, esc, openModal } from './modal'
-import { panelHead, registerPanel, wireClose } from './panels'
+import { isUnlocked, openZone, panelHead, registerPanel, wireClose, zoneRow } from './panels'
 import { uiState } from './state'
 
-type Tab = 'quests' | 'achievements' | 'stats'
+type Tab = 'resume' | 'quests' | 'achievements' | 'stats'
 const TABS: [Tab, string][] = [
+  ['resume', 'Résumé'],
   ['quests', 'Quests'],
   ['achievements', 'Achievements'],
   ['stats', 'Stats'],
 ]
-let lastTab: Tab = 'quests'
+// The résumé is what the island is *for*: it opens on the story so far.
+let lastTab: Tab = 'resume'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -50,6 +52,18 @@ function questCard(d: QuestDef, done: boolean): string {
     <ul class="quest-steps">${steps}</ul>
     <footer class="quest-reward">Reward · ${d.reward.xp} XP — ${esc(d.reward.text)}</footer>
   </article>`
+}
+
+function resumeHTML(): string {
+  // `ZONES` order *is* the reading order — it is what Reader Mode prints and
+  // what the table of contents lists — so the tab takes it straight rather than
+  // keeping a second copy of it that could drift.
+  const zones = ZONES
+  const open = zones.filter((z) => isUnlocked(z.id)).length
+  return (
+    `<p class="j-count">${open} / ${zones.length} chapters open</p>` +
+    `<div class="rs-list">${zones.map(zoneRow).join('')}</div>`
+  )
 }
 
 function questsHTML(): string {
@@ -116,10 +130,20 @@ export function openJournal(tab: Tab = lastTab): void {
     }
     for (const [k, p] of panels) p.hidden = k !== t
     const p = panels.get(t)!
-    p.innerHTML = t === 'quests' ? questsHTML() : t === 'achievements' ? achievementsHTML() : statsHTML()
+    p.innerHTML =
+      t === 'resume' ? resumeHTML() : t === 'quests' ? questsHTML() : t === 'achievements' ? achievementsHTML() : statsHTML()
   }
   box.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.tab')
+    const t = e.target as HTMLElement
+    const row = t.closest<HTMLButtonElement>('.rs-row')
+    if (row) {
+      sfx.blip()
+      // Over the journal, not instead of it: closing the card puts you back on
+      // the list you were reading down.
+      openZone(row.dataset.zone!)
+      return
+    }
+    const b = t.closest<HTMLButtonElement>('.tab')
     if (b) {
       show(b.dataset.tab as Tab)
       sfx.blip()

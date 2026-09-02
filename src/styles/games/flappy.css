@@ -1,0 +1,54 @@
+/* Chalk Flight (Flappy) — owned by the flappy renderer. */
+
+/* The board hangs on the study-hall wall rather than floating in the panel: a
+   wooden frame, a lip of chalk tray under it, and the same green the canvas
+   fills itself with so the two never disagree at the edges. The canvas keeps its
+   own sizing rules from `.mg-canvas`; nothing here touches them. */
+.fl-board {
+  --fl-frame: #6f5237;
+  padding: 10px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #7d5d3e, var(--fl-frame) 55%, #58412c);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+/* The tray: a thin ledge across the bottom of the frame, the shelf the chalk
+   the game is drawn with would be resting on. */
+.fl-board::after {
+  content: '';
+  display: block;
+  /* `.mg-board` is a centring grid, so the ledge has to ask for the full column
+     or it collapses to the width of its own (empty) content. */
+  justify-self: stretch;
+  height: 7px;
+  margin: 8px -4px -4px;
+  border-radius: 0 0 5px 5px;
+  background: linear-gradient(180deg, #8a6743, #4d3927);
+}
+
+/* One flap is one press, and on a phone the button is the whole game — so it is
+   the biggest thing in the footer and it never waits for a double-tap. */
+.fl-flap {
+  min-width: 8.5rem;
+  min-height: 52px;
+  padding: 0.75rem 1.6rem;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+@media (max-width: 680px) {
+  .fl-board {
+    padding: 6px;
+  }
+  /* Thumb first: the flap button takes the footer's own line, full width, with
+     Leave tucked beside the hint above it. */
+  .fl-flap {
+    order: 1;
+    flex: 1 0 100%;
+    min-height: 58px;
+  }
+}

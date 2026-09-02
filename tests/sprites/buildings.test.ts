@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BUILDING_DEFS } from '../../src/art/sprites/buildings'
-import { type Dims, expectFrame, expectNames, index, itIsAWellFormedPack } from './helpers'
+import { type Dims, expectFrame, expectNames, frameOf, index, itIsAWellFormedPack } from './helpers'
 
 const byName = index(BUILDING_DEFS)
 
@@ -21,6 +21,14 @@ const V1_NAMES = [...Object.keys(V1_LANDMARKS).flatMap((n) => [n, `${n}_night`])
 
 /** New landmarks: 6×4 and 4×3 tile footprints at TILE=32, with roof overhang. */
 const HD_NEW: Record<string, [number, number]> = { bld_campus: [192, 160], bld_warehouse: [128, 120] }
+
+/**
+ * Story Isle (v3, spec §9): Sol's Prize Tent takes over the Engine landmark's
+ * 6×4-tile plot, so it is pinned to the plot exactly — 192×128 with no roof
+ * overhang, because the tent's guy ropes already sit inside the footprint and
+ * the door has to land on footprint column 3.
+ */
+const FAIR: Record<string, [number, number]> = { bld_fair: [192, 128] }
 
 describe('building pack — structural validity (any resolution)', () => {
   itIsAWellFormedPack('buildings')
@@ -66,6 +74,23 @@ describe('32px HD contract', () => {
   it('gives the new landmarks night overlays matching their size and anchor', () => {
     for (const [name, [w, h]] of Object.entries(HD_NEW)) {
       const d = expectFrame(byName, `${name}_night`, w, h)
+      expect(d.anchor, `${name}_night anchor`).toEqual([w / 2, h])
+    }
+  })
+
+  it('adds the fair tent at 192×128, bottom-centre anchored and outlined like the rest', () => {
+    for (const [name, [w, h]] of Object.entries(FAIR)) {
+      const d = expectFrame(byName, name, w, h)
+      expect(frameOf(d).frames, `${name} frames`).toBe(1)
+      expect(d.anchor, `${name} anchor`).toEqual([w / 2, h])
+      expect(d.outline, `${name} outline`).toBe('outline')
+    }
+  })
+
+  it('gives the fair tent a night overlay matching its size and anchor', () => {
+    for (const [name, [w, h]] of Object.entries(FAIR)) {
+      const d = expectFrame(byName, `${name}_night`, w, h)
+      expect(frameOf(d).frames, `${name}_night frames`).toBe(1)
       expect(d.anchor, `${name}_night anchor`).toEqual([w / 2, h])
     }
   })

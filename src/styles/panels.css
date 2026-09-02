@@ -358,6 +358,110 @@
   margin-left: auto;
 }
 
+/* ---------- a chapter that has not been won yet ----------
+   The frame of the card with none of its contents: a lock, the chapter's
+   label, and the one line that says where the game that opens it is played.
+   The accent stays the chapter's own — dimmed, so a locked card never reads
+   as one you have already opened. */
+.book.locked .book-stripe {
+  opacity: 0.45;
+}
+.book.locked .book-page {
+  padding: 1.7rem var(--pad) 0.4rem calc(var(--pad) + 0.5rem);
+  text-align: center;
+}
+.book-lock {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.9rem;
+  line-height: 1;
+  filter: grayscale(0.4);
+}
+.book.locked .d-kicker {
+  color: var(--ink-mute);
+  letter-spacing: 0.22em;
+}
+.book.locked .d-title {
+  color: var(--ink-dim);
+}
+.book.locked .d-body {
+  max-width: 34ch;
+  margin: 0.2rem auto 0.6rem;
+  color: var(--ink-dim);
+}
+/* tag left, both buttons together on the right */
+.book.locked .book-foot .pbtn ~ .pbtn {
+  margin-left: 0;
+}
+
+/* ---------- résumé rows (Journal tab, prize shelf) ---------- */
+.rs-list {
+  display: grid;
+  gap: 0.4rem;
+}
+.rs-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(5rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.5rem 0.8rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.rs-row:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+.rs-mark {
+  font-size: 0.95rem;
+  line-height: 1;
+  text-align: center;
+  color: var(--accent);
+}
+.rs-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* the venue, on a locked row only: three "Project" rows have to differ */
+.rs-where {
+  font-weight: 400;
+  color: var(--ink-mute);
+}
+.rs-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  color: var(--ink-dim);
+}
+.rs-row.locked {
+  border-left-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.02);
+}
+.rs-row.locked .rs-mark {
+  color: var(--ink-mute);
+}
+.rs-row.locked .rs-label {
+  color: var(--ink-dim);
+}
+.rs-row.locked .rs-note {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+.prizes-body {
+  padding: 1.1rem var(--pad) 0.2rem;
+}
+
 /* ---------- dialogue box ---------- */
 #ui .dlg {
   position: fixed;
@@ -608,6 +712,55 @@
 .map-lm:hover .map-ic {
   transform: scale(1.14);
   box-shadow: 0 0 0 2px var(--accent-warm), 0 0 18px rgba(255, 194, 75, 0.45);
+}
+/* Where the story sends you next. The marker is placed on the tile itself
+   rather than on a pin: the first two stations point at the `PIER` sentinel,
+   which no landmark answers to and so has no pin. A pin that matches gets the
+   ring too. */
+.map-objective {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--accent-warm);
+  border-radius: 50%;
+  background: rgba(255, 194, 75, 0.25);
+  box-shadow: 0 0 12px rgba(255, 194, 75, 0.55);
+  animation: objectivePulse 1.8s var(--ease) infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+.map-lm.objective .map-ic {
+  box-shadow: 0 0 0 2px var(--accent-warm), 0 0 18px rgba(255, 194, 75, 0.45);
+}
+.map-lm.objective::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--accent-warm);
+  border-radius: 50%;
+  animation: objectiveRing 1.8s var(--ease) infinite;
+  pointer-events: none;
+}
+@keyframes objectivePulse {
+  50% {
+    transform: translate(-50%, -50%) scale(1.45);
+    opacity: 0.6;
+  }
+}
+@keyframes objectiveRing {
+  from {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
 }
 .map-player {
   position: absolute;
@@ -1510,6 +1663,11 @@
   cursor: wait;
   opacity: 0.7;
 }
+/* No visitor pass: the lift answers to the lobby button and nothing else. */
+.elev.locked .ebtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
 .elev-car {
   position: relative;
   padding: 1rem 1.2rem 1.2rem;
@@ -1711,6 +1869,20 @@
   text-align: center;
   color: var(--ink-dim);
 }
+/* Before Ravi's word game: the hooks and the shape of the wall, no names. */
+.tool.locked {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.025);
+}
+.tool.locked .tool-ic {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+.tool.locked .tool-name {
+  font-family: var(--font-accent);
+  letter-spacing: 0.14em;
+  color: var(--ink-mute);
+}
 @keyframes hang {
   from {
     transform: rotate(4deg) translateY(-6px);
@@ -1754,43 +1926,6 @@
   font-size: 0.85rem;
   letter-spacing: 0.3em;
   color: var(--ink-mute);
-}
-
-/* ---------- engine console ---------- */
-.engine-screen {
-  padding: 1rem var(--pad) 0.2rem;
-}
-.engine-canvas {
-  display: block;
-  width: 100%;
-  aspect-ratio: 640 / 300;
-  image-rendering: pixelated;
-  background: #0b1120;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 32px rgba(94, 234, 212, 0.12);
-}
-.engine-readout {
-  display: flex;
-  align-items: baseline;
-  gap: 0.8rem;
-  flex-wrap: wrap;
-  padding: 0.85rem 0.1rem 0.2rem;
-}
-.engine-count {
-  font-family: var(--font-accent);
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--accent);
-  text-shadow: 0 0 14px rgba(94, 234, 212, 0.45);
-  font-variant-numeric: tabular-nums;
-}
-.engine-rate {
-  font-size: 0.78rem;
-  color: var(--ink-mute);
-}
-.engine-foot {
-  padding-top: 0;
 }
 
 /* ---------- controls / credits ---------- */
@@ -1937,6 +2072,8 @@
   .dlg-emote,
   .d-title.typing .typed::after,
   .map-player,
+  .map-objective,
+  .map-lm.objective::after,
   .elev-card.in,
   .elev.moving .elev-car,
   .elev.moving .elev-window i,
@@ -1954,6 +2091,8 @@
 .reduce-motion .dlg-emote,
 .reduce-motion .d-title.typing .typed::after,
 .reduce-motion .map-player,
+.reduce-motion .map-objective,
+.reduce-motion .map-lm.objective::after,
 .reduce-motion .elev-card.in,
 .reduce-motion .elev.moving .elev-car,
 .reduce-motion .elev.moving .elev-window i,
@@ -1982,6 +2121,14 @@
   }
   .reader-toc {
     position: static;
+  }
+  /* the hint gets its own line rather than an ellipsis two words in */
+  .rs-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+  }
+  .rs-note {
+    grid-column: 2;
+    white-space: normal;
   }
   .row {
     grid-template-columns: minmax(0, 1fr);
@@ -2024,7 +2171,6 @@
 
 /* ---------- mini-games (host, boards, the stuck overlay) ---------- */
 .mg {
-  --cell: 48px;
   padding-bottom: 0.2rem;
 }
 .mg-rule {
@@ -2062,141 +2208,22 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
-.mg-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--n, 3), var(--cell));
-  gap: 6px;
-}
-.mg-sok {
-  gap: 2px;
-}
-.mg-grid:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 6px;
-}
 
-/* a cell: the pixel sprite rides on top of a flat, token-coloured tile */
-.mg-cell {
-  position: relative;
-  width: var(--cell);
-  height: var(--cell);
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.mg-cell-ic {
-  position: absolute;
-  inset: 0;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  image-rendering: pixelated;
-  z-index: 1;
-}
-
-/* lights out */
-button.mg-cell:hover {
-  border-color: var(--accent);
-}
-button.mg-cell:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.mg-cell.lit {
-  background: var(--warm-soft);
-  border-color: var(--accent-warm);
-  box-shadow: inset 0 0 12px rgba(255, 194, 75, 0.28);
-}
-.mg-cell .mg-cell-ic {
-  opacity: 0;
-  transition: opacity var(--t-fast) var(--ease);
-}
-.mg-cell.lit .mg-cell-ic {
-  opacity: 1;
-}
-/* the fallback shapes below only appear when the atlas has not been painted
-   yet (or a frame is missing): `.has-art` says the sprites are in */
-.mg-grid:not(.has-art) .mg-cell.lit::after {
-  content: '';
-  position: absolute;
-  inset: 34%;
-  border-radius: 50%;
-  background: var(--accent-warm);
-  opacity: 0.55;
-}
-.mg-cell.hint {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  animation: mgHint 700ms var(--ease) 2;
-}
-.mg-grid .mg-cell.clear {
-  border-color: rgba(94, 234, 212, 0.4);
-}
-@keyframes mgHint {
-  50% {
-    box-shadow: 0 0 0 7px var(--accent-soft);
-  }
-}
-
-/* sokoban */
-.mg-sok-cell {
-  border-color: transparent;
-  border-radius: 4px;
-  background: var(--surface);
-}
-.mg-sok-cell.wall {
-  background: var(--surface-3);
-  border-color: var(--line-strong);
-}
-.mg-sok-cell.goal {
-  background: var(--accent-soft);
-  border-color: rgba(94, 234, 212, 0.45);
-}
-.mg-sok-cell.goal::after {
-  content: '';
-  position: absolute;
-  inset: 38%;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  opacity: 0.7;
-}
-.mg-sok:not(.has-art) .mg-sok-cell.crate::before {
-  content: '';
-  position: absolute;
-  inset: 14%;
-  border-radius: 5px;
-  background: #8a5a33;
-  border: 1px solid #5d3a1e;
-}
-.mg-sok:not(.has-art) .mg-sok-cell.home::before {
-  background: #a9762f;
-  border-color: var(--accent-warm);
-}
-.mg-sok:not(.has-art) .mg-sok-cell.hero::before {
-  content: '';
-  position: absolute;
-  inset: 22%;
-  border-radius: 50%;
-  background: var(--sky);
-}
-.mg-ghost {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-accent);
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--accent);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
-  opacity: 0.75;
-  pointer-events: none;
-}
-.mg-sok.clear .mg-sok-cell.home {
-  border-color: var(--accent);
+/* what a canvas game draws into (ui/minigames/canvas.ts). The element takes its
+   width from the panel and its height from `--ar`, the logical w/h makeCanvas
+   sets, so the CSS box always matches the backing store. The height is capped by
+   capping the *width*: a plain max-height would clamp the height while the width
+   stayed at 100% and stretch the bitmap, which is what a landscape phone would
+   see. `touch-action: none` keeps a drag across the board from scrolling the
+   dialog underneath it. */
+.mg-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: min(100%, calc(70vh * var(--ar, 1.6)));
+  aspect-ratio: var(--ar, 1.6);
+  touch-action: none;
+  background: transparent;
 }
 
 .mg-foot {
@@ -2213,7 +2240,7 @@ button.mg-cell:focus-visible {
   color: var(--ink-mute);
 }
 
-/* the on-screen d-pad: Cargo Cove is a keyboard game without it, and the world's
+/* the on-screen d-pad: Crew Drop is a keyboard game without it, and the world's
    own joystick is inert under the dialog */
 .mg-pad {
   display: grid;
@@ -2323,243 +2350,9 @@ button.mg-cell:focus-visible {
   margin-top: 1.2rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mg-cell,
-  .mg-cell .mg-cell-ic {
-    transition: none;
-  }
-  .mg-cell.hint {
-    animation: none;
-  }
-}
-.reduce-motion .mg-cell,
-.reduce-motion .mg-cell .mg-cell-ic {
-  transition: none;
-}
-.reduce-motion .mg-cell.hint {
-  animation: none;
-}
-
 @media (max-width: 720px) {
-  .mg {
-    --cell: 40px;
-  }
   .mg-keys {
     display: none;
   }
 }
 
-/* ---------- Packet Rush (the Engine cabinet) ---------- */
-.pr-field {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  width: min(100%, 420px);
-  height: 260px;
-  padding: 6px 6px 30px;
-  background: linear-gradient(180deg, rgba(20, 19, 42, 0.9), rgba(35, 33, 69, 0.9));
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.pr-field:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.pr-lane {
-  position: relative;
-  border-radius: var(--radius-sm);
-  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 14px);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-.pr-deck {
-  position: absolute;
-  inset: auto 6px 6px;
-  height: 20px;
-  border-radius: var(--radius-sm);
-  background: repeating-linear-gradient(90deg, rgba(226, 72, 63, 0.5) 0 8px, rgba(226, 72, 63, 0.16) 8px 16px);
-}
-.pr-packet {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 30px;
-  transform: translate(-50%, 0);
-  font-family: var(--font-accent);
-  font-size: 1.15rem;
-  font-style: normal;
-  color: #14132a;
-  background: var(--jur, #5eead4);
-  border-radius: 5px;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
-}
-.pr-packet.next {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-/* `display: grid` above would beat the UA's `[hidden] { display: none }`, and a
-   pooled mote waiting for its next packet must actually be gone. */
-.pr-packet[hidden] {
-  display: none;
-}
-.pr-bins {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
-  margin: 0.9rem var(--pad) 0;
-}
-.pr-bin {
-  display: grid;
-  place-items: center;
-  gap: 0.15rem;
-  padding: 0.5rem 0.3rem;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line-strong);
-  border-bottom: 3px solid var(--jur, var(--accent));
-  border-radius: var(--radius-sm);
-  touch-action: manipulation;
-  transition: background var(--t-fast) var(--ease);
-}
-.pr-bin:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-.pr-bin:active {
-  background: var(--jur, var(--accent-soft));
-  color: #14132a;
-}
-.pr-bin:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.pr-glyph {
-  font-family: var(--font-accent);
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--jur, var(--accent));
-}
-.pr-bin:active .pr-glyph {
-  color: #14132a;
-}
-.pr-bin small {
-  font-size: 0.72rem;
-  color: var(--ink-mute);
-}
-.pr-done {
-  position: absolute;
-  inset: 8px;
-  display: grid;
-  align-content: center;
-  padding: 1rem;
-  text-align: center;
-  background: rgba(11, 14, 24, 0.92);
-  border-radius: var(--radius-sm);
-}
-.pr-done-kicker {
-  margin: 0 0 0.5rem;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-}
-.pr-done-title {
-  margin: 0;
-  font-family: var(--font-accent);
-  font-size: 1.4rem;
-  color: var(--ink);
-}
-.pr-done-sub {
-  margin: 0.5rem 0 0;
-  font-size: 0.86rem;
-  color: var(--ink-dim);
-}
-
-/* ---------- Tower Climb (the scaffold) ---------- */
-.cl-frame {
-  position: relative;
-  width: min(100%, 480px);
-}
-.cl-canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius-sm);
-  image-rendering: pixelated;
-  background: #141a2e;
-}
-.cl-canvas:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.cl-flash {
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-sm);
-  background: rgba(226, 72, 63, 0.45);
-  opacity: 0;
-  pointer-events: none;
-}
-.cl-flash.on {
-  animation: clFlash 320ms var(--ease);
-}
-@keyframes clFlash {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-.cl-caption b {
-  font-size: 0.95rem;
-  color: var(--ink-dim);
-}
-.cl-caption b.lit {
-  color: var(--accent);
-}
-.mg-pad.cl-pad {
-  grid-template-columns: repeat(3, 44px);
-  grid-template-rows: 44px;
-}
-.cl-jump {
-  grid-column: 3;
-  grid-row: 1;
-  font-size: 1.3rem;
-}
-.mg-pad.cl-pad .left {
-  grid-column: 1;
-  grid-row: 1;
-}
-.mg-pad.cl-pad .right {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cl-flash.on {
-    animation: none;
-  }
-  .pr-bin {
-    transition: none;
-  }
-}
-.reduce-motion .cl-flash.on {
-  animation: none;
-}
-.reduce-motion .pr-bin {
-  transition: none;
-}
-
-@media (max-width: 720px) {
-  .pr-field {
-    height: 220px;
-  }
-  .pr-packet {
-    width: 28px;
-    height: 26px;
-    font-size: 1rem;
-  }
-}

@@ -33,6 +33,10 @@ export type Events = {
   'world:travel': { id: string }
   'world:action': { action: 'interact' | 'jump' | 'menu' | 'map' | 'journal' }
   'world:discovered': { id: string; first: boolean }
+  /** a résumé chapter (zone id) was unlocked; `announce` false = the game shows the card itself */
+  'facet:unlocked': { id: string; first: boolean; announce: boolean }
+  /** the story's next station changed (`next` null = the story is done) */
+  'story:changed': { next: string | null }
   /** the elevator arrived at a floor: swap the room's window view */
   'room:window': { frame: 0 | 1 | 2 | 3 }
   'game:new': Record<string, never>

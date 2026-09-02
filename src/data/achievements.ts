@@ -15,13 +15,16 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'cat_person', title: 'Cat Person', desc: 'Befriend Byte.', icon: '🐈' },
   { id: 'full_house', title: 'Full House', desc: 'Talk to every villager.', icon: '🗣️' },
   { id: 'keeper', title: 'Keeper', desc: 'Light the beacon.', icon: '🗼' },
-  // The arcade. Ids are prefixed because the mini-games already own their bare
-  // names as quest ids, and nothing good comes of a badge and a quest sharing one.
-  { id: 'ach_studyhall', title: "Dean's List", desc: 'Clear every board in Study Hall.', icon: '🎓' },
-  { id: 'ach_cargo', title: 'Shipshape', desc: 'Stack every crate in Cargo Cove.', icon: '⚓' },
-  { id: 'ach_packetrush', title: 'Backpressure? Never', desc: 'Beat Packet Rush at the Engine Works.', icon: '⚡' },
-  { id: 'ach_climb', title: 'Corner Office', desc: 'Climb Tower Heights to the roof.', icon: '🏢' },
-  { id: 'arcade', title: 'Arcade Legend', desc: 'Beat all four of the island’s games.', icon: '🕹️' },
+  // The five games. Ids are prefixed because a game already owns its bare name
+  // elsewhere — as a quest id, as a panel — and nothing good comes of a badge
+  // and an errand sharing one. `story` below is the one deliberate exception.
+  { id: 'ach_wordle', title: 'Five Letters', desc: 'Solve Bo’s word puzzle on the pier.', icon: '🔤' },
+  { id: 'ach_claw', title: 'Prize Winner', desc: 'Work the claw at Sol’s Prize Tent.', icon: '🧸' },
+  { id: 'ach_flappy', title: 'Frequent Flyer', desc: 'Fly the chalkboard course at the campus.', icon: '🪶' },
+  { id: 'ach_forge', title: 'Full Stack', desc: 'Spell out the toolkit at the Workshop bench.', icon: '🔧' },
+  { id: 'ach_crew', title: 'Last Bean Standing', desc: 'Out-last the crew on the dropping floor.', icon: '🫘' },
+  { id: 'arcade', title: 'Arcade Legend', desc: 'Beat all five of the island’s games.', icon: '🕹️' },
+  { id: 'story', title: 'The Whole Story', desc: 'Hear Naman’s story from the pier to the lighthouse.', icon: '🗺️' },
   { id: 'goldfish', title: 'One in a Million', desc: 'Land the goldfish.', icon: '🐠', secret: true },
   { id: 'complete', title: '100%', desc: 'Discover everything, finish every quest, earn every badge.', icon: '👑' },
 ]

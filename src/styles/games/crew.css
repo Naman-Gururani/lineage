@@ -1,0 +1,39 @@
+/* Crew Drop (tiles) — owned by the crew renderer.
+
+   Almost nothing to do here: the game is a canvas, so the deck, the beans and
+   the holes are drawn rather than styled. What is left is the frame the canvas
+   sits in, and deciding which of the two control hints a given visitor sees. */
+.cd-board {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  /* the black of the canvas, carried out into the padding around it */
+  background: radial-gradient(120% 90% at 50% 0%, #16203a 0%, #0a0f1b 70%);
+}
+
+/* The panel itself holds the keyboard focus, because the game reads the keys.
+   A ring around the whole dialog says nothing useful, so the focus lands where
+   the player is actually looking. */
+.mg[data-game='crew']:focus-visible {
+  outline: none;
+}
+.mg[data-game='crew']:focus-visible .cd-board {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The d-pad is always mounted — a phone has no arrow keys, and the world's own
+   joystick is inert under the dialog — but it is only worth footer space where
+   there is a thumb to press it. Where there is, the key hint is the dead weight
+   instead. */
+.cd-pad {
+  display: none;
+  margin-right: auto;
+}
+@media (pointer: coarse) {
+  .cd-keys {
+    display: none;
+  }
+  .cd-pad {
+    display: block;
+  }
+}
