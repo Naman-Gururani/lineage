@@ -187,3 +187,5 @@ Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` 
 **Commit/deploy record:** checkpoint #7 = `40143bc` (content copy + this doc), deployed with `npx gh-pages -d dist` → gh-pages `dca7180` (live). The follow-up commit that writes this line is the branch tip. Working tree clean afterwards.
 
 **Post-checkpoint (same day):** on the user's instruction the branch was pushed (`origin/v3/story-isle`) and `main` fast-forwarded to it and pushed (`63fc12d..029b614`); the doc commit recording this is the new tip of both.
+
+**Phone layout fix (same day, after the push):** on touch layouts the minimap now lifts 90 px clear of the A/B buttons — the old lift rule lost to `#ui .minimap` on specificity and had never applied (`src/styles/panels.css`; verified with `scratch/recheck7.cjs`, touch-emulated portrait and landscape, no overlap).

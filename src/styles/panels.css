@@ -905,8 +905,12 @@ body.cutscene #ui .dlg.top {
   image-rendering: pixelated;
   border-radius: calc(var(--radius-sm) - 1px);
 }
-.touch:not(.hidden) ~ .minimap {
-  bottom: calc(clamp(1rem, 3vw, 2rem) + 112px);
+/* With the touch pad showing, the widget lifts clear of the A/B buttons that share
+   its corner (74px tall). `#ui` is part of the selector on purpose: without it
+   this rule loses to `#ui .minimap` above on specificity and never applies —
+   which is exactly how the buttons ended up underneath the map on phones. */
+#ui .touch:not(.hidden) ~ .minimap {
+  bottom: calc(clamp(1rem, 3vw, 2rem) + 90px);
 }
 
 /* ---------- journal ---------- */
