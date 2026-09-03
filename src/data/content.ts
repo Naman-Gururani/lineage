@@ -124,7 +124,12 @@ export const ZONES: Zone[] = [
     content: {
       kicker: 'TOOLS',
       title: 'The Word Forge',
-      sub: 'How I work — AI spec-driven development: a precise written spec is the contract, and AI is the force-multiplier that turns intent into correct, reviewable implementation.',
+      sub: 'How I work — AI writes most of my code now. Knowing what good software looks like is still the job.',
+      body: [
+        'My recent work has been built with Claude Code rather than typed by hand, and it still takes weeks, not hours, because serious software development was never mostly typing. The unknowns arrive as you build, test and get feedback.',
+        'My time goes to the higher level: the approach, the architecture, the design decisions. I challenge what the tool proposes, debate its choices and push for the simpler, more robust answer. That is the engineering.',
+        'You may not need to know every API by heart any more, but you still need separation of concerns, coupling and cohesion, data modelling, API design, error handling, security, performance and testing — enough to ask whether that extra layer is necessary, whether there is a simpler way, and whether it will still be maintainable in six months. AI can write the code. You still have to know what good software looks like.',
+      ],
       groups: [
         { label: 'Languages & Frameworks', items: ['Java', 'Spring Boot', 'Python', 'C++', 'SQL'] },
         { label: 'Streaming & Messaging', items: ['Apache Kafka', 'Apache Flink', 'Kafka Streams', 'IBM MQ'] },
