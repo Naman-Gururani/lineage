@@ -2,9 +2,9 @@
 
 > **The living state document.** `/getcontext` reads this first in a new session; `/checkpoint` and `/handoff` keep it current. If this file and reality disagree, trust `git status` + the test suite, then fix this file.
 
-- **Branch:** `v3/story-isle`. The v3 checkpoint is **`a94c31f`** (user-authorized, not merged, not deployed); **the whole v4 rebuild sits uncommitted on top of it** — 106 files changed, +5,168 / −9,495 (`git diff a94c31f --stat`). Standing rule: never commit/push unless the user asks. `main` = `origin/main` = `63fc12d` (v2.5) and **that is still what the live site serves**.
+- **Branch:** `v3/story-isle`. v3 checkpoint `a94c31f` → **v4 committed as `a139181`** (2026-09-03, user-authorized checkpoint) and **deployed**: `npx gh-pages -d dist` → gh-pages `00cd457`, live at naman-gururani.github.io/lineage. `main` = `origin/main` = `63fc12d` (v2.5) is now BEHIND the live site — merging `v3/story-isle` into `main` is the open housekeeping item (the user decides). Standing rule: never commit/push unless the user asks.
 - **Dates:** v2 rebuilt 2026-08-30/31 · v2.5 HD Isle 2026-09-01 (deployed) · v3 Story Isle 2026-09-02 (committed as `a94c31f`) · **v4 Naman's World Fair 2026-09-02/03**.
-- **Status:** ✅ v4 is **code-complete, reviewed and browser-verified**. All ten planned tasks are complete, the whole-branch review ("ship after fixes") and the post-review fix wave have both landed, and all three gates are green. **Nothing is committed and nothing is deployed — that decision is the user's.**
+- **Status:** ✅ v4 **committed (`a139181`) and live** as of 2026-09-03 after a same-day user-feedback round (duck cast, Wordle pool, coaster Next, Crew Drop identity/permanent holes, guestbook hiring line, Bo speed, mute toggle, HUD focus/format fixes). Gates at the commit: vitest 66 files / 1105 tests · tsc clean · build green.
 - **Docs:** v4 spec `docs/superpowers/specs/2026-09-02-fair-design.md` (binding; dated amendments at the foot) · plan `docs/superpowers/plans/2026-09-02-fair.md` · v3/v2.5/v2 docs under `docs/superpowers/` for history. Execution ledger — every ruling, review verdict and fix round: `.superpowers/sdd/2026-09-02-fair/progress.md`, with per-task reports beside it (gitignored — **keep until v4 is committed**).
 
 ## TL;DR
@@ -168,4 +168,4 @@ The user played v4 on the local preview and sent seven notes; all landed the sam
 - **HUD polish:** the XP bar fills a definite identity column (136 px, 96 px on phones) instead of carrying a fixed width that poked out of the card; a top-docked dialogue box measures the HUD cluster and sits below it.
 - **Ruling:** attraction doors now carry interact priority 4 (NPC talk stays 3) — Ilse standing on the guestbook's step used to swallow the door's E.
 
-Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` clean · `npm run build` green. Specs amended (`2026-09-02-fair-design.md` §13; the v3 §6.5 regrow rule withdrawn). **Nothing committed, nothing deployed — the user decides.**
+Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` clean · `npm run build` green. Specs amended (`2026-09-02-fair-design.md` §13; the v3 §6.5 regrow rule withdrawn). **Committed as `a139181` and deployed (gh-pages `00cd457`) on the user's instruction.**
