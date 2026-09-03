@@ -2,9 +2,9 @@
 
 > **The living state document.** `/getcontext` reads this first in a new session; `/checkpoint` and `/handoff` keep it current. If this file and reality disagree, trust `git status` + the test suite, then fix this file.
 
-- **Branch:** `v3/story-isle`. v3 checkpoint `a94c31f` → **v4 committed as `a139181`** (2026-09-03, user-authorized checkpoint) and **deployed**: `npx gh-pages -d dist` → gh-pages `00cd457` → `dca7180` (checkpoint #7), live at naman-gururani.github.io/lineage. `main` = `origin/main` = `63fc12d` (v2.5) is now BEHIND the live site — merging `v3/story-isle` into `main` is the open housekeeping item (the user decides). Standing rule: never commit/push unless the user asks.
+- **Branch:** `v3/story-isle` = `main` = `origin/main` = `origin/v3/story-isle` (fast-forwarded and pushed 2026-09-03 on the user's instruction). Live site = gh-pages `dca7180`, deployed from this tree. Standing rule: never commit/push/deploy unless the user asks.
 - **Dates:** v2 rebuilt 2026-08-30/31 · v2.5 HD Isle 2026-09-01 (deployed) · v3 Story Isle 2026-09-02 (committed as `a94c31f`) · **v4 Naman's World Fair 2026-09-02/03**.
-- **Status:** ✅ **v4 is live.** Committed `a139181` (v4) → `a74c577` (handoff) → **`40143bc` (checkpoint #7: the Skills card's "How I work" copy)**, each deployed with `npx gh-pages -d dist`. Gates now: vitest **66 files / 1105 tests / 0 skips** · `tsc --noEmit` clean · build green. Open housekeeping: `main` (`63fc12d`, v2.5) has not been fast-forwarded to `v3/story-isle`, and the branch commits are local only (never pushed) — both are the user's call.
+- **Status:** ✅ **v4 is live.** Committed `a139181` (v4) → `a74c577` (handoff) → **`40143bc` (checkpoint #7: the Skills card's "How I work" copy)**, each deployed with `npx gh-pages -d dist`. Gates now: vitest **66 files / 1105 tests / 0 skips** · `tsc --noEmit` clean · build green. Branch housekeeping done: the branch is pushed and `main` is level with it.
 - **Docs:** v4 spec `docs/superpowers/specs/2026-09-02-fair-design.md` (binding; dated amendments at the foot) · plan `docs/superpowers/plans/2026-09-02-fair.md` · v3/v2.5/v2 docs under `docs/superpowers/` for history. Execution ledger — every ruling, review verdict and fix round: `.superpowers/sdd/2026-09-02-fair/progress.md`, with per-task briefs/reports/review packages beside it (gitignored; v4 is committed, so it is history now — safe to delete, harmless to keep).
 
 ## TL;DR
@@ -72,7 +72,7 @@ scratch/     snap.sh / pkg.sh (working-tree review packages) · recheck*.cjs (pl
 
 ## Conventions & critical gotchas
 
-1. **Never commit/push/deploy unless the user asks.** v4 is committed on `v3/story-isle` (see the header); the branch has never been pushed to `origin` — only gh-pages was published, by `npx gh-pages -d dist`. Commit trailers: `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` + `Claude-Session: <url>`.
+1. **Never commit/push/deploy unless the user asks.** Everything is committed and pushed (branch and `main` level); gh-pages is published by `npx gh-pages -d dist`. Commit trailers: `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` + `Claude-Session: <url>`.
 2. **Content rules:** facts about Naman only from `src/data/content.ts`; dialogue carries **no digits** and no facts (cards do); skills = approved set only; the in-development product stays unnamed. Wordle answers, Forge words **and every coaster stop string** are derived from / drift-tested against content. `index.html`'s description + noscript block are pinned to content too (`tests/index-html.test.ts`).
 3. **Keyboard:** world input via `src/core/keys.ts` only; `ui/*` never imports it (module-graph test). Mini-game renderers attach their own listeners to the modal root with `e.repeat` guards.
 4. **Footprint drawing (v4):** `WorldScene.drawFootprint()` draws **both** structures and attractions — origin `(0.5, 1)`, i.e. centred on the footprint standing on its bottom edge, depth = that bottom-edge y. `buildStructures()` runs **before** `buildAttractions()`, and they share the same depth scheme, so overlap is resolved by y alone (the station sits flush at the spans' foot on purpose). A sprite taller or wider than its plot overhangs — that is deliberate for the coaster, the wheel and the pond stall.
@@ -115,11 +115,11 @@ npm run build && npx gh-pages -d dist           # deploy (USER-TRIGGERED ONLY) �
 - **Play-test URL:** `http://localhost:4173/lineage/?fresh=1` (clean save → Bo's arrival). Dev shortcuts: `&cheat=1` (Skip button in every game), `&word=kafka` (Wordle answer), `&duck=gold`, `&st=1` (timer stepping for scripts). A fresh save is seeded only from the title screen.
 - **Scripted walks:** `node scratch/recheck.cjs` (full spine), `recheck2/3.cjs` (feedback items), `recheck4.cjs` (HUD focus), `recheck5.cjs` (HUD layout at four widths), `recheck6.cjs` (Skills card) — they need the preview on :4173 and write `scratch/shots/*.png`. If the Playwright MCP tools say the browser is in use, these scripts are the fallback (gotcha 14).
 - **New session:** `/getcontext` (reads this file, verifies against `git status` + the gates). The ledger `.superpowers/sdd/2026-09-02-fair/progress.md` holds every ruling in order; the v4 spec's §13 lists every dated amendment.
-- **State of the branches:** `v3/story-isle` = everything (local only, never pushed); `main` = `origin/main` = `63fc12d` (v2.5); the live site tracks the gh-pages branch, i.e. the last deploy from this tree.
+- **State of the branches:** `main`, `v3/story-isle` and both remotes point at the same commit; the live site tracks the gh-pages branch (the last `npx gh-pages -d dist` from this tree). New work can start from `main`.
 
 ## Backlog (ordered; each item actionable cold)
 
-1. **Branch housekeeping (user):** `git push -u origin v3/story-isle` so the work exists off this machine, then fast-forward `main` (`git checkout main && git merge --ff-only v3/story-isle && git push`) so `main` matches the live site. Nothing else depends on it; the deploy already happened from the branch.
+1. ~~Branch housekeeping~~ — done 2026-09-03: `v3/story-isle` pushed, `main` fast-forwarded to it and pushed (`63fc12d..029b614`).
 2. **Feel pass on real hardware (user):** ride speeds in `systems/ridepath.ts` (`LIFT_SPEED 60`, `CRUISE_SPEED 300`, `LOOP_SPEED 380`, `DROP_MAX 520`; the cards are manual now, so only the motion is tunable); Crew Drop in `src/games/crew.ts` (`CREW.W/H 12×8`, `CRACK_MS 1400`, `THINK_MS 450`, `SHRINK_START_MS 15000` / `SHRINK_EVERY_MS 3000` — re-run `scratch/crew-sweep.ts` after any change; target median 20–35 s, min > 12 s, winnable); Chalk Flight (`FLAPPY.GAP` / `SPEED_GAIN` / `WIN`); claw sweep (`CLAW.SWEEP`, `TOL`); Forge wheel tile size on phones; Wordle flip timing.
 3. **Copy pass (user):** the 10 dialogue trees in `src/data/npcs.ts` (fixed lines, no digits) and the four résumé cards in `src/data/content.ts` — the Skills card's "How I work" paragraphs are the newest text and the one place with editorial voice.
 4. **NPC / player / companion night tint** (gotcha 8): `tintables.push` from `buildNpcs()` never reaches `DayNight` because `registerTinted` already spread its argument. Pre-existing since v2.5. Fix both sides at once — the tint registration *and* the coaster cart (`Coaster.ts` creates it with `add.sprite`, untinted) — or neither.
@@ -186,3 +186,4 @@ Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` 
 
 **Commit/deploy record:** checkpoint #7 = `40143bc` (content copy + this doc), deployed with `npx gh-pages -d dist` → gh-pages `dca7180` (live). The follow-up commit that writes this line is the branch tip. Working tree clean afterwards.
 
+**Post-checkpoint (same day):** on the user's instruction the branch was pushed (`origin/v3/story-isle`) and `main` fast-forwarded to it and pushed (`63fc12d..029b614`); the doc commit recording this is the new tip of both.
