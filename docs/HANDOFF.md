@@ -2,9 +2,9 @@
 
 > **The living state document.** `/getcontext` reads this first in a new session; `/checkpoint` and `/handoff` keep it current. If this file and reality disagree, trust `git status` + the test suite, then fix this file.
 
-- **Branch:** `v3/story-isle`. v3 checkpoint `a94c31f` → **v4 committed as `a139181`** (2026-09-03, user-authorized checkpoint) and **deployed**: `npx gh-pages -d dist` → gh-pages `00cd457`, live at naman-gururani.github.io/lineage. `main` = `origin/main` = `63fc12d` (v2.5) is now BEHIND the live site — merging `v3/story-isle` into `main` is the open housekeeping item (the user decides). Standing rule: never commit/push unless the user asks.
+- **Branch:** `v3/story-isle`. v3 checkpoint `a94c31f` → **v4 committed as `a139181`** (2026-09-03, user-authorized checkpoint) and **deployed**: `npx gh-pages -d dist` → gh-pages `00cd457` → `dca7180` (checkpoint #7), live at naman-gururani.github.io/lineage. `main` = `origin/main` = `63fc12d` (v2.5) is now BEHIND the live site — merging `v3/story-isle` into `main` is the open housekeeping item (the user decides). Standing rule: never commit/push unless the user asks.
 - **Dates:** v2 rebuilt 2026-08-30/31 · v2.5 HD Isle 2026-09-01 (deployed) · v3 Story Isle 2026-09-02 (committed as `a94c31f`) · **v4 Naman's World Fair 2026-09-02/03**.
-- **Status:** ✅ **v4 is live.** Committed `a139181` (v4) → `a74c577` (handoff) → **this checkpoint's commit (the Skills card's "How I work" copy; hash in CHECKPOINT #7 below)**, each deployed with `npx gh-pages -d dist`. Gates now: vitest **66 files / 1105 tests / 0 skips** · `tsc --noEmit` clean · build green. Open housekeeping: `main` (`63fc12d`, v2.5) has not been fast-forwarded to `v3/story-isle`, and the branch commits are local only (never pushed) — both are the user's call.
+- **Status:** ✅ **v4 is live.** Committed `a139181` (v4) → `a74c577` (handoff) → **`40143bc` (checkpoint #7: the Skills card's "How I work" copy)**, each deployed with `npx gh-pages -d dist`. Gates now: vitest **66 files / 1105 tests / 0 skips** · `tsc --noEmit` clean · build green. Open housekeeping: `main` (`63fc12d`, v2.5) has not been fast-forwarded to `v3/story-isle`, and the branch commits are local only (never pushed) — both are the user's call.
 - **Docs:** v4 spec `docs/superpowers/specs/2026-09-02-fair-design.md` (binding; dated amendments at the foot) · plan `docs/superpowers/plans/2026-09-02-fair.md` · v3/v2.5/v2 docs under `docs/superpowers/` for history. Execution ledger — every ruling, review verdict and fix round: `.superpowers/sdd/2026-09-02-fair/progress.md`, with per-task briefs/reports/review packages beside it (gitignored; v4 is committed, so it is history now — safe to delete, harmless to keep).
 
 ## TL;DR
@@ -184,5 +184,5 @@ Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` 
 
 **Uncommitted at the moment of writing:** `src/data/content.ts` (the copy above) and this document. Nothing else; `scratch/` and `.superpowers/` are gitignored tooling/history, not work at risk. **The user instructed: checkpoint, commit everything, deploy** — the commit and deploy hashes are recorded in the line below by the follow-up commit.
 
-**Commit/deploy record:** _(filled in by the follow-up commit)_
+**Commit/deploy record:** checkpoint #7 = `40143bc` (content copy + this doc), deployed with `npx gh-pages -d dist` → gh-pages `dca7180` (live). The follow-up commit that writes this line is the branch tip. Working tree clean afterwards.
 
