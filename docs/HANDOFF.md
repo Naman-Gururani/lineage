@@ -188,4 +188,4 @@ Gates after the round: `npx vitest run` 66 files / 1101 tests · `tsc --noEmit` 
 
 **Post-checkpoint (same day):** on the user's instruction the branch was pushed (`origin/v3/story-isle`) and `main` fast-forwarded to it and pushed (`63fc12d..029b614`); the doc commit recording this is the new tip of both.
 
-**Phone layout fix (same day, after the push):** on touch layouts the minimap now lifts 90 px clear of the A/B buttons — the old lift rule lost to `#ui .minimap` on specificity and had never applied (`src/styles/panels.css`; verified with `scratch/recheck7.cjs`, touch-emulated portrait and landscape, no overlap).
+**Phone layout fix (same day, after the push):** on touch layouts the minimap now lifts 90 px clear of the A/B buttons — the old lift rule lost to `#ui .minimap` on specificity and had never applied (`src/styles/panels.css`; verified with `scratch/recheck7.cjs`, touch-emulated portrait and landscape, no overlap). Committed `05ab8b8`, pushed to both branches, deployed → gh-pages `a68169b`.
