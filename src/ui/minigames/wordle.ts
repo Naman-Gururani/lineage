@@ -16,6 +16,7 @@ import { afterWin, type MinigameHost, type MinigameSession } from '../../systems
 import { el } from '../modal'
 import { panelHead } from '../panels'
 import { reducedMotion } from '../state'
+import { mountReveal } from './reveal'
 
 /* ---------------- the look-up tables the board draws from ---------------- */
 
@@ -37,11 +38,15 @@ const SHAKE_MS = 460
 const NOTE_MS = 1200
 
 /**
- * Which word this player is on. Module scope on purpose: losing and asking for
- * another one must hand out a *different* word, and the panel is torn down and
- * rebuilt between rounds, so the counter cannot live in the mount.
+ * Which word this player is on, and which word they just had. Module scope on
+ * purpose: losing and asking for another one must hand out a *different*
+ * word, and the panel is torn down and rebuilt between rounds, so neither can
+ * live in the mount. `lastAnswer` is what `pickAnswer` is told to avoid, so a
+ * fresh board — from a first open or a "Try again" — never wheels back onto
+ * the word the player just had.
  */
 let attempts = 0
+let lastAnswer: string | undefined
 
 /* ---------------- the dictionary, fetched the moment a board opens ---------------- */
 
@@ -83,13 +88,14 @@ function readOverride(): string | null {
 export function mountWordle(host: MinigameHost, root: HTMLElement): MinigameSession {
   loadWords(root)
   const override = readOverride()
-  let state: WordleState = newGame(pickAnswer(attempts, override))
+  let state: WordleState = newGame(pickAnswer(attempts, override, Math.random, lastAnswer))
+  lastAnswer = state.answer
   const timers: number[] = []
   /** True while a row is turning over: the board takes no input mid-reveal. */
   let busy = false
 
   root.innerHTML =
-    panelHead("Bo's Word Puzzle", 'PIER') +
+    panelHead("Bo's Word Puzzle", 'THE GATE') +
     `<p class="mg-rule">Guess the five-letter word in six tries. Green is right, yellow is misplaced.</p>` +
     `<div class="wd-hint" aria-live="polite"><div class="wd-hint-slots" aria-hidden="true"></div><p class="wd-bo"></p></div>` +
     `<div class="wd-board"><p class="wd-note" hidden></p><div class="wd-grid" role="grid" aria-label="Guesses"></div></div>` +
@@ -309,15 +315,32 @@ export function mountWordle(host: MinigameHost, root: HTMLElement): MinigameSess
     say(`Hint: ${state.hints[i].toUpperCase()} is the ${ORDINAL[i] ?? 'next'} letter.`)
   }
 
-  /** A fresh board on the next word in the cycle — the gag's "Try again". */
+  /** A fresh board on a new random word, never the one just played — the gag's "Try again". */
   function newWord(): void {
     attempts++
     clearTimers()
     busy = false
-    state = newGame(pickAnswer(attempts, override))
+    state = newGame(pickAnswer(attempts, override, Math.random, lastAnswer))
+    lastAnswer = state.answer
     grid.innerHTML = ''
     note.hidden = true
     render()
+  }
+
+  /**
+   * "Show me the word": type the answer into whatever row is next and hand it
+   * in. The board does the rest — the flip, the live line, the win and the
+   * ticket — because the reveal is a solve, not a special case. Whatever was
+   * half-typed is rubbed out first, so the row starts clean.
+   */
+  function revealAnswer(): boolean | void {
+    if (busy || state.status !== 'play') return false
+    let next = state
+    while (next.current) next = backspace(next)
+    for (const ch of next.answer) next = typeLetter(next, ch)
+    state = next
+    render()
+    onEnter()
   }
 
   function lose(): void {
@@ -383,6 +406,7 @@ export function mountWordle(host: MinigameHost, root: HTMLElement): MinigameSess
     timers.length = 0
   }
 
+  mountReveal(root, 'Show me the word', revealAnswer)
   root.tabIndex = 0
   root.dataset.autofocus = '' // brings focus back here when the gag closes
   render()

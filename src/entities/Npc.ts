@@ -12,8 +12,23 @@ export type NpcDef = { id: string; name: string; x: number; y: number; behaviour
 
 /** Frames in the villager walk cycle: contact–down–contact–up (`npc_*_walk_{dir}_{0..3}`). */
 export const NPC_WALK_FRAMES = 4
-/** Milliseconds each walk frame is held. */
+/** Milliseconds each walk frame is held, at `NPC_WALK_SPEED`. */
 export const NPC_WALK_MS = 150
+/** The villager amble, in px/s — the pace `NPC_WALK_MS` was timed against. */
+export const NPC_WALK_SPEED = 38
+
+/**
+ * How far the walk ticker advances over `dtMs` for somebody walking at `speed`.
+ *
+ * The cycle is timed in milliseconds but it reads as *strides*, so a faster
+ * walker's legs have to turn over proportionally faster or he skates: at the
+ * guide's pace a 150 ms frame would otherwise cover three times the ground a
+ * villager's does. Scaling here keeps the distance per frame constant, and
+ * leaves the default pace ticking at exactly 1 ms per ms.
+ */
+export function walkTick(dtMs: number, speed: number): number {
+  return dtMs * (speed / NPC_WALK_SPEED)
+}
 
 /**
  * Walk frame for a monotonically increasing animation tick: 0 → 1 → 2 → 3 → 0…
@@ -31,6 +46,12 @@ export class Npc extends Phaser.GameObjects.Container {
   dir: Dir
   moving = false
   talking = false
+  /**
+   * Walking pace in px/s. The cast ambles; the guide, who is always on his way
+   * to the next station and is meant to be kept up with, is set faster by the
+   * scene that makes him.
+   */
+  walkSpeed = NPC_WALK_SPEED
   private target: Vec2 | null = null
   private timer = 0
   private animT = 0
@@ -72,12 +93,43 @@ export class Npc extends Phaser.GameObjects.Container {
     return kind === 'idle' ? `npc_${this.def.id}_idle_${dir}` : `npc_${this.def.id}_walk_${dir}_${i}`
   }
 
-  face(x: number, y: number): void {
+  /**
+   * Point the villager at a spot, and nothing more. `face` is this plus the
+   * standing pose — a walk cycle needs the turn on its own, or the idle frame
+   * would overwrite every frame of the walk.
+   */
+  turn(x: number, y: number): void {
     const dx = x - this.x
     const dy = y - this.y
     if (Math.abs(dx) > Math.abs(dy)) this.dir = dx < 0 ? 'left' : 'right'
     else this.dir = dy < 0 ? 'up' : 'down'
+  }
+
+  face(x: number, y: number): void {
+    this.turn(x, y)
     this.sprite.setTexture(ATLAS, this.frame('idle', this.dir))
+  }
+
+  /**
+   * Turn the legs over for a walk somebody else is driving.
+   *
+   * `update` is the usual home of this, but a villager in a cutscene is held in
+   * `talking` — so the story cannot walk him off mid-sentence — and `update`
+   * returns at its first line. A `Cutscene.moveTo` tween owns where he is; this
+   * owns how he looks getting there, and without it the guide slides onto the
+   * apron in his standing pose. `toward` turns him along the way he is headed
+   * first; the tween's own bookkeeping (position, and `moving`) is not this
+   * method's business.
+   */
+  walkTick(dtMs: number, speed: number, toward?: Vec2): void {
+    if (toward) this.turn(toward.x, toward.y)
+    // The module-level pure helper above, not a call back into this method.
+    this.animT += walkTick(dtMs, speed)
+    if (this.animT > NPC_WALK_MS) {
+      this.animT = 0
+      this.frameIdx++
+    }
+    this.sprite.setTexture(ATLAS, this.frame('walk', this.dir, walkFrameIndex(this.frameIdx)))
   }
 
   talkStart(px: number, py: number): void {
@@ -156,7 +208,7 @@ export class Npc extends Phaser.GameObjects.Container {
         this.sprite.setTexture(ATLAS, this.frame('idle', this.dir))
         return
       }
-      const speed = 38
+      const speed = this.walkSpeed
       const dt = dtMs / 1000
       const r = moveAndSlide({ x: this.x, y: this.y, hw: 5, hh: 3 }, (dx / d) * speed * dt, (dy / d) * speed * dt, blocked, solids)
       const moved = Math.hypot(r.x - this.x, r.y - this.y)
@@ -171,7 +223,7 @@ export class Npc extends Phaser.GameObjects.Container {
       this.moving = true
       if (Math.abs(dx) > Math.abs(dy)) this.dir = dx < 0 ? 'left' : 'right'
       else this.dir = dy < 0 ? 'up' : 'down'
-      this.animT += dtMs
+      this.animT += walkTick(dtMs, speed)
       if (this.animT > NPC_WALK_MS) {
         this.animT = 0
         this.frameIdx++

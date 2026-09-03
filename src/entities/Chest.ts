@@ -21,7 +21,7 @@ export class Chest {
       x,
       y,
       radius: 22,
-      prompt: 'Open chest',
+      prompt: 'Open the prize box',
       enabled: () => !this.opened,
       onInteract: () => {
         if (this.opened) return

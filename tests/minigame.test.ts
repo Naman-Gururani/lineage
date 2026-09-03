@@ -270,6 +270,22 @@ describe('mini-game host', () => {
     expect(host.openId).toBe('flappy') // a fresh round starts its count over
   })
 
+  /* ---------------- progress between visits ---------------- */
+
+  it('lets a game remember something for next time, against the round that is open', () => {
+    host.open('forge')
+    host.progress({ round: 1, found: ['JAVA'] })
+    expect(state.save.minigames.forge).toEqual({ won: false, best: 0, plays: 0, progress: { round: 1, found: ['JAVA'] } })
+    host.quit()
+    expect(state.save.minigames.forge.plays).toBe(1)
+    expect(state.save.minigames.forge.progress).toEqual({ round: 1, found: ['JAVA'] })
+  })
+
+  it('drops progress written with no game open', () => {
+    host.progress({ stray: true })
+    expect(Object.keys(state.save.minigames)).toEqual([])
+  })
+
   /* ---------------- the dev skip ---------------- */
 
   it('shows no Skip button by default', () => {

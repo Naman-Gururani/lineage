@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('phaser', () => ({ default: { GameObjects: { Container: class {} } } }))
 
-const { NPC_WALK_FRAMES, walkFrameIndex } = await import('../src/entities/Npc')
+const { NPC_WALK_FRAMES, NPC_WALK_MS, NPC_WALK_SPEED, walkFrameIndex, walkTick } = await import('../src/entities/Npc')
 
 describe('NPC walk cycle', () => {
   it('is a four-frame cycle (the packs ship walk_{dir}_{0..3})', () => {
@@ -48,5 +48,24 @@ describe('NPC walk cycle', () => {
 
   it('is pure — the same tick always yields the same frame', () => {
     for (const t of [0, 1, 2, 3, 17]) expect(walkFrameIndex(t)).toBe(walkFrameIndex(t))
+  })
+})
+
+// Bo walks the fair at nearly the hero's pace while the rest of the cast ambles.
+// The ticker is timed in milliseconds, so without scaling his legs would turn
+// over at the villager rate and he would skate to his next station.
+describe('the walk ticker at other paces', () => {
+  it('leaves the villager amble ticking at one millisecond per millisecond', () => {
+    expect(NPC_WALK_SPEED).toBe(38)
+    for (const dt of [0, 8, 16, 150, 1000]) expect(walkTick(dt, NPC_WALK_SPEED)).toBe(dt)
+  })
+
+  it('holds the ground covered per walk frame constant at any pace', () => {
+    const perFrame = (speed: number) => {
+      // ms of real time to fill one NPC_WALK_MS of ticker, times the pace
+      const ms = NPC_WALK_MS / (walkTick(1, speed) || 1)
+      return (ms / 1000) * speed
+    }
+    for (const speed of [NPC_WALK_SPEED, 60, 110, 130]) expect(perFrame(speed)).toBeCloseTo(perFrame(NPC_WALK_SPEED), 6)
   })
 })

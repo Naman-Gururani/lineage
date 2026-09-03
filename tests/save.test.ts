@@ -20,9 +20,9 @@ describe('save', () => {
     expect(loadSave(memStorage())).toBeNull()
   })
 
-  it('defaults to a v3 save with no chapter unlocked yet', () => {
+  it('defaults to a v4 save with no chapter unlocked yet', () => {
     const s = defaultSave()
-    expect(s.v).toBe(3)
+    expect(s.v).toBe(4)
     expect(s.hats).toEqual([])
     expect(s.minigames).toEqual({})
     expect(s.fish).toEqual({})
@@ -51,10 +51,11 @@ describe('save', () => {
     const store = memStorage()
     store.setItem('nw2.save.v1', JSON.stringify({ v: 1 }))
     store.setItem('nw2.save.v2', JSON.stringify({ v: 2 }))
+    store.setItem('nw2.save.v3', JSON.stringify({ v: 3 }))
     writeSave(defaultSave(), store)
     clearSave(store)
     expect(hadLegacySave(store)).toBe(false)
-    expect(store.getItem('nw2.save.v3')).toBeNull()
+    expect(store.getItem('nw2.save.v4')).toBeNull()
   })
 
   it('migrate rejects unknown versions and corrupt data', () => {
@@ -69,7 +70,7 @@ describe('save', () => {
   })
 
   it('migrate fills missing fields with defaults', () => {
-    const m = migrate({ v: 3, x: 5 })
+    const m = migrate({ v: 4, x: 5 })
     expect(m).not.toBeNull()
     expect(m!.x).toBe(5)
     expect(m!.packets).toEqual([])
@@ -81,9 +82,9 @@ describe('save', () => {
     expect(m!.unlocked).toEqual([])
   })
 
-  it('migrate keeps the v3 collections', () => {
+  it('migrate keeps the v4 collections', () => {
     const m = migrate({
-      v: 3,
+      v: 4,
       hats: ['crown', 7, 'cap'],
       minigames: { crab: { won: true, best: 12, plays: 3 } },
       fish: { sardine: 2 },
@@ -98,32 +99,33 @@ describe('save', () => {
   })
 
   it('ignores an island-shaped save from either older version and reports the upgrade', () => {
-    for (const key of ['nw2.save.v1', 'nw2.save.v2']) {
+    for (const key of ['nw2.save.v1', 'nw2.save.v2', 'nw2.save.v3']) {
       const store = memStorage()
-      store.setItem(key, JSON.stringify({ v: key.endsWith('v1') ? 1 : 2, x: 900, packets: ['p1'] }))
+      store.setItem(key, JSON.stringify({ v: Number(key.slice(-1)), x: 900, packets: ['p1'] }))
       expect(loadSave(store), key).toBeNull()
       expect(hadLegacySave(store), key).toBe(true)
     }
   })
 
-  it('reports no upgrade for a clean slate or a v3-only store', () => {
+  it('reports no upgrade for a clean slate or a v4-only store', () => {
     const store = memStorage()
     expect(hadLegacySave(store)).toBe(false)
     writeSave(defaultSave(), store)
     expect(hadLegacySave(store)).toBe(false)
   })
 
-  it('writes to the v3 key', () => {
+  it('writes to the v4 key', () => {
     const store = memStorage()
     writeSave(defaultSave(), store)
-    expect(store.getItem('nw2.save.v3')).not.toBeNull()
+    expect(store.getItem('nw2.save.v4')).not.toBeNull()
+    expect(store.getItem('nw2.save.v3')).toBeNull()
     expect(store.getItem('nw2.save.v2')).toBeNull()
     expect(store.getItem('nw2.save.v1')).toBeNull()
   })
 
   it('ignores corrupt stored JSON', () => {
     const store = memStorage()
-    store.setItem('nw2.save.v3', '{oops')
+    store.setItem('nw2.save.v4', '{oops')
     expect(loadSave(store)).toBeNull()
   })
 })
@@ -131,6 +133,10 @@ describe('save', () => {
 describe('settings', () => {
   it('runs by default', () => {
     expect(defaultSettings().alwaysRun).toBe(true)
+  })
+
+  it('is not muted by default', () => {
+    expect(defaultSettings().muted).toBe(false)
   })
 
   it('defaults and round-trips', () => {
@@ -149,5 +155,15 @@ describe('settings', () => {
     const s = loadSettings(store)
     expect(s.music).toBe(0.5)
     expect(s.sfx).toBe(defaultSettings().sfx)
+  })
+
+  it('loads an old settings blob with no muted key as unmuted', () => {
+    const store = memStorage()
+    // Shaped like a settings blob saved before the mute button existed.
+    store.setItem(
+      'nw2.settings.v1',
+      JSON.stringify({ master: 0.5, music: 0.5, sfx: 0.5, textSpeed: 'normal', shake: true, reducedMotion: false, touch: 'auto', minimap: true, alwaysRun: true }),
+    )
+    expect(loadSettings(store).muted).toBe(false)
   })
 })

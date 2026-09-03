@@ -2,11 +2,12 @@
 import Phaser from 'phaser'
 import { buildSheet, type Sheet, type SpriteDef } from './pixel'
 import { ENV_DEFS } from './sprites/env'
-import { INTERIOR_DEFS } from './sprites/interior'
 import { HERO_DEFS } from './sprites/hero'
 import { BUILDING_DEFS } from './sprites/buildings'
 import { NPC_DEFS } from './sprites/npcs'
 import { PROP_DEFS } from './sprites/props'
+import { FAIR_DEFS } from './sprites/fair'
+import { RIDE_DEFS } from './sprites/rides'
 
 export const ATLAS = 'atlas'
 
@@ -17,7 +18,7 @@ export function registerPack(defs: SpriteDef[]): void {
 }
 
 export function allDefs(): SpriteDef[] {
-  return [...HERO_DEFS, ...ENV_DEFS, ...NPC_DEFS, ...PROP_DEFS, ...BUILDING_DEFS, ...INTERIOR_DEFS, ...extraPacks.flat()]
+  return [...HERO_DEFS, ...ENV_DEFS, ...NPC_DEFS, ...PROP_DEFS, ...BUILDING_DEFS, ...FAIR_DEFS, ...RIDE_DEFS, ...extraPacks.flat()]
 }
 
 let sheet: Sheet | null = null

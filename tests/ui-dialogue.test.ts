@@ -36,7 +36,7 @@ vi.mock('phaser', () => {
 import { sfx } from '../src/audio/sfx'
 import { events } from '../src/core/events'
 import { DialogueRunner, type Ctx, type Tree } from '../src/systems/Dialogue'
-import { isDialogueOpen, openDialogue } from '../src/ui/dialogue'
+import { initDialogue, isDialogueOpen, openDialogue } from '../src/ui/dialogue'
 import { uiState } from '../src/ui/state'
 
 const ctx: Ctx = { check: () => true, apply: () => {} }
@@ -68,6 +68,10 @@ const flushDialogue = () => {
   r.advance()
   void openDialogue(r) // an already-ended runner finishes immediately (and any previous session with it)
 }
+
+// Wire the anchor listener once, up front: the anchor tests emit before any box
+// has opened, and the wiring is idempotent.
+initDialogue()
 
 describe('dialogue box', () => {
   beforeEach(() => {
@@ -157,6 +161,75 @@ describe('dialogue box', () => {
     box.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await p
     expect(isDialogueOpen()).toBe(false)
+  })
+
+  // B1: the arrival apron is on the world's bottom row, so the camera clamps
+  // there and the player and Bo stand in the last tenth of the viewport — behind
+  // the box, for the whole intro. The scene reports where the speaker is and the
+  // box docks at the top instead.
+  describe('getting out of the speaker’s way', () => {
+    const anchor = (y: number) => events.emit('ui:dialogue-anchor', { y })
+    const open = () => {
+      const runner = new DialogueRunner({ id: 'a', entry: [{ node: 'a' }], nodes: { a: { lines: [{ who: 'Bo', text: 'Hi' }] } } }, ctx)
+      void openDialogue(runner)
+      return document.querySelector('.dlg')!
+    }
+
+    it('docks at the top only once the speaker is in the bottom third', () => {
+      for (const [y, top] of [
+        [0, false],
+        [0.5, false],
+        [0.66, false],
+        [2 / 3, true],
+        [0.9, true],
+        [1, true],
+      ] as const) {
+        anchor(y)
+        expect(open().classList.contains('top'), `anchor ${y}`).toBe(top)
+        flushDialogue()
+      }
+    })
+
+    it('forgets the anchor after one conversation — the next box is where it always was', () => {
+      anchor(0.95)
+      expect(open().classList.contains('top')).toBe(true)
+      flushDialogue()
+      // Nothing reported a position this time (a panel, a test, a cutscene beat
+      // with no camera behind it), so the box goes back to the bottom.
+      expect(open().classList.contains('top')).toBe(false)
+      flushDialogue()
+    })
+
+    it('docks below the HUD cluster when there is one, and forgets the offset with the anchor', () => {
+      const ui = document.getElementById('ui')!
+      const hudRoot = document.createElement('div')
+      hudRoot.className = 'hud'
+      const cluster = document.createElement('div')
+      cluster.className = 'hud-cluster'
+      cluster.getBoundingClientRect = () => ({ bottom: 90, top: 8, left: 8, right: 400, width: 392, height: 82, x: 8, y: 8, toJSON: () => ({}) }) as DOMRect
+      hudRoot.appendChild(cluster)
+      ui.appendChild(hudRoot)
+      anchor(0.95)
+      const box = open()
+      expect(box.classList.contains('top')).toBe(true)
+      expect((box as HTMLElement).style.top).toBe('100px') // the cluster's bottom edge plus a small gap
+      flushDialogue()
+      // A hidden HUD (title screen, cutscene fade) leaves the stylesheet's own `top`.
+      hudRoot.classList.add('hidden')
+      anchor(0.95)
+      expect((open() as HTMLElement).style.top).toBe('')
+      flushDialogue()
+      // And a bottom-docked box carries no inline offset at all.
+      anchor(0.2)
+      expect((open() as HTMLElement).style.top).toBe('')
+      flushDialogue()
+    })
+
+    it('shrugs at an anchor that is not a number', () => {
+      anchor(Number.NaN)
+      expect(open().classList.contains('top')).toBe(false)
+      flushDialogue()
+    })
   })
 
   it('respects the configured text speed', () => {

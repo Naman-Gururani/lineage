@@ -11,6 +11,13 @@ export type Events = {
   'ui:banner': { title: string; sub?: string }
   'ui:toast': { icon?: string; title: string; sub?: string; kind?: ToastKind }
   'ui:dialogue': { tree: string; npc: string }
+  /**
+   * Where the speaker stands on screen as a conversation opens — 0 the top edge
+   * of the viewport, 1 the bottom. The fair's arrival apron sits on the world's
+   * bottom edge, so the camera clamps there and the cast ends up behind the
+   * dialogue box; this is how the box learns to get out of their way.
+   */
+  'ui:dialogue-anchor': { y: number }
   'ui:dialogueClosed': { tree: string }
   'ui:panel': { id: string; data?: unknown }
   'ui:closed': { id: string }
@@ -37,8 +44,15 @@ export type Events = {
   'facet:unlocked': { id: string; first: boolean; announce: boolean }
   /** the story's next station changed (`next` null = the story is done) */
   'story:changed': { next: string | null }
-  /** the elevator arrived at a floor: swap the room's window view */
-  'room:window': { frame: 0 | 1 | 2 | 3 }
+  /** a ride finished (the Career Coaster) */
+  'ride:done': { id: 'coaster' }
+  /**
+   * The rider asked the Career Coaster for the next beat — the milestone card's
+   * Next button, or Enter/Space/E while it is up (`ui/ridecard.ts`). The cart
+   * stands at each beat until this arrives, so the ride is paced by the person
+   * watching it rather than by a timer (`systems/Coaster.ts`).
+   */
+  'ride:next': Record<string, never>
   'game:new': Record<string, never>
   'game:continue': Record<string, never>
   'game:reader': Record<string, never>

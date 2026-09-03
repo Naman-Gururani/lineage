@@ -41,7 +41,18 @@ function save(name: string, r: Raster) {
   console.log(`wrote ${file} (${r.w}×${r.h})`)
 }
 
+/**
+ * The sprite packs `sheet` knows about — one entry per `src/art/sprites/*.ts`
+ * that exports a def array. Kept explicit so a typo reports the packs that do
+ * exist instead of dying inside a dynamic import.
+ */
+const PACKS = ['hero', 'npcs', 'env', 'props', 'buildings', 'fair', 'rides'] as const
+
 async function sheet(name: string, k = 4) {
+  if (!(PACKS as readonly string[]).includes(name)) {
+    console.log(`unknown pack "${name}" — try one of: ${PACKS.join(', ')}`)
+    return
+  }
   const mod = (await import(`../src/art/sprites/${name}.ts`)) as Record<string, SpriteDef[]>
   const defs = Object.values(mod).find((v) => Array.isArray(v)) as SpriteDef[]
   const pack = packSheet(defs, 512)
@@ -81,9 +92,11 @@ function world(tx = 0, ty = 0, tw = WORLD_TW, th = WORLD_TH, k = 1, withDecor = 
       const s = d.kind === 'tree' || d.kind === 'pine' || d.kind === 'palm' ? 6 : 3
       fillRect(bg, Math.round(d.x - s / 2), Math.round(d.y - s / 2), s, s, c)
     }
-    for (const lm of BLUEPRINT.landmarks) {
-      fillRect(bg, lm.tx * TILE, lm.ty * TILE, lm.w * TILE, lm.h * TILE, [226, 72, 63, 200])
-      fillRect(bg, lm.door.x * TILE + 4, lm.door.y * TILE + 4, 8, 8, [255, 255, 255, 255])
+    // Footprint in red, door tile in white. This drew `landmarks` until the fair
+    // replaced them; `attractions` carry the same four fields and a door.
+    for (const a of BLUEPRINT.attractions) {
+      fillRect(bg, a.tx * TILE, a.ty * TILE, a.w * TILE, a.h * TILE, [226, 72, 63, 200])
+      fillRect(bg, a.door.x * TILE + 4, a.door.y * TILE + 4, 8, 8, [255, 255, 255, 255])
     }
     for (const p of BLUEPRINT.packetSpots) fillRect(bg, p.x * TILE + 5, p.y * TILE + 5, 6, 6, [49, 199, 179, 255])
     for (const [, p] of Object.entries(BLUEPRINT.npcSpots)) fillRect(bg, p.x * TILE + 4, p.y * TILE + 4, 8, 8, [155, 107, 242, 255])
@@ -100,4 +113,4 @@ else if (mode === 'world') {
   const n = rest.map(Number)
   if (n.length >= 4) world(n[0], n[1], n[2], n[3], n[4] ?? 1)
   else world(0, 0, WORLD_TW, WORLD_TH, n[0] ?? 1)
-} else console.log('usage: preview sheet <name> [scale] | world [tx ty tw th] [scale]')
+} else console.log(`usage: preview sheet <${PACKS.join('|')}> [scale] | world [tx ty tw th] [scale]`)

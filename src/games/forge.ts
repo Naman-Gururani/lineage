@@ -231,3 +231,46 @@ export function revealWord(s: ForgeState): ForgeState {
 export function shuffle(ring: string[], seed: number): string[] {
   return makeRng(seed).shuffle([...ring])
 }
+
+/* ---------------- what the bench remembers between visits ---------------- */
+
+/**
+ * The wall, written down. Only the words matter: hints are a per-visit
+ * generosity and a half-spelled word is not progress, so neither is saved.
+ *
+ * `round` is stored for the save file to read at a glance (the Résumé row wants
+ * it) but is *derived* again on the way back in — see `restore`.
+ */
+export type ForgeProgress = { round: number; found: string[] }
+
+export function serialize(s: ForgeState): ForgeProgress {
+  return { round: s.round, found: [...s.found] }
+}
+
+/** Every word any wheel will take, for validating a record off the disk. */
+function everyWord(): Set<string> {
+  return new Set(FORGE_ROUNDS.flatMap((r) => r.words.map((w) => w.word)))
+}
+
+/**
+ * A saved record back onto the bench — or a fresh bench, if it is not a record.
+ *
+ * The wheel is read back off the *words*, never off the saved `round`: a round
+ * is finished exactly when every one of its words is in `found`, so deriving it
+ * cannot put a player on a wheel they never earned, however the file got edited.
+ * Everything else starts over: no half-spelled word, no misses banked against
+ * the player, and the round's hints back on the house.
+ */
+export function restore(p: unknown): ForgeState {
+  const fresh = newForge()
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return fresh
+  const rec = p as { round?: unknown; found?: unknown }
+  if (typeof rec.round !== 'number' || !Number.isFinite(rec.round)) return fresh
+  if (!Array.isArray(rec.found)) return fresh
+  const known = everyWord()
+  const found: string[] = []
+  for (const w of rec.found) if (typeof w === 'string' && known.has(w) && !found.includes(w)) found.push(w)
+  let round = 0
+  while (round < FORGE_ROUNDS.length && FORGE_ROUNDS[round].words.every((w) => found.includes(w.word))) round++
+  return { ...fresh, round, found, status: round >= FORGE_ROUNDS.length ? 'won' : 'play' }
+}

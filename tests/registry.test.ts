@@ -1,20 +1,20 @@
-// @vitest-environment happy-dom
+// The two registries that have to agree, or the fair opens a door onto nothing:
 //
-// The three registries that have to agree, or the island boots into a door
-// that opens onto nothing:
+//   world/blueprint.ts  attractions — where a stall stands, the tile you talk to
+//                                     it from, and the chapters it hands over
+//   data/content.ts     ZONES       — the content card behind each chapter
 //
-//   world/blueprint.ts  landmarks — where a building stands and which room it opens
-//   data/content.ts     ZONES     — the content card behind a discoverable landmark
-//   data/rooms.ts       ROOMS     — the interior floor plan the door leads to
+// Nothing type-checks across those two files, so this suite is the only thing
+// standing between a half-landed attraction and an unbootable build.
 //
-// Nothing type-checks across those three files, so this suite is the only thing
-// standing between a half-landed landmark and an unbootable build.
-//
-// happy-dom (not node) because the same invariant is asserted a second time
-// where it is actually consumed: the island map's "n/8 FOUND" counter and its
-// landmark pins.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// v4 note: the map's pin section that used to live here has gone. Pins are
+// `ui/map.ts`'s business, and `tests/ui-map.test.ts` now carries the assertions
+// about them — that every attraction gets one, and that a chapter resolves to
+// the attraction listed here as handing it over.
+import { describe, expect, it, vi } from 'vitest'
 
+// `DISCOVERIES_FOR_100` lives in GameState, which reaches the event bus and so
+// reaches Phaser. This suite is a pure data check; the bus is a stub.
 vi.mock('phaser', () => {
   type Fn = (p: unknown) => void
   class EventEmitter {
@@ -47,97 +47,82 @@ vi.mock('phaser', () => {
   return { default: { Events: { EventEmitter } } }
 })
 
-import { sfx } from '../src/audio/sfx'
 import { ZONES } from '../src/data/content'
-import { ROOMS } from '../src/data/rooms'
-import { closeAllModals } from '../src/ui/modal'
-import { openMap } from '../src/ui/map'
-import { uiState } from '../src/ui/state'
-import { BLUEPRINT } from '../src/world/blueprint'
+import { STATIONS } from '../src/data/story'
+import { DISCOVERIES_FOR_100 } from '../src/systems/GameState'
+import { BLUEPRINT, type AttractionId } from '../src/world/blueprint'
 
-const landmarks = BLUEPRINT.landmarks
-/** Discoverable buildings: a zone card, a journal line, a map pin. */
-const major = landmarks.filter((l) => !l.minor)
-/** Scenery with a door: a room, but no discovery and no map pin. */
-const minor = landmarks.filter((l) => l.minor)
+/**
+ * The eight attractions, pinned at compile time rather than counted: add or
+ * rename one and this line stops compiling until it is listed here.
+ */
+const EVERY_ATTRACTION: Record<AttractionId, true> = {
+  gate: true,
+  coaster: true,
+  prizetent: true,
+  forge: true,
+  flight: true,
+  arcade: true,
+  duckpond: true,
+  guestbook: true,
+}
+const ATTRACTION_IDS = Object.keys(EVERY_ATTRACTION) as AttractionId[]
 
-describe('registry: landmarks ↔ zones ↔ rooms', () => {
-  it('gives every non-minor landmark a zone with the same id', () => {
+const attractions = BLUEPRINT.attractions
+
+describe('registry: attractions ↔ zones', () => {
+  it('builds exactly the eight attractions the union names, once each', () => {
+    expect(attractions.map((a) => a.id).sort()).toEqual([...ATTRACTION_IDS].sort())
+    expect(new Set(attractions.map((a) => a.id)).size).toBe(attractions.length)
+    expect(attractions.length).toBe(8)
+  })
+
+  it('delivers every chapter from exactly one attraction', () => {
+    const owners = new Map<string, string[]>()
+    for (const a of attractions) for (const z of a.zones) owners.set(z, [...(owners.get(z) ?? []), a.id])
+    for (const z of ZONES) expect(owners.get(z.id) ?? [], `chapter "${z.id}"`).toHaveLength(1)
+  })
+
+  it('hands out only chapters that exist — no attraction promises a card nobody wrote', () => {
     const zoneIds = new Set(ZONES.map((z) => z.id))
-    expect(major.filter((l) => !zoneIds.has(l.id)).map((l) => l.id), 'landmarks with no ZONES entry').toEqual([])
+    for (const a of attractions)
+      for (const z of a.zones) expect(zoneIds.has(z), `attraction "${a.id}" delivers unknown chapter "${z}"`).toBe(true)
   })
 
-  it('gives every zone a non-minor landmark with the same id', () => {
-    const majorIds = new Set<string>(major.map((l) => l.id))
-    expect(ZONES.filter((z) => !majorIds.has(z.id)).map((z) => z.id), 'zones with no landmark to stand on').toEqual([])
+  it('puts the chapters where the spec says they are told', () => {
+    const zonesOf = (id: AttractionId) => [...(attractions.find((a) => a.id === id)?.zones ?? [])].sort()
+    expect(zonesOf('gate')).toEqual(['about'])
+    expect(zonesOf('coaster')).toEqual(['education', 'experience'])
+    expect(zonesOf('prizetent')).toEqual(['lineage', 'safestride', 'stealth'])
+    expect(zonesOf('forge')).toEqual(['skills'])
+    expect(zonesOf('guestbook')).toEqual(['contact'])
+    // The three fun stalls deliver nothing but a good time.
+    for (const id of ['flight', 'arcade', 'duckpond'] as const) expect(zonesOf(id)).toEqual([])
   })
 
-  it('leaves minor landmarks without a zone — they are scenery with a door', () => {
-    const zoneIds = new Set(ZONES.map((z) => z.id))
-    expect(minor.map((l) => l.id)).toEqual(['warehouse'])
-    expect(minor.filter((l) => zoneIds.has(l.id)).map((l) => l.id), 'minor landmarks that would be discoverable').toEqual([])
-  })
-
-  it('points every landmark — minor ones included — at a room that exists', () => {
-    expect(landmarks.filter((l) => !ROOMS[l.room]).map((l) => `${l.id} → ${l.room}`), 'landmarks whose room is missing from ROOMS').toEqual([])
-  })
-
-  it('keys every room by its own id and opens onto every one of them', () => {
-    for (const [key, def] of Object.entries(ROOMS)) expect(def.id, `ROOMS["${key}"].id`).toBe(key)
-    const used = new Set(landmarks.map((l) => l.room))
-    expect(Object.keys(ROOMS).filter((k) => !used.has(k)), 'rooms no landmark opens onto').toEqual([])
-  })
-
-  it('keeps every landmark id, zone id and room key unique', () => {
-    expect(new Set(landmarks.map((l) => l.id)).size).toBe(landmarks.length)
-    expect(new Set(ZONES.map((z) => z.id)).size).toBe(ZONES.length)
-  })
-
-  it('counts eight discoverable landmarks and eight zones', () => {
-    expect(major.length).toBe(8)
+  it('counts eight zones and keeps the hundred-per-cent bar at eight discoveries', () => {
     expect(ZONES.length).toBe(8)
-    expect(landmarks.length).toBe(9)
-    expect(Object.keys(ROOMS).length).toBe(9)
-  })
-})
-
-describe('island map reads the registry', () => {
-  beforeEach(() => {
-    document.body.innerHTML = '<div id="game-root"></div><div id="ui"></div>'
-    document.body.className = ''
-    uiState.settings.reducedMotion = true
-    uiState.stats.discoveries = []
-    for (const k of ['open', 'close', 'select', 'blip'] as const) vi.spyOn(sfx, k).mockImplementation(() => {})
+    expect(new Set(ZONES.map((z) => z.id)).size).toBe(ZONES.length)
+    expect(DISCOVERIES_FOR_100).toBe(8)
+    expect(DISCOVERIES_FOR_100).toBe(attractions.length)
   })
 
-  afterEach(() => {
-    closeAllModals()
-    uiState.stats.discoveries = []
-    vi.restoreAllMocks()
+  it('gives every attraction a name, a door, a sprite and something to do', () => {
+    for (const a of attractions) {
+      // The map pins read `name` — an unnamed attraction is a blank pin.
+      expect(a.name.trim().length, `${a.id} name`).toBeGreaterThan(0)
+      expect(a.w, `${a.id} width`).toBeGreaterThan(0)
+      expect(a.h, `${a.id} height`).toBeGreaterThan(0)
+      expect(a.sprite.trim().length, `${a.id} sprite`).toBeGreaterThan(0)
+      expect(a.interact.trim().length, `${a.id} interact`).toBeGreaterThan(0)
+      expect(typeof a.door.x, `${a.id} door.x`).toBe('number')
+      expect(typeof a.door.y, `${a.id} door.y`).toBe('number')
+    }
   })
 
-  const pins = () => Array.from(document.querySelectorAll<HTMLElement>('.map-lm')).map((b) => b.dataset.id)
-
-  it('pins every zone and nothing else — no pin for the minor warehouse', () => {
-    openMap()
-    expect(pins().sort()).toEqual(ZONES.map((z) => z.id).sort())
-    expect(pins()).toContain('education')
-    expect(pins()).not.toContain('warehouse')
-  })
-
-  it('counts found landmarks out of the discoverable eight, not out of every building', () => {
-    openMap()
-    const head = document.querySelector('.map')!.textContent ?? ''
-    expect(head).toContain(`0/${major.length} FOUND`)
-    expect(head).not.toContain(`0/${landmarks.length} FOUND`)
-  })
-
-  it('counts a discovered campus', () => {
-    uiState.stats.discoveries = ['about', 'education']
-    openMap()
-    expect(document.querySelector('.map')!.textContent).toContain('2/8 FOUND')
-    const campus = document.querySelector<HTMLElement>('.map-lm[data-id="education"]')!
-    expect(campus.classList.contains('known')).toBe(true)
-    expect(campus.getAttribute('aria-label')).toBe('SRM Campus — Education')
+  it('stands every story station at an attraction that exists', () => {
+    const ids = new Set(attractions.map((a) => a.id))
+    for (const st of Object.values(STATIONS))
+      expect(ids.has(st.landmark as AttractionId), `station "${st.step}" → "${st.landmark}"`).toBe(true)
   })
 })

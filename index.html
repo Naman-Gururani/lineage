@@ -7,19 +7,19 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#080b12" />
 
-    <title>Naman's World — Lineage Isle · an explorable portfolio</title>
+    <title>Naman's World Fair · an explorable portfolio</title>
     <meta
       name="description"
-      content="Naman Gururani's portfolio is a pixel-art open-world game. Explore Lineage Isle — day and night, villagers, quests and collectibles — and discover the work of a real-time streaming-data engineer at Barclays."
+      content="Naman Gururani's portfolio is a pixel-art open-world game. Explore Naman's World Fair — attractions, day and night, villagers, quests and collectibles — and discover the work of a real-time streaming-data engineer at Barclays."
     />
     <meta name="author" content="Naman Gururani" />
     <link rel="canonical" href="https://naman-gururani.github.io/lineage/" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Naman's World — Lineage Isle" />
-    <meta property="og:description" content="A pixel-art open-world portfolio. Explore an island with day/night, villagers, quests and collectibles to discover Naman Gururani's experience, skills and projects." />
+    <meta property="og:title" content="Naman's World Fair" />
+    <meta property="og:description" content="A pixel-art open-world portfolio. Explore a fairground with day/night, villagers, quests and collectibles to discover Naman Gururani's experience, skills and projects." />
     <meta property="og:url" content="https://naman-gururani.github.io/lineage/" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Naman's World — Lineage Isle" />
+    <meta name="twitter:title" content="Naman's World Fair" />
     <meta name="twitter:description" content="A pixel-art open-world portfolio game by Naman Gururani." />
     <style>
       /* Pre-boot paint: the same ground and rhythm ui.css takes over with. */
@@ -32,8 +32,10 @@
   </head>
   <body>
     <div id="game-root" aria-hidden="true"></div>
-    <div id="ui">
-      <div id="loading"><p class="load-logo">Naman Gururani</p><p class="load-kicker">Lineage Isle</p><p class="load-label">loading…</p></div>
+    <!-- tabindex: the fallback focus target when a card closes and whatever
+         opened it is gone — see `restoreFocus` in src/ui/modal.ts. -->
+    <div id="ui" tabindex="-1">
+      <div id="loading"><p class="load-logo">Naman Gururani</p><p class="load-kicker">Naman's World Fair</p><p class="load-label">loading…</p></div>
     </div>
     <noscript>
       <div style="padding:2rem;color:#eee;font-family:sans-serif;max-width:60ch">

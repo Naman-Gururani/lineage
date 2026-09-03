@@ -33,43 +33,82 @@ export type WordleState = {
 /**
  * The answers come out of the résumé, not out of a word list.
  *
- * Every board is a tool Naman actually works with, so beating the puzzle is
- * already reading the skills chapter. That means this list moves whenever
- * `content.ts` moves — which is the point, and why the tests pin the derivation
- * rather than the four words it happens to produce today.
+ * Most boards are a tool Naman actually works with; a few are a word the
+ * résumé's own prose uses instead. Either way beating the puzzle is already
+ * reading a chapter of it. That means this list moves whenever `content.ts`
+ * moves — which is the point, and why the tests pin the derivation rather
+ * than the words it happens to produce today.
  */
 let answers: string[] | null = null
+
+const FIVE = /^[a-z]{5}$/
+
+/** "Apache Kafka" is two words and only one of them is a puzzle. */
+function addFiveLetterTokens(text: string, into: Set<string>): void {
+  for (const token of text.toLowerCase().split(/[^a-z]+/)) {
+    if (FIVE.test(token)) into.add(token)
+  }
+}
+
+/**
+ * A handful of résumé words worth a board even though nobody would call them
+ * a tool. Each is kept only if `resumeCorpus` actually says it — this is a
+ * shortlist to check, never a second source of truth.
+ */
+const THEMED_WORDS = ['money', 'trust', 'event', 'batch', 'query', 'cloud', 'stack', 'graph', 'spark', 'intern', 'scale']
+
+/**
+ * Every word the résumé's running text actually says — titles, subtitles,
+ * body copy, facts and points, lower-cased and split on anything that is not
+ * a letter — flattened the way `tests/content.test.ts` flattens `ZONES` for
+ * its own copy scan. Chips and group items are left out on purpose: those are
+ * `wordleAnswers`' other half, gathered below by `addFiveLetterTokens`.
+ */
+function resumeCorpus(): Set<string> {
+  const parts: string[] = []
+  for (const { content: c } of ZONES) {
+    parts.push(c.title, c.sub ?? '', ...(c.body ?? []), ...(c.points ?? []))
+    for (const f of c.facts ?? []) parts.push(f.k, f.v)
+  }
+  const tokens = new Set<string>()
+  for (const token of parts.join(' ').toLowerCase().split(/[^a-z]+/)) {
+    if (token) tokens.add(token)
+  }
+  return tokens
+}
 
 export function wordleAnswers(): string[] {
   if (answers) return answers
   const seen = new Set<string>()
   for (const zone of ZONES) {
-    if (zone.id !== 'skills') continue
+    for (const chip of zone.content.chips ?? []) addFiveLetterTokens(chip, seen)
     for (const group of zone.content.groups ?? []) {
-      for (const item of group.items) {
-        // "Apache Kafka" is two words and only one of them is a puzzle.
-        for (const token of item.toLowerCase().split(/[^a-z]+/)) {
-          if (/^[a-z]{5}$/.test(token)) seen.add(token)
-        }
-      }
+      for (const item of group.items) addFiveLetterTokens(item, seen)
     }
+  }
+  const corpus = resumeCorpus()
+  for (const word of THEMED_WORDS) {
+    if (FIVE.test(word) && corpus.has(word)) seen.add(word)
   }
   answers = [...seen]
   return answers
 }
 
 /**
- * Which word is up. Attempts cycle through the list, so a player who loses and
- * retries gets a new word rather than the same wall; `?word=` (undocumented)
- * pins one for a demo or a test, and is honoured only if it is really a word of
- * the right length — a truncated query string must not hand out a puzzle that
- * can never be solved.
+ * Which word is up. A uniform random pick off the whole pool — not the same
+ * fixed word every fresh visitor used to get — excluding `avoid` (normally
+ * whatever answer just played) so retrying never wheels straight back onto
+ * the word the player just had. `attempt` is kept for callers that still
+ * count rounds, but no longer drives the pick. `?word=` (undocumented) pins
+ * one for a demo or a test, and is honoured only if it is really a word of
+ * the right length — a truncated query string must not hand out a puzzle
+ * that can never be solved.
  */
-export function pickAnswer(attempt: number, override?: string | null): string {
+export function pickAnswer(attempt: number, override?: string | null, rnd: () => number = Math.random, avoid?: string): string {
   if (override && /^[a-z]{5}$/i.test(override)) return override.toLowerCase()
   const list = wordleAnswers()
-  const n = Math.floor(attempt)
-  return list[((n % list.length) + list.length) % list.length]
+  const pool = list.length > 1 ? list.filter((w) => w !== avoid) : list
+  return pool[Math.min(Math.floor(rnd() * pool.length), pool.length - 1)]
 }
 
 /**

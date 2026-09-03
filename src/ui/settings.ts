@@ -7,12 +7,16 @@ import { closeAllModals, closeModal, el, openModal } from './modal'
 import { panelHead, registerPanel, wireClose } from './panels'
 import { applyMotionClass, uiState } from './state'
 
-function applyToGame(s: Settings): void {
+export function applyToGame(s: Settings): void {
   writeSettings(s)
   applyMotionClass()
+  // The stored sliders are never touched by muting: `audio.setMuted` gates the
+  // master bus centrally, so `setVolumes` can always be given the raw values
+  // and unmuting is just flipping the gate back, not restoring anything.
   audio.setVolumes(s)
+  audio.setMuted(s.muted)
   sfx.setVolume(s.master * s.sfx)
-  sfx.setMuted(s.master === 0 || s.sfx === 0)
+  sfx.setMuted(s.muted || s.master === 0 || s.sfx === 0)
   const w = window as unknown as { __setTouch?: (v: 'auto' | 'on' | 'off') => void }
   w.__setTouch?.(s.touch)
   events.emit('settings:changed', {})
@@ -38,6 +42,7 @@ export function openSettings(): void {
     `<label class="row toggle"><span>${label}</span><input type="checkbox" name="${name}"${on ? ' checked' : ''}><i class="switch" aria-hidden="true"></i></label>`
   box.innerHTML = `${panelHead('Settings')}
     <fieldset><legend>Sound</legend>
+      ${toggle('sound', 'Sound', !s.muted)}
       ${slider('master', 'Master', s.master)}
       ${slider('music', 'Music', s.music)}
       ${slider('sfx', 'Effects', s.sfx)}
@@ -78,6 +83,7 @@ export function openSettings(): void {
       minimap: f.get('minimap') != null,
       touch: (f.get('touch') as Settings['touch']) ?? 'auto',
       alwaysRun: f.get('alwaysRun') != null,
+      muted: f.get('sound') == null,
     }
     uiState.settings = ns
     applyToGame(ns)
@@ -106,7 +112,7 @@ function confirmReset(): void {
   box.dataset.width = '440px'
   box.innerHTML = `
     <h2 class="modal-title">Reset save?</h2>
-    <p>This wipes your explorer — discoveries, quests, badges, everything. The island will forget you.</p>
+    <p>This wipes your explorer — discoveries, quests, badges, everything. The fair will forget you.</p>
     <div class="confirm-actions">
       <button type="button" class="pbtn" data-act="cancel" data-autofocus>Keep playing</button>
       <button type="button" class="pbtn danger" data-act="wipe">Reset save</button>

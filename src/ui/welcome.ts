@@ -1,6 +1,6 @@
-// The welcome card — the game's front page. Who this is, what the island is,
+// The welcome card — the game's front page. Who this is, what the fair is,
 // and how to play it, all visible before anyone has to figure anything out.
-// It floats over the live drifting-island attract mode (the scene keeps
+// It floats over the live fairground attract mode (the scene keeps
 // running behind it) and replaces the old title menu; `initTitle` delegates
 // here. Every fact on it is imported from `content.ts`, never retyped.
 import { frameDataURL } from '../art/atlas'
@@ -10,7 +10,7 @@ import { clearSave, loadSave, writeSave } from '../core/save'
 import { PROFILE } from '../data/content'
 import { closeModal, el, esc, focusables, isLocked, openModal } from './modal'
 
-const PITCH = 'I build real-time systems that move money — this island is my résumé. Bo will show you around.'
+const PITCH = 'I build real-time systems that move money — this fair is my résumé. Bo has your ticket.'
 const FOOT = 'Prefer plain text? Reader Mode has everything.'
 
 type HowRow = { k: string; v: string }
@@ -149,7 +149,7 @@ const primaryButton = () => card?.querySelector<HTMLButtonElement>('.welcome-act
 
 /**
  * Remember that the card has been seen — in the save that already exists. It
- * is what stops the "the island got a big upgrade" toast greeting a returning
+ * is what stops the "the world got a big upgrade" toast greeting a returning
  * v1 player on every single load: the world checks `save.welcomeSeen` before
  * greeting. A brand-new run has no save file yet (GameState writes the first
  * one), so there is nothing to flag: writing a placeholder here would only be
@@ -175,7 +175,7 @@ function confirmNewGame(): void {
   box.dataset.width = '440px'
   box.innerHTML = `
     <h2 class="modal-title">Start a new game?</h2>
-    <p>This erases the explorer you have — discoveries, quests, badges, everything. The island will forget you.</p>
+    <p>This erases the explorer you have — discoveries, quests, badges, everything. The fair will forget you.</p>
     <div class="confirm-actions">
       <button type="button" class="pbtn" data-act="cancel" data-autofocus>Keep my save</button>
       <button type="button" class="pbtn danger" data-act="wipe">Erase and start over</button>

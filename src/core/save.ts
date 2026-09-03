@@ -3,10 +3,11 @@
 
 export type QuestSave = { started: boolean; done: boolean; progress: Record<string, number> }
 
-export type MinigameSave = { won: boolean; best: number; plays: number }
+/** `progress` is whatever a game wants to remember between visits (Word Forge: found words). */
+export type MinigameSave = { won: boolean; best: number; plays: number; progress?: unknown }
 
 export type Save = {
-  v: 3
+  v: 4
   x: number
   y: number
   scene: string
@@ -46,15 +47,18 @@ export type Settings = {
   touch: 'auto' | 'on' | 'off'
   minimap: boolean
   alwaysRun: boolean
+  /** Hard-silences sfx and the soundtrack without touching the volume sliders. */
+  muted: boolean
 }
 
-const SAVE_KEY = 'nw2.save.v3'
+const SAVE_KEY = 'nw2.save.v4'
 /**
  * Older islands were a different shape and told a different story; saves from
- * them are dropped, not migrated. Both keys are still cleared and still counted
- * as "you had one", so a returning player is told rather than quietly reset.
+ * them are dropped, not migrated. Every one of these keys is still cleared and
+ * still counted as "you had one", so a returning player is told rather than
+ * quietly reset.
  */
-const LEGACY_SAVE_KEYS = ['nw2.save.v1', 'nw2.save.v2']
+const LEGACY_SAVE_KEYS = ['nw2.save.v1', 'nw2.save.v2', 'nw2.save.v3']
 const SETTINGS_KEY = 'nw2.settings.v1'
 
 function store(s?: Storage): Storage | null {
@@ -68,7 +72,7 @@ function store(s?: Storage): Storage | null {
 
 export function defaultSave(): Save {
   return {
-    v: 3,
+    v: 4,
     x: 0,
     y: 0,
     scene: 'world',
@@ -113,6 +117,7 @@ export function defaultSettings(): Settings {
     touch: 'auto',
     minimap: true,
     alwaysRun: true,
+    muted: false,
   }
 }
 
@@ -122,7 +127,7 @@ const isObj = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v)
 export function migrate(raw: unknown): Save | null {
   if (!isObj(raw)) return null
   const r = raw as Record<string, unknown>
-  if (r.v !== 3) return null
+  if (r.v !== 4) return null
   const d = defaultSave()
   const out: Save = { ...d }
   const num = (k: keyof Save) => {

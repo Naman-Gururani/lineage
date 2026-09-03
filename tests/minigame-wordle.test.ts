@@ -115,7 +115,7 @@ describe("Bo's Word Puzzle", () => {
     events.emit('ui:panel', { id: 'minigame', data: 'wordle' })
     expect(panel().dataset.game).toBe('wordle')
     expect(q('.modal-title')?.textContent).toBe("Bo's Word Puzzle")
-    expect(q('.modal-kicker')?.textContent).toBe('PIER')
+    expect(q('.modal-kicker')?.textContent).toBe('THE GATE')
     expect(q('.mg-rule')?.textContent).toBe('Guess the five-letter word in six tries. Green is right, yellow is misplaced.')
     expect(rows()).toHaveLength(6)
     expect(all('.wd-tile')).toHaveLength(30)
@@ -226,16 +226,19 @@ describe("Bo's Word Puzzle", () => {
 
   /* ---------------- winning ---------------- */
 
-  it('honours ?word=, banks the win, and unlocks the Experience chapter', () => {
+  it('honours ?word=, banks the win, and buys the ticket', () => {
     history.replaceState(null, '', '/?word=grump') // not one of the cycled answers
     host.open('wordle')
     const board = panel() // the win closes the panel; read the board it left behind
-    expect(state.isUnlocked('experience')).toBe(false)
+    expect(state.flag('ticket')).toBe(false)
     guess('grump')
     expect(states(0, board)).toEqual(['g', 'g', 'g', 'g', 'g'])
     expect(live(board)).toContain('Solved!')
     expect(host.openId).toBe(null)
-    expect(state.isUnlocked('experience')).toBe(true)
+    // The gate puzzle pays in a *flag*, not a chapter: the ticket is what takes
+    // the turnstiles out of the gateway. Experience is the coaster's to give.
+    expect(state.flag('ticket')).toBe(true)
+    expect(state.isUnlocked('experience')).toBe(false)
     expect(state.save.minigames.wordle).toEqual({ won: true, best: 6, plays: 1 })
   })
 
@@ -271,7 +274,7 @@ describe("Bo's Word Puzzle", () => {
     expect(letters(6)).toBe('')
     guess('kafka')
     expect(states(6, board)).toEqual(['g', 'g', 'g', 'g', 'g'])
-    expect(state.isUnlocked('experience')).toBe(true)
+    expect(state.flag('ticket')).toBe(true)
   })
 
   it('deals a different word on "Try again"', () => {
@@ -399,5 +402,57 @@ describe("Bo's Word Puzzle", () => {
     // the reveal was still in flight; nothing it scheduled may touch a dead panel
     expect(() => vi.advanceTimersByTime(3000)).not.toThrow()
     expect(state.save.minigames.wordle).toEqual({ won: false, best: 0, plays: 1 })
+  })
+
+  /* ---------------- the way out for a recruiter in a hurry ---------------- */
+
+  it('offers to show the word, in the footer, just before Leave', () => {
+    host.open('wordle')
+    const foot = q<HTMLElement>('.mg-foot')!
+    const btn = q<HTMLButtonElement>('.mg-reveal')!
+    expect(btn.textContent).toBe('Show me the word')
+    expect(btn.type).toBe('button')
+    expect(btn.classList.contains('pbtn')).toBe(true)
+    const order = Array.from(foot.querySelectorAll('button')).map((b) => b.textContent)
+    expect(order.indexOf('Show me the word')).toBe(order.indexOf('Leave') - 1)
+  })
+
+  it('does not toast when the reveal is pressed while a row is mid-flip', () => {
+    const toasts: string[] = []
+    const off = events.on('ui:toast', (t) => toasts.push(t.title))
+    history.replaceState(null, '', '/?word=kafka')
+    host.open('wordle')
+    uiState.settings.reducedMotion = false
+    guess('crane') // busy while the row flips: revealAnswer must decline
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    off()
+    expect(toasts).not.toContain('Noted. HR sees everything.')
+  })
+
+  it('fills the answer row, banks the win, and lets HR know', () => {
+    const toasts: string[] = []
+    const off = events.on('ui:toast', (t) => toasts.push(t.title))
+    history.replaceState(null, '', '/?word=kafka')
+    host.open('wordle')
+    const board = panel() // the win closes the panel; read the board it left behind
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    off()
+    expect(letters(0, board)).toBe('KAFKA')
+    expect(states(0, board)).toEqual(['g', 'g', 'g', 'g', 'g'])
+    expect(host.openId).toBe(null)
+    expect(state.save.minigames.wordle.won).toBe(true)
+    expect(state.flag('ticket')).toBe(true)
+    expect(toasts).toContain('Noted. HR sees everything.')
+  })
+
+  it('shows the word over whatever was half-typed at the time', () => {
+    history.replaceState(null, '', '/?word=kafka')
+    host.open('wordle')
+    const board = panel()
+    guess('crane')
+    tap('sla') // a row in progress is not in the way
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    expect(letters(1, board)).toBe('KAFKA')
+    expect(host.openId).toBe(null)
   })
 })

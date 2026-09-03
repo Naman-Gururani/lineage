@@ -429,6 +429,12 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.32rem;
+  /* A definite column: the XP track below fills it instead of carrying its own
+     fixed width, which used to poke out past the card whenever the cluster
+     shrank (narrow windows, wrapped chips). */
+  flex: 0 1 136px;
+  width: 136px;
+  max-width: 100%;
   min-width: 0;
 }
 .hud-name {
@@ -448,7 +454,8 @@ button {
   font-variant-numeric: tabular-nums;
 }
 .hud-xp {
-  width: 136px;
+  width: 100%;
+  max-width: 136px;
   height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
@@ -605,6 +612,17 @@ button {
 }
 .ic-menu {
   clip-path: polygon(0 10%, 100% 10%, 100% 28%, 0 28%, 0 41%, 100% 41%, 100% 59%, 0 59%, 0 72%, 100% 72%, 100% 90%, 0 90%);
+  color: currentColor;
+}
+/* a real glyph (🔊/🔇), not a clipped currentColor shape — sized to sit level
+   with the other hud-tools icons beside it */
+.ic-sound {
+  width: auto;
+  height: auto;
+  background: none;
+  clip-path: none;
+  font-size: 0.8rem;
+  line-height: 1;
   color: currentColor;
 }
 
@@ -936,14 +954,27 @@ body.cutscene .touch {
   animation: none !important;
 }
 
+/* Mid widths: the chip card must stop short of the Map / Journal / Menu / Sound
+   cluster on the right (about 370px with its labels) instead of running under
+   it; the chips wrap inside the card instead. */
+@media (max-width: 1000px) and (min-width: 721px) {
+  .hud-cluster {
+    max-width: calc(100vw - 370px);
+  }
+}
+
 /* ---------- small screens ---------- */
 @media (max-width: 720px) {
   .hud-cluster {
     max-width: calc(100vw - 1.4rem);
     flex-wrap: wrap;
   }
-  .hud-xp {
+  .hud-id {
+    flex-basis: 96px;
     width: 96px;
+  }
+  .hud-xp {
+    max-width: 96px;
   }
 }
 @media (max-width: 640px) {

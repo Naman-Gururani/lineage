@@ -226,7 +226,7 @@ const interior: Song = {
 }
 
 // ---------------------------------------------------------------------------
-// TOWER — soft elevator bossa, 112 BPM, light swing. IV–V–iii–vi / IV–V–I–I in C.
+// TOWER — soft lounge bossa, 112 BPM, light swing. IV–V–iii–vi / IV–V–I–I in C.
 
 const T_CHORDS = ['F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'C']
 const T_PAD: Record<string, string> = { F: 'A3+C4+E4', G: 'B3+D4+F4', Em: 'G3+B3+D4', Am: 'C4+E4+G4', C: 'E3+G3+B3' }

@@ -17,9 +17,10 @@ import { events } from '../../core/events'
 import { ZONES } from '../../data/content'
 import { CLAW, type ClawState, type Prize, allCaught, drop, newClaw, newRound, refill, step } from '../../games/claw'
 import { afterWin, type MinigameHost, type MinigameSession } from '../../systems/Minigame'
-import { panelHead } from '../panels'
+import { accentOf, panelHead } from '../panels'
 import { reducedMotion } from '../state'
 import { makeCanvas } from './canvas'
+import { mountReveal } from './reveal'
 import { createLoop } from './loop'
 
 /** The simulation's fixed step; the loop runs at the same rate. */
@@ -37,14 +38,16 @@ export type ClawSession = MinigameSession & { __step(ms: number): void }
 /**
  * The three project boxes. Colours are each chapter's own accent from
  * `content.ts`, so the prize you grab is already the colour of the card that
- * opens. The stealth product is a mystery box and stays one: it is labelled
- * `???` here exactly as it is unnamed everywhere else.
+ * opens; the label is the chapter's `short`, the same field the Journal's prize
+ * shelf reads, so the box and the row can never disagree about what is on the
+ * shelf. The stealth product is a mystery box and stays one: `content.ts`
+ * labels it `???` exactly as it is unnamed everywhere else.
  */
-const BOXES: Record<string, { label: string; color: string; ic: string }> = {
-  lineage: { label: 'Lineage Engine', color: '#5eead4', ic: '💳' },
-  safestride: { label: 'Safe Stride', color: '#59f3a6', ic: '🚶' },
-  stealth: { label: '???', color: '#b794f6', ic: '🔒' },
-}
+const ICON: Record<string, string> = { lineage: '💳', safestride: '🚶', stealth: '🔒' }
+
+const BOXES: Record<string, { label: string; color: string; ic: string }> = Object.fromEntries(
+  ZONES.filter((z) => z.short !== undefined).map((z) => [z.id, { label: z.short!, color: accentOf(z), ic: ICON[z.id] ?? '' }]),
+)
 
 /** The cabinet's palette — fair-tent enamel, gold trim, dark glass. */
 const C = {
@@ -475,17 +478,51 @@ export function mountClaw(host: MinigameHost, root: HTMLElement): ClawSession {
     const zone = ZONES.find((z) => z.id === id)
     say(`Caught: ${zone?.label ?? 'prize'} — ${state.caught} of 3.`)
     host.unlockFacet(id, false)
+    showCard(id, resume)
+  }
+
+  /**
+   * Open one project's card over the paused cabinet, and do `then` when *that*
+   * card closes — never on somebody else's `ui:closed`, which is why the modal
+   * id is checked and the listener unsubscribes itself.
+   */
+  function showCard(id: Prize['id'], then: () => void): void {
+    const zone = ZONES.find((z) => z.id === id)
     const modalId = `zone:${id}`
     const off = events.on('ui:closed', (e) => {
       if (e.id !== modalId) return
       off()
       const i = offs.indexOf(off)
       if (i >= 0) offs.splice(i, 1)
-      resume()
+      then()
     })
     offs.push(off)
     if (zone) events.emit('ui:toast', { kind: 'ach', icon: '🎁', title: zone.content.title })
     events.emit('ui:panel', { id: modalId })
+  }
+
+  /**
+   * "Just show me the prizes." Every project still on the shelf is handed over
+   * quietly and its card opened, one after another — the same beat as three
+   * catches, without the six tokens. The round closes as a win when the last
+   * card is shut, which is also what a played-out win does.
+   */
+  function revealAll(): boolean | void {
+    if (dead || won) return false
+    pause()
+    const owed = state.prizes.filter((p) => !p.decoy && !p.caught).map((p) => p.id)
+    for (const id of owed) host.unlockFacet(id, false)
+    const all = state.prizes.filter((p) => !p.decoy).length
+    state = { ...state, prizes: state.prizes.map((p) => (p.decoy ? p : { ...p, caught: true })), caught: all, justCaught: null }
+    syncStats()
+    say('The shelf is yours. Every project on it.')
+    // One card at a time, in shelf order, each waiting on the one before it.
+    const next = (): void => {
+      const id = owed.shift()
+      if (id) showCard(id, next)
+      else winRound()
+    }
+    next()
   }
 
   /** One fixed step of the machine, plus everything the cabinet does about it. */
@@ -547,6 +584,7 @@ export function mountClaw(host: MinigameHost, root: HTMLElement): ClawSession {
   canvas.addEventListener('pointerdown', () => press())
   root.querySelector('[data-act="drop"]')?.addEventListener('click', () => press())
   root.querySelector('[data-act="quit"]')?.addEventListener('click', () => host.quit())
+  mountReveal(root, 'Just show me the prizes', revealAll)
 
   render(state.x, state.y)
   loop.start()

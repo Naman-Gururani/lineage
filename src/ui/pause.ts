@@ -119,7 +119,7 @@ export function openWardrobe(): void {
   }
   box.innerHTML = `${panelHead('Wardrobe', `${owned.length} ${owned.length === 1 ? 'HAT' : 'HATS'}`)}
     <div class="wr-rack" role="group" aria-label="Hats">${['', ...owned].map(option).join('')}</div>
-    ${owned.length ? '' : '<p class="wr-empty">No hat yet. Quests and the island’s games hand them out.</p>'}
+    ${owned.length ? '' : '<p class="wr-empty">No hat yet. Quests and the fair’s games hand them out.</p>'}
     <p class="wr-live sr-only" role="status" aria-live="polite"></p>
     <footer class="modal-foot"><span class="wr-keys"><kbd>↑</kbd><kbd>↓</kbd> choose · <kbd>Enter</kbd> wear</span><button type="button" class="pbtn" data-act="close">Done</button></footer>`
 

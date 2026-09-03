@@ -1,4 +1,42 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+// Only needed for the Soundtrack-level mute test below: `systems/Soundtrack`
+// pulls in `core/events`, which imports real Phaser — and real Phaser's device
+// probe reaches for `document`, which doesn't exist in this file's plain-Node
+// environment. None of the audio modules themselves import Phaser, so this
+// mock is inert for every other test here.
+vi.mock('phaser', () => {
+  type Fn = (p: unknown) => void
+  class EventEmitter {
+    private m = new Map<string, Set<Fn>>()
+    on(k: string, fn: Fn) {
+      let s = this.m.get(k)
+      if (!s) {
+        s = new Set()
+        this.m.set(k, s)
+      }
+      s.add(fn)
+      return this
+    }
+    once(k: string, fn: Fn) {
+      const w: Fn = (p) => {
+        this.off(k, w)
+        fn(p)
+      }
+      return this.on(k, w)
+    }
+    off(k: string, fn: Fn) {
+      this.m.get(k)?.delete(fn)
+      return this
+    }
+    emit(k: string, p: unknown) {
+      for (const fn of Array.from(this.m.get(k) ?? [])) fn(p)
+      return true
+    }
+  }
+  return { default: { Events: { EventEmitter } } }
+})
+
 import { SONGS, loopLength, noteFreq, parsePattern, stepSeconds, stepsOf, tokensOf } from '../src/audio/songs'
 
 describe('note names', () => {
@@ -146,7 +184,6 @@ const SOUND_NAMES = [
   'blip',
   'select',
   'back',
-  'elevator',
   'ding',
   'bell',
   'bonk',
@@ -241,7 +278,11 @@ class FakeParam {
     this.value = v
     return this
   }
-  setTargetAtTime(_v: number, _t: number, _tc: number) {
+  setTargetAtTime(v: number, _t: number, _tc: number) {
+    // Real Web Audio only approaches `v` asymptotically; this fake settles
+    // immediately (the same simplification the ramp methods above make) so a
+    // test can read `.value` right after a call and see the requested target.
+    this.value = v
     return this
   }
   cancelScheduledValues(_t: number) {
@@ -432,6 +473,50 @@ describe('with a fake AudioContext', () => {
     m.sfx.step_grass()
     expect(stats.oscStarted + stats.srcStarted).toBe(before)
     m.sfx.setMuted(false)
+  })
+
+  it('audio.setMuted gates the master bus, survives a later setVolumes, and unmuting restores it', () => {
+    const master = m.audio.master as unknown as FakeGain
+    m.audio.setVolumes({ master: 1, music: 0.5, sfx: 0.5 })
+    expect(master.gain.value).toBeCloseTo(1, 6) // quadratic curve of 1 is 1
+    m.audio.setMuted(true)
+    expect(master.gain.value).toBe(0)
+    // Reporting the sliders again — exactly what a settings re-read (e.g.
+    // Soundtrack's own `applyVolumes`) does — must not be able to un-mute.
+    m.audio.setVolumes({ master: 1, music: 0.5, sfx: 0.5 })
+    expect(master.gain.value).toBe(0)
+    m.audio.setMuted(false)
+    expect(master.gain.value).toBeCloseTo(1, 6) // restores the last requested volumes
+  })
+
+  it("settings:changed cannot un-mute the master bus (Soundtrack's own re-read)", async () => {
+    // The regression this guards: `Soundtrack.applyVolumes()` re-reads storage
+    // independently of `applyToGame` and calls `audio.setVolumes` with the raw
+    // sliders on every `settings:changed` — if muting ever went back to being
+    // a multiplier `setVolumes` callers had to apply themselves (instead of a
+    // gate the engine owns), this is exactly the call that would un-mute right
+    // after the HUD button or the Settings toggle muted it.
+    const master = m.audio.master as unknown as FakeGain
+    m.audio.setVolumes({ master: 1, music: 0.5, sfx: 0.5 })
+    m.audio.setMuted(true)
+    expect(master.gain.value).toBe(0)
+
+    const { events } = await import('../src/core/events')
+    // First import of this module: its constructor runs `applyVolumes()` once
+    // immediately, against the already-muted engine above.
+    await import('../src/systems/Soundtrack')
+    expect(master.gain.value).toBe(0)
+
+    events.emit('settings:changed', {})
+    expect(master.gain.value).toBe(0) // still muted after the live re-read
+
+    // Unmuting brings sound back — the gate is a toggle, not a one-way latch.
+    // (Soundtrack's re-read overwrote "the last requested volumes" with
+    // whatever `loadSettings()` reports in this plain-Node test — the exact
+    // restored figure is already pinned by the test above; this only checks
+    // it is audible again.)
+    m.audio.setMuted(false)
+    expect(master.gain.value).toBeGreaterThan(0)
   })
 
   it('the sequencer keeps scheduling notes ahead of the audio clock', () => {

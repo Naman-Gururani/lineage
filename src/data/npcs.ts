@@ -1,34 +1,29 @@
-// Dialogue for Lineage Isle — sixteen trees, a handful of fixed lines each.
+// Dialogue for Naman's World Fair — eleven trees, a handful of fixed lines each.
 //
-// The v3 rule, enforced by `tests/dialogue-data.test.ts`: **nobody reads out a
+// The rule, enforced by `tests/dialogue-data.test.ts`: **nobody reads out a
 // figure.** Every résumé fact belongs to a card (`panel: 'zone:<id>'`), where it
 // can be read twice and copied; a dialogue box only gets the sentence that makes
 // you want to open the card. No topic lists, no "tell me more", no talking
 // scenery — three boxes a node, and out.
 //
-// Bo (`dockmaster`) is the guide. His `entry` ladder reads the chapters you have
-// *not* unlocked yet (`Cond.locked`) and always points at the next one, so the
-// same villager carries the whole story without a single quest flag of his own.
+// Bo (`dockmaster`) works the ticket window and is the guide. His `entry` ladder
+// reads the chapters you have *not* unlocked yet (`Cond.locked`), plus the one
+// flag the fair actually gates on (`ticket`), and always points at the next
+// thing, so one stallholder carries the whole story.
 //
-// Two other things live here:
-//   ROOM_HOSTS  who greets you inside each interior — `intro` is the auto-greet
-//               node `InteriorScene` runs on your first visit, deliberately kept
-//               out of `entry` so an outdoor chat never opens with an indoor line
-//   greetFlag   the save flag that remembers a room has introduced itself
+// Naman does not appear as an NPC: his voice is the cards.
 import type { Emote, Line, Tree } from '../systems/Dialogue'
 
 export const NPC_INFO: Record<string, { name: string; face: string }> = {
   mira: { name: 'Captain Mira', face: 'face_mira' },
   tomas: { name: 'Old Tomas', face: 'face_tomas' },
   pip: { name: 'Pip', face: 'face_pip' },
-  ada: { name: 'Ada', face: 'face_ada' },
   ravi: { name: 'Tinker Ravi', face: 'face_ravi' },
   sol: { name: 'Operator Sol', face: 'face_sol' },
   arjun: { name: 'Arjun', face: 'face_arjun' },
   ilse: { name: 'Keeper Ilse', face: 'face_ilse' },
   professor: { name: 'Prof. Iyer', face: 'face_professor' },
   dockmaster: { name: 'Bo', face: 'face_dockmaster' },
-  naman: { name: 'Naman', face: 'face_naman' },
   cat: { name: 'Byte', face: 'face_cat' },
 }
 
@@ -46,37 +41,33 @@ function object(who: string): Say {
 }
 
 /* ================================================================== */
-/* Hosts                                                               */
+/* Interior leftovers — empty, and on their way out                    */
 /* ================================================================== */
 
 /**
- * The voice that greets you the first time you step into an interior. The Vault
- * has no entry at all: a covered bench on a quiet ridge needs no greeter, and
- * `InteriorScene.maybeGreetHost` simply finds nothing to run.
+ * The fair has no interiors, so nothing greets you indoors any more. The table
+ * survives as an empty shell only because `scenes/InteriorScene.ts` still
+ * imports it; Wave 2 deletes that scene and takes both of these with it.
+ * `tests/dialogue-data.test.ts` pins it empty so nothing creeps back in.
  */
-export const ROOM_HOSTS: Record<string, string> = {
-  about: 'naman',
-  experience: 'ada',
-  skills: 'ravi',
-  fair: 'sol',
-  safestride: 'arjun',
-  campus: 'professor',
-  warehouse: 'mira',
-  contact: 'ilse',
-}
+export const ROOM_HOSTS: Record<string, string> = {}
 
-/** The save flag that remembers a room has already introduced itself. */
+/** The save flag that remembered a room had already introduced itself. */
 export const greetFlag = (room: string): string => `greet_${room}`
 
 /* ================================================================== */
-/* Bo — the guide                                                      */
+/* Bo — the gate, the ticket, the guide                                */
 /* ================================================================== */
 
 /**
  * The whole story spine, expressed as an entry ladder. Bo never asks what you
  * have done; he looks at which chapter is still locked and says where to go.
- * `intro` is the arrival cutscene (WorldScene runs it directly, like a room
- * greeting) and is the one node authored at three boxes.
+ * `intro` is the arrival cutscene (WorldScene runs it directly) and is the one
+ * node authored at three boxes.
+ *
+ * The first rung after `story_done` is the `ticket` flag rather than a chapter:
+ * reading the About card at the window does not pay your way through the
+ * turnstile — solving the word puzzle does.
  */
 const dockmaster: Tree = (() => {
   const s = voice('dockmaster')
@@ -84,22 +75,21 @@ const dockmaster: Tree = (() => {
     id: 'dockmaster',
     entry: [
       { when: { flag: 'story_done' }, node: 'done' },
-      { when: { locked: 'experience' }, node: 'puzzle_again' },
-      // All three prizes, not just the mystery box: catching one of them and
-      // leaving the tent used to send Bo on to the campus, and the two projects
-      // still on Sol's shelf were never mentioned again.
-      { when: { locked: 'lineage' }, node: 'to_fair' },
-      { when: { locked: 'safestride' }, node: 'to_fair' },
-      { when: { locked: 'stealth' }, node: 'to_fair' },
-      { when: { locked: 'education' }, node: 'to_campus' },
-      { when: { locked: 'skills' }, node: 'to_workshop' },
-      { node: 'to_lighthouse' },
+      { when: { notFlag: 'ticket' }, node: 'puzzle_again' },
+      { when: { locked: 'experience' }, node: 'to_coaster' },
+      // All three prizes, not just one: catching a single prize and leaving the
+      // tent used to send Bo on, with two projects still up on Sol's shelf.
+      { when: { locked: 'lineage' }, node: 'to_tent' },
+      { when: { locked: 'safestride' }, node: 'to_tent' },
+      { when: { locked: 'stealth' }, node: 'to_tent' },
+      { when: { locked: 'skills' }, node: 'to_forge' },
+      { node: 'to_guestbook' },
     ],
     nodes: {
       intro: {
         lines: [
-          s("Welcome to Lineage Isle. I'm Bo — I run the docks.", 'happy'),
-          s("This whole island is Naman's résumé. Every building is a chapter, and I know the way round."),
+          s("Welcome to Naman's World Fair. I'm Bo — I run the gate.", 'happy'),
+          s("Everything in here is a chapter of Naman's résumé, and I know the way round."),
           s("Here's the man himself."),
         ],
         // The About card opens as the last line lands, not over the middle of it.
@@ -108,10 +98,7 @@ const dockmaster: Tree = (() => {
         next: 'puzzle',
       },
       puzzle: {
-        lines: [
-          s("Now, a favour. I've been stuck on this word puzzle all morning — five letters, six tries.", 'think'),
-          s("Crack it and I'll tell you what he actually does at the bank."),
-        ],
+        lines: [s("Tickets are one word each. Five letters, six tries — crack it and you're in.", 'think')],
         choices: [
           { text: "Let's solve it", next: 'play' },
           { text: 'Maybe later', next: 'later' },
@@ -123,79 +110,55 @@ const dockmaster: Tree = (() => {
         effectsAtEnd: true,
       },
       later: {
-        lines: [s("It'll keep. I'm not going anywhere.")],
+        lines: [s("It'll keep. The gate isn't going anywhere.")],
       },
       puzzle_again: {
-        lines: [s("Puzzle's still open whenever you want it.")],
+        lines: [s("Window's still open whenever you want that ticket.")],
         choices: [
           { text: 'Try the puzzle', next: 'play' },
           { text: 'Not now', next: 'later' },
         ],
       },
-      to_fair: {
+      to_coaster: {
         lines: [
-          s("The lift in Barclays Tower is yours now — every floor's a year he worked there.", 'happy'),
-          s("Next: west along the shore. Sol's prize tent on the fairground has his projects, three of them."),
+          s("You're in. Straight up the avenue — the Career Coaster.", 'happy'),
+          s('Every hill on that thing is a year of his career. Ride it and you have the lot.'),
         ],
       },
-      to_campus: {
-        lines: [s("North to the campus, on the green. The professor's got a flight test for you.")],
+      to_tent: {
+        lines: [
+          s("West side of the midway: the Prize Tent. Sol's got three prizes on that shelf."),
+          s('Every one of them is something Naman built. Win them all.'),
+        ],
       },
-      to_workshop: {
-        lines: [s("Ravi's workshop is north-east, past the woods. Spell out what Naman knows.")],
+      to_forge: {
+        lines: [s("East side of the midway, the Word Forge. Spell out the tools he actually works with.")],
       },
-      to_lighthouse: {
-        lines: [s('Last stop: the lighthouse on the Point, east along the fields. Send him a signal.')],
+      to_guestbook: {
+        lines: [s('Last stop: the guestbook booth by the exit. Leave the man a word.')],
       },
       done: {
-        lines: [s("That's the whole story. Explore all you like — Mira's crew has a game going in the old warehouse.", 'happy')],
+        lines: [s("That's the whole fair. Stay as long as you like — the arcade tent never closes.", 'happy')],
       },
     },
   }
 })()
 
 /* ================================================================== */
-/* Room hosts — one greeting, one line for every visit after it        */
+/* The rides and the stalls — one line, pointing at the game           */
 /* ================================================================== */
 
-const naman: Tree = (() => {
-  const s = voice('naman')
+const professor: Tree = (() => {
+  const s = voice('professor')
   return {
-    id: 'naman',
+    id: 'professor',
     entry: [{ node: 'talk' }],
     nodes: {
       intro: {
-        lines: [s("You found my place. Bo's given you the headlines — the desk has the rest.", 'happy')],
-        effects: [{ setFlag: greetFlag('about') }, { xp: 20 }],
+        lines: [s('All aboard. Every hill up there is a year of his career.'), s('Ride it whenever you like.')],
       },
       talk: {
-        lines: [s('Make yourself at home. The desk has the long version whenever you want it.')],
-      },
-    },
-  }
-})()
-
-const ada: Tree = (() => {
-  const s = voice('ada')
-  return {
-    id: 'ada',
-    entry: [
-      { when: { locked: 'experience' }, node: 'pass' },
-      { node: 'lift' },
-    ],
-    nodes: {
-      intro: {
-        lines: [
-          s('Barclays Tower — reception. Ada.'),
-          s('The lift is the story here: every floor a year he worked in this building.'),
-        ],
-        effects: [{ setFlag: greetFlag('experience') }, { xp: 5 }],
-      },
-      pass: {
-        lines: [s('The lift needs a visitor pass — Bo hands them out at the pier.')],
-      },
-      lift: {
-        lines: [s('The lift is yours. Ground floor is reception; the top floor is today.')],
+        lines: [s('Train comes back round every few minutes. Front seat if you can get it.')],
       },
     },
   }
@@ -207,47 +170,8 @@ const sol: Tree = (() => {
     id: 'sol',
     entry: [{ node: 'talk' }],
     nodes: {
-      // Sol works the tent flap as well as the floor, so the greeting pays
-      // nothing: you can meet him out on the fairground first.
-      intro: {
-        lines: [
-          s("Roll up, roll up! Sol's Prize Tent — three prizes, and every one of them something Naman built.", 'shout'),
-          s('The claw is loaded. Win one and the card is yours to keep.'),
-        ],
-        effects: [{ setFlag: greetFlag('fair') }],
-      },
       talk: {
-        lines: [s('Everything on that shelf is a project of his.')],
-        choices: [
-          { text: 'What are the prizes?', next: 'prizes' },
-          { text: 'Maybe later', next: 'bye' },
-        ],
-      },
-      prizes: {
-        lines: [s("The big one's his day job. The small one's a college project that shipped. The mystery box is a secret.", 'wink')],
-      },
-      bye: {
-        lines: [s("Claw's over there whenever you fancy it.")],
-      },
-    },
-  }
-})()
-
-const professor: Tree = (() => {
-  const s = voice('professor')
-  return {
-    id: 'professor',
-    entry: [{ node: 'talk' }],
-    nodes: {
-      intro: {
-        lines: [
-          s("Naman's transcript is on the notice board — but first, my flight test."),
-          s('Fly the chalkboard course and the board is yours.'),
-        ],
-        effects: [{ setFlag: greetFlag('campus') }, { xp: 5 }],
-      },
-      talk: {
-        lines: [s('Office hours never close. The chalkboard course is waiting whenever you are.')],
+        lines: [s('Roll up, roll up! The claw is loaded — win a prize and the card is yours to keep.', 'shout')],
       },
     },
   }
@@ -259,29 +183,8 @@ const ravi: Tree = (() => {
     id: 'ravi',
     entry: [{ node: 'talk' }],
     nodes: {
-      intro: {
-        lines: [s("Every tool on these walls is something Naman actually uses. Spell them out at the bench and I'll hang them up.")],
-        effects: [{ setFlag: greetFlag('skills') }, { xp: 5 }],
-      },
       talk: {
-        lines: [s('Bench is over there. Spell a tool, I hang it on the wall. That is the arrangement.')],
-      },
-    },
-  }
-})()
-
-const mira: Tree = (() => {
-  const s = voice('mira')
-  return {
-    id: 'mira',
-    entry: [{ node: 'talk' }],
-    nodes: {
-      intro: {
-        lines: [s('Welcome to the arcade. My crew built this one — last bean standing wins.', 'happy')],
-        effects: [{ setFlag: greetFlag('warehouse') }, { xp: 5 }, { startQuest: 'crew' }],
-      },
-      talk: {
-        lines: [s("Cabinet's warm. Mind the floor — it goes out from under you.")],
+        lines: [s('Spell a tool at the wheel and I light it up on the board. That is the arrangement.')],
       },
     },
   }
@@ -293,16 +196,28 @@ const arjun: Tree = (() => {
     id: 'arjun',
     entry: [{ node: 'talk' }],
     nodes: {
-      // Arjun stands out in the fields too, so the greeting pays nothing.
-      intro: {
-        lines: [
-          s('This clinic is Safe Stride — his college project.'),
-          s("The full story's a prize at Sol's tent; the screen shows it once you've won it."),
-        ],
-        effects: [{ setFlag: greetFlag('safestride') }],
-      },
       talk: {
-        lines: [s('Fall detection, live map, an SOS that sends itself. My nana wears it.')],
+        lines: [s('Chalk Flight, my booth. Draw a line, hold your nerve, mind the gaps.')],
+      },
+    },
+  }
+})()
+
+const mira: Tree = (() => {
+  const s = voice('mira')
+  return {
+    id: 'mira',
+    entry: [
+      { when: { questDone: 'crew' }, node: 'done' },
+      { node: 'offer' },
+    ],
+    nodes: {
+      offer: {
+        lines: [s('Arcade tent. My crew built the cabinet — last bean standing wins.', 'happy')],
+        effects: [{ startQuest: 'crew' }],
+      },
+      done: {
+        lines: [s("Cabinet's warm and the record's yours. Mind the floor — it still goes out from under you.")],
       },
     },
   }
@@ -312,30 +227,37 @@ const arjun: Tree = (() => {
 /* The three errands — the offer, the hand-over, and a word after      */
 /* ================================================================== */
 
+/**
+ * Ilse keeps the guestbook booth by the exit; the Contact card is opened at the
+ * booth itself, not by her. Her errand only makes sense after dark, so the offer
+ * rung is guarded on `night` — by day she just points at the book.
+ */
 const ilse: Tree = (() => {
   const s = voice('ilse')
   return {
     id: 'ilse',
     entry: [
-      { when: { questDone: 'beacon' }, node: 'lit' },
-      { node: 'offer' },
+      { when: { questDone: 'lights' }, node: 'lit' },
+      { when: { questActive: 'lights' }, node: 'waiting' },
+      { when: { night: true }, node: 'offer' },
+      { node: 'talk' },
     ],
     nodes: {
-      // Ilse keeps the door as well as the stairs; the lamp room gets the
-      // greeting, and it pays nothing — she is met outdoors just as often.
-      intro: {
-        lines: [s('The last chapter. Light the lens and the island can send word to Naman himself.')],
-        effects: [{ setFlag: greetFlag('contact') }],
+      talk: {
+        lines: [s("Keeper Ilse. The book's open — sign it and he'll know you came by.")],
       },
       offer: {
         lines: [
-          s('Keeper Ilse. I keep the lighthouse — mostly I keep the stairs, the light has been out a while.'),
-          s('Climb up and light the lens. A lit beacon says: come and say hello.'),
+          s('Dusk already, and the fair looks half asleep without its lights.', 'think'),
+          s("There's a switch on the side of the ticket booth. Throw it for me?"),
         ],
-        effects: [{ startQuest: 'beacon' }],
+        effects: [{ startQuest: 'lights' }],
+      },
+      waiting: {
+        lines: [s('The switch is on the ticket booth, round the side. Throw it and the whole midway wakes up.')],
       },
       lit: {
-        lines: [s('Round and round, all night. I had forgotten the sound of it.', 'happy')],
+        lines: [s('Every bulb burning. I had forgotten what this place looks like lit up.', 'happy')],
       },
     },
   }
@@ -346,28 +268,28 @@ const tomas: Tree = (() => {
   return {
     id: 'tomas',
     entry: [
-      { when: { questDone: 'fishing' }, node: 'done' },
-      { when: { questActive: 'fishing', item: ['fish', 3] }, node: 'turnin' },
+      { when: { questDone: 'ducks' }, node: 'done' },
+      { when: { questActive: 'ducks', item: ['fish', 3] }, node: 'turnin' },
       { node: 'offer' },
     ],
     nodes: {
       offer: {
         lines: [
-          s('Tomas. Fished off this pier since before it was a pier.', 'think'),
-          s('Take the spare rod. End of the pier, press E and wait — three fish make a supper.'),
+          s('Tomas. Run this pond since before they put the ducks in it.', 'think'),
+          s('Take the pole. Hook three of them and we will call it a fair day.'),
         ],
-        effects: [{ startQuest: 'fishing' }],
+        effects: [{ startQuest: 'ducks' }],
       },
       turnin: {
         lines: [
-          s('Three fat ones. Byte has been circling your ankles since the second.', 'happy'),
+          s("Three fat ones. The cat's been circling your ankles since the second.", 'happy'),
           s('You have been adopted, I would say. Cats know.'),
         ],
-        effects: [{ take: ['fish', 3] }, { advanceQuest: ['fishing', 'return', 1] }, { companion: true }],
+        effects: [{ take: ['fish', 3] }, { advanceQuest: ['ducks', 'return', 1] }, { companion: true }],
         effectsAtEnd: true,
       },
       done: {
-        lines: [s('Byte still with you? Thought so. Come and sit some time.')],
+        lines: [s('Cat still with you? Thought so. Come and sit some time.')],
       },
     },
   }
@@ -378,24 +300,24 @@ const pip: Tree = (() => {
   return {
     id: 'pip',
     entry: [
-      { when: { questDone: 'shells' }, node: 'done' },
-      { when: { questActive: 'shells', item: ['shell', 5] }, node: 'turnin' },
+      { when: { questDone: 'balloons' }, node: 'done' },
+      { when: { questActive: 'balloons', item: ['shell', 5] }, node: 'turnin' },
       { node: 'offer' },
     ],
     nodes: {
       offer: {
         lines: [
-          s("Hi! I'm Pip. I collect shells, but none of mine are the good ones.", 'sad'),
-          s('The good ones are down the beach — shiny, sticky-out. Find five for me?'),
+          s("Hi! I'm Pip, I mind the balloon cart. Half my stock has got away over the lawns.", 'sad'),
+          s('They snag in the tall grass and the bunting. Find five for me?'),
         ],
-        effects: [{ startQuest: 'shells' }],
+        effects: [{ startQuest: 'balloons' }],
       },
       turnin: {
         lines: [
-          s('These are the best ones anyone has ever found!', 'shout'),
-          s("I made you a hat. It's mostly shells. Wear it always.", 'happy'),
+          s('You found every single one of them!', 'shout'),
+          s('I made you a hat out of the spares. Wear it always.', 'happy'),
         ],
-        effects: [{ take: ['shell', 5] }, { advanceQuest: ['shells', 'return', 1] }],
+        effects: [{ take: ['shell', 5] }, { advanceQuest: ['balloons', 'return', 1] }],
         effectsAtEnd: true,
       },
       done: {
@@ -419,132 +341,21 @@ const cat: Tree = (() => {
 })()
 
 /* ================================================================== */
-/* The four objects that still have something to say                   */
+/* The one fixture that still has something to say                     */
 /* ================================================================== */
 
-const bed: Tree = (() => {
-  const s = object('Bed')
-  return {
-    id: 'bed',
-    entry: [{ node: 'ask' }],
-    nodes: {
-      ask: {
-        lines: [s('The bed looks extremely sleepable. Sleep?')],
-        choices: [
-          { text: 'Sleep till morning', next: 'morning' },
-          { text: 'Nap till night', next: 'night' },
-          { text: 'Never mind', next: 'no' },
-        ],
-      },
-      morning: {
-        lines: [s('You sleep. Morning arrives, as it does. Gulls, mostly.')],
-        effects: [{ sleep: 'morning' }],
-        effectsAtEnd: true,
-      },
-      night: {
-        lines: [s('You doze off. When you wake, the lamps are on and the fireflies are out.')],
-        effects: [{ sleep: 'night' }],
-        effectsAtEnd: true,
-      },
-      no: {
-        lines: [s('Not tired. Fair. The island is not going anywhere.')],
-      },
-    },
-  }
-})()
-
 /**
- * The lamp-room lens. Lighting it is Ilse's errand; *sending a signal* is the
- * Contact chapter, and that is offered whether the beacon burns or not — the
- * one chapter the story never gates.
+ * The turnstile, while the `ticket` flag is unset. WorldScene only offers this
+ * tree when the prop is still solid, so it needs exactly one line.
  */
-const lens: Tree = (() => {
-  const s = object('The Lens')
+const gate: Tree = (() => {
+  const s = object('Turnstile')
   return {
-    id: 'lens',
-    entry: [
-      { when: { questDone: 'beacon' }, node: 'lit' },
-      { when: { questActive: 'beacon' }, node: 'ready' },
-      { node: 'dark' },
-    ],
+    id: 'gate',
+    entry: [{ node: 'locked' }],
     nodes: {
-      lit: {
-        lines: [s('The lens hums, warm as a kettle. The beam swings out over the sea, round and round.')],
-        choices: [
-          { text: 'Send a signal?', next: 'signal' },
-          { text: 'Just watch it turn', next: 'watch' },
-        ],
-      },
-      ready: {
-        lines: [s('Cold, dark, patient. There is a lever, and the lever wants pulling.')],
-        choices: [
-          { text: 'Light the lens', next: 'light' },
-          { text: 'Send a signal?', next: 'signal' },
-        ],
-      },
-      dark: {
-        lines: [s('A great glass lens, cold and dark. Keeper Ilse would know about lighting it.')],
-        choices: [
-          { text: 'Send a signal?', next: 'signal' },
-          { text: 'Leave it be', next: 'watch' },
-        ],
-      },
-      light: {
-        lines: [s('You pull the lever. Somewhere below, something enormous clears its throat.')],
-        effects: [{ cutscene: 'beacon' }],
-        effectsAtEnd: true,
-      },
-      signal: {
-        lines: [s('The beam swings out and takes his address with it — mail, code, and a place to say hello.')],
-        effects: [{ unlockFacet: 'contact' }, { panel: 'zone:contact' }],
-        effectsAtEnd: true,
-      },
-      watch: {
-        lines: [s('The sea keeps its own time. So does the lens.')],
-      },
-    },
-  }
-})()
-
-const telescope: Tree = (() => {
-  const s = object('Telescope')
-  return {
-    id: 'telescope',
-    entry: [{ node: 'look' }],
-    nodes: {
-      look: {
-        lines: [
-          s('The whole island, edge to edge. The Stream glitters all the way down to the sea.'),
-          s('You can see the Lighthouse from here. On a clear day, the Lighthouse can see you.'),
-        ],
-        effects: [{ achievement: 'summit' }],
-      },
-    },
-  }
-})()
-
-const vault_door: Tree = (() => {
-  const s = object('Vault Door')
-  return {
-    id: 'vault_door',
-    entry: [
-      { when: { packets: 20 }, node: 'open' },
-      { node: 'sealed' },
-    ],
-    nodes: {
-      sealed: {
-        lines: [
-          s('Sealed. The lock wants twenty packets.'),
-          s('Lost motes hide in tall grass, old chests and odd corners.'),
-        ],
-      },
-      open: {
-        lines: [
-          s('Twenty of twenty. The seal clicks, and the door grinds open.'),
-          s('Inside: a workbench, a covered prototype, and a note that gives nothing away.'),
-        ],
-        effects: [{ panel: 'zone:stealth' }],
-        effectsAtEnd: true,
+      locked: {
+        lines: [s("Ticket first. Bo's window is right there.")],
       },
     },
   }
@@ -554,21 +365,16 @@ const vault_door: Tree = (() => {
 
 export const NPC_TREES: Record<string, Tree> = {
   dockmaster,
-  naman,
-  ada,
-  sol,
   professor,
+  sol,
   ravi,
+  arjun,
   mira,
-  ilse,
   tomas,
   pip,
-  arjun,
+  ilse,
   cat,
-  bed,
-  lens,
-  telescope,
-  vault_door,
+  gate,
 }
 
 /** The whole cast, in story order — the list `tests/dialogue-data.test.ts` pins. */

@@ -121,6 +121,16 @@ describe('Journal — Résumé tab', () => {
     expect(text(rowFor('contact'))).toContain(zone('contact').content.title)
   })
 
+  it('opens the row’s fourth column only where there is progress to report', () => {
+    openJournalTab('resume')
+    // Skills is the one chapter you can be part-way through, so it is the one
+    // row with a pill — and `has-prog`, the class that makes room for it, must
+    // follow the pill exactly: on any other row it is dead space stolen from
+    // the hint beside it.
+    expect(rows().filter((r) => r.querySelector('.rs-prog')).map((r) => r.dataset.zone)).toEqual(['skills'])
+    for (const r of rows()) expect(r.classList.contains('has-prog'), r.dataset.zone).toBe(!!r.querySelector('.rs-prog'))
+  })
+
   it('opens the locked card from a locked row and the full card from a won one', () => {
     uiState.unlocked = ['lineage']
     openJournalTab('resume')
@@ -164,21 +174,27 @@ describe('prize shelf', () => {
     expect(text(rowFor('lineage'))).toContain('🔒')
     expect(text(rowFor('lineage'))).toContain(STORY_HINTS.lineage)
     expect(text(rowFor('lineage'))).not.toContain(zone('lineage').content.title)
+    // the shelf reports no progress, so no row asks for the extra column
+    for (const r of rows()) expect(r.classList.contains('has-prog'), r.dataset.zone).toBe(false)
   })
 
   it('tells the three locked prizes apart — all three are labelled "Project"', () => {
     events.emit('ui:panel', { id: 'prizes', data: undefined })
     const lines = rows().map((r) => text(r))
     expect(new Set(lines).size, `identical rows: ${lines.join(' | ')}`).toBe(3)
-    // what makes them different is the venue, which the map has named all along
+    // All three are won at the one tent, so the venue no longer separates them.
+    // What does is the label on the box the claw grabs for, which the cabinet
+    // shows to anyone who walks up to it.
     for (const id of PRIZE_IDS) {
       expect(text(rowFor(id)), id).toContain(zone(id).label)
-      expect(text(rowFor(id)), id).toContain(zone(id).name)
-      // the chapter itself still says nothing (Safe Stride's title *is* its
-      // venue name, so that one has nothing left to give away)
-      if (zone(id).content.title !== zone(id).name) expect(text(rowFor(id)), id).not.toContain(zone(id).content.title)
+      expect(text(rowFor(id)), id).toContain(zone(id).name) // the hint: "Win it at the Prize Tent."
+      expect(text(rowFor(id)), id).toContain(zone(id).short!)
+      // the chapter itself still says nothing beyond that label (Safe Stride's
+      // title *is* the label on its box, so that one has nothing left to give)
+      if (zone(id).content.title !== zone(id).short) expect(text(rowFor(id)), id).not.toContain(zone(id).content.title)
       expect(text(rowFor(id)), id).not.toContain(zone(id).content.sub ?? '~')
     }
+    expect(zone('stealth').short, 'the stealth product stays unnamed').toBe('???')
   })
 
   it('opens a prize card from its row', () => {

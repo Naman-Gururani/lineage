@@ -7,7 +7,7 @@ import { QUESTS } from '../data/quests'
 import { FACET_STEP, nextStep, type StoryStep } from '../data/story'
 import { Achievements } from './Achievements'
 import type { Cond, Ctx, Effect } from './Dialogue'
-import { QuestLog } from './Quests'
+import { QuestLog, type QuestEvent } from './Quests'
 import { Xp } from './Xp'
 
 export type EffectHandlers = {
@@ -21,14 +21,15 @@ export type EffectHandlers = {
   hat?: (id: string) => void
   isNight?: () => boolean
   /**
-   * Fireworks, and the banner that says what they are for. The island has two
+   * Fireworks, and the banner that says what they are for. The fair has two
    * endings and they are not the same one: `story` is Bo's tour finished (there
-   * is still an island to roam), `complete` is every discovery, quest and badge.
+   * is still a fairground to roam), `complete` is every discovery, quest and
+   * badge.
    */
   celebrate?: (reason: 'story' | 'complete') => void
 }
 
-const ITEM_NAMES: Record<string, string> = { shell: 'Seashell', fish: 'Sunfish', coin: 'Coin' }
+const ITEM_NAMES: Record<string, string> = { shell: 'Balloon', fish: 'Duck', coin: 'Coin' }
 
 /**
  * What each game pins on your head the first time you finish it. Bo's word
@@ -47,12 +48,15 @@ export const ARCADE_GAMES = ['wordle', 'claw', 'flappy', 'forge', 'crew'] as con
 /**
  * The résumé chapters a win hands over. This is the whole gating rule: the games
  * know nothing about the story, and the story knows nothing about how a game is
- * played. Crew Drop is missing on purpose — the arcade gates no chapter.
+ * played.
+ *
+ * Three of the five hand over nothing: Crew Drop and Chalk Flight are fun (the
+ * arcade and the chalk booth gate no chapter), and Bo's word puzzle buys the
+ * *ticket* — a flag, not a chapter (see `minigameWon`). Education and Experience
+ * are the Career Coaster's to give, and the ride hands them over itself.
  */
 export const MINIGAME_FACETS: Record<string, string[]> = {
-  wordle: ['experience'],
   claw: ['lineage', 'safestride', 'stealth'],
-  flappy: ['education'],
   forge: ['skills'],
 }
 
@@ -62,7 +66,7 @@ export const FREE_FACETS = ['contact']
 /** What a first clear is worth. Harder games pay more; none of them pay twice. */
 export const MINIGAME_XP: Record<string, number> = { wordle: 90, claw: 110, flappy: 100, forge: 110, crew: 100 }
 
-/** Landmarks that must be found before the island calls it a day. */
+/** Attractions that must be found before the fair calls it a day. */
 export const DISCOVERIES_FOR_100 = 8
 
 export const HAT_NAMES: Record<string, string> = {
@@ -70,7 +74,7 @@ export const HAT_NAMES: Record<string, string> = {
   captain: "Captain's cap",
   hardhat: 'Hard hat',
   goggles: 'Goggles',
-  seashell: 'Seashell crown',
+  seashell: 'Party crown',
   catears: 'Cat ears',
   crown: 'Crown',
 }
@@ -103,7 +107,13 @@ export class GameState {
     this.quests = new QuestLog(this.save.quests, (e) => this.onQuest(e))
     this.xp = new Xp(this.save.xp, (level) => this.onLevel(level))
     this.ach = new Achievements(this.save.achievements, (id) => this.onAchievement(id))
-    for (const q of QUESTS) if (q.auto && !this.quests.isStarted(q.id)) this.quests.start(q.id)
+    // A fresh save starts all three auto quests in the same tick, and three
+    // "New quest" toasts stacked over Bo's walk-on turned the fair's first
+    // moment into a notification tray. Only the story is an instruction — the
+    // other two are background tallies the journal already lists — so they
+    // begin without announcing themselves. (A returning save starts none of
+    // them: they are started, and the guard above skips the lot.)
+    for (const q of QUESTS) if (q.auto && !this.quests.isStarted(q.id)) this.quests.start(q.id, q.id !== 'story')
   }
 
   /**
@@ -127,11 +137,13 @@ export class GameState {
 
   /* ---------- progression events ---------- */
 
-  private onQuest(e: { type: 'started' | 'progress' | 'done'; id: string }) {
+  private onQuest(e: QuestEvent) {
     const q = this.quests.def(e.id)!
     this.dirty = true
-    if (e.type === 'started') events.emit('ui:toast', { kind: 'quest', icon: '📜', title: 'New quest', sub: q.title })
-    else if (e.type === 'progress') {
+    // `silent` is the quests that start themselves — journalled, never announced.
+    if (e.type === 'started') {
+      if (!e.silent) events.emit('ui:toast', { kind: 'quest', icon: '📜', title: 'New quest', sub: q.title })
+    } else if (e.type === 'progress') {
       // The story is announced a chapter at a time by `unlockFacet`, and it is
       // the only quest whose steps are not all the same shape: `progress()`
       // headlines the largest step (the three prizes), so a step toast here
@@ -149,8 +161,8 @@ export class GameState {
       if (q.reward.hat && this.unlockHat(q.reward.hat) && this.save.hat !== q.reward.hat) this.announceHat(q.reward.hat)
       if (q.reward.flag) this.setFlag(q.reward.flag)
       if (q.reward.item) this.give(q.reward.item[0], q.reward.item[1])
-      // The story is the island's ending, so it gets the island's ending: the
-      // badge that says you heard all of it, and the fireworks over the harbor.
+      // The story is the fair's ending, so it gets the fair's ending: the badge
+      // that says you heard all of it, and the fireworks over the midway.
       if (q.id === 'story') {
         this.ach.unlock('story')
         this.handlers.celebrate?.('story')
@@ -292,6 +304,14 @@ export class GameState {
 
   /* ---------- mini-games ---------- */
 
+  /** A game's own memory between visits (Word Forge's found words). Not a play, not a win. */
+  minigameProgress(id: string, data: unknown): void {
+    const rec = this.save.minigames[id] ?? { won: false, best: 0, plays: 0 }
+    rec.progress = data
+    this.save.minigames[id] = rec
+    this.dirty = true
+  }
+
   /** Record an attempt: one more play, and the best score so far (higher is better). */
   minigamePlayed(id: string, score = 0): void {
     this.recordPlay(id, score)
@@ -350,6 +370,15 @@ export class GameState {
       events.emit('ui:toast', { kind: 'info', icon: '🎮', title: 'Cleared it again.' })
       this.handlers.sfx?.('pickup')
     }
+    // The gate puzzle is the one game that pays in a *flag*: cracking Bo's word
+    // is the ticket, and the ticket is what takes the turnstiles out of the
+    // gateway. The story step goes with it — `FACET_STEP` credits steps for
+    // chapters, and this step has no chapter behind it.
+    if (id === 'wordle' && !this.flag('ticket')) {
+      this.setFlag('ticket')
+      this.quests.advance('story', 'ticket', 1)
+      events.emit('story:changed', { next: this.storyNext() })
+    }
     for (const zone of MINIGAME_FACETS[id] ?? []) this.unlockFacet(zone)
   }
 
@@ -378,11 +407,12 @@ export class GameState {
       this.save.unlocked.push(zoneId)
       const step = FACET_STEP[zoneId]
       if (step) this.quests.advance('story', step, 1)
-      const zone = ZONES.find((z) => z.id === zoneId)
+      // `announce` false means the granter is showing the card itself — the
+      // ride's Career card, the forge's tech stack, the claw's prizes. That card
+      // IS the announcement; a toast behind it just says the same thing twice.
+      const zone = announce ? ZONES.find((z) => z.id === zoneId) : null
       if (zone) events.emit('ui:toast', { kind: 'info', icon: '📖', title: `New chapter: ${zone.label}` })
     }
-    // Reading what Naman did at the tower is what puts the lift on the map.
-    if (zoneId === 'experience') this.setFlag('tower_express')
     this.dirty = true
     events.emit('facet:unlocked', { id: zoneId, first, announce })
     events.emit('story:changed', { next: this.storyNext() })
@@ -408,7 +438,7 @@ export class GameState {
     if (this.hasPacket(id)) return false
     this.save.packets.push(id)
     this.dirty = true
-    this.quests.advance('packets', 'collect', 1)
+    this.quests.advance('tickets', 'collect', 1)
     this.addXp(8)
     if (this.save.packets.length >= 10) this.ach.unlock('collector')
     if (this.save.packets.length >= 20) this.ach.unlock('archivist')
@@ -436,11 +466,11 @@ export class GameState {
     if (!this.save.talked.includes(npc)) {
       this.save.talked.push(npc)
       this.dirty = true
-      // Every villager the badge claims — the campus and warehouse hosts
-      // included, or "Talk to every villager" would be a lie you could earn
-      // without meeting them. Both greet on room entry (InteriorScene.greet
-      // calls talked()), so the badge stays reachable without a detour.
-      const all = ['dockmaster', 'tomas', 'pip', 'ada', 'ravi', 'sol', 'arjun', 'ilse', 'naman', 'professor', 'mira']
+      // Everybody who works the fair, and nobody who does not: the nine
+      // speaking parts that stand on the fairground (`NPC_CAST` in the scene).
+      // Byte the cat is a companion, not a villager, and Naman is not an NPC —
+      // his voice is the cards.
+      const all = ['dockmaster', 'professor', 'sol', 'ravi', 'arjun', 'mira', 'tomas', 'pip', 'ilse']
       if (all.every((n) => this.save.talked.includes(n))) this.ach.unlock('full_house')
     }
   }

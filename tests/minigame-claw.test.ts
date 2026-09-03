@@ -388,4 +388,59 @@ describe('Prize Grab', () => {
     const stepPx = CLAW.SWEEP * (1000 / 120 / 1000) * 600
     expect(after - before).toBeCloseTo(stepPx * 2, 1)
   })
+
+  /* ---------------- the way out for a recruiter in a hurry ---------------- */
+
+  it('offers to show the prizes, in the footer, just before Leave', () => {
+    host.open('claw')
+    const foot = q<HTMLElement>('.mg-foot')!
+    const btn = q<HTMLButtonElement>('.mg-reveal')!
+    expect(btn.textContent).toBe('Just show me the prizes')
+    const order = Array.from(foot.querySelectorAll('button')).map((b) => b.textContent)
+    expect(order.indexOf('Just show me the prizes')).toBe(order.indexOf('Leave') - 1)
+  })
+
+  it('hands over all three projects and opens their cards one after another', () => {
+    host.open('claw')
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    expect(toasts.map((t) => t.title)).toContain('Noted. HR sees everything.')
+    for (const id of ['lineage', 'safestride', 'stealth']) expect(state.isUnlocked(id)).toBe(true)
+    expect(stat('prizes')).toBe('3 / 3')
+
+    // One card at a time, in shelf order, each waiting on the one before it.
+    expect(topModalId()).toBe('zone:lineage')
+    expect(host.openId).toBe('claw') // the cabinet is still there behind them
+    closeModal('zone:lineage')
+    expect(topModalId()).toBe('zone:safestride')
+    closeModal('zone:safestride')
+    expect(topModalId()).toBe('zone:stealth')
+    closeModal('zone:stealth')
+    expect(host.openId).toBeNull()
+    expect(state.save.minigames.claw).toEqual({ won: true, best: 3, plays: 1 })
+  })
+
+  it('parks the machine while the revealed cards are up', () => {
+    host.open('claw')
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    const x = carriageX()
+    const purse = stat('tokens')
+    dropBtn().click()
+    sess.__step(1000)
+    expect(stat('tokens')).toBe(purse) // paused means paused: no token, no travel
+    expect(carriageX()).toBe(x)
+  })
+
+  it('opens only the cards still owed when a prize was already won', () => {
+    host.open('claw')
+    dropBtn().click()
+    sess.__step(2400) // Safe Stride, dead centre
+    closeModal('zone:safestride')
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    expect(topModalId()).toBe('zone:lineage')
+    closeModal('zone:lineage')
+    expect(topModalId()).toBe('zone:stealth')
+    closeModal('zone:stealth')
+    expect(host.openId).toBeNull()
+    expect(state.save.minigames.claw).toEqual({ won: true, best: 3, plays: 1 })
+  })
 })

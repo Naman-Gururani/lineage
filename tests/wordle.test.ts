@@ -24,51 +24,105 @@ import {
   type Mark,
 } from '../src/games/wordle'
 
-/** Every skill the audit approved, exactly as `content.ts` lists it. */
-const SKILL_ITEMS = ZONES.find((z) => z.id === 'skills')!.content.groups!.flatMap((g) => g.items)
+/** Every chip and group item, across every zone — the tech half of the pool. */
+const TECH_ITEMS = ZONES.flatMap((z) => [...(z.content.chips ?? []), ...(z.content.groups ?? []).flatMap((g) => g.items)])
 const wordsIn = (s: string) => s.toLowerCase().split(/[^a-z]+/).filter(Boolean)
+
+/**
+ * The résumé's running prose — titles, subs, body copy, facts and points —
+ * flattened the same way `tests/content.test.ts` flattens `ZONES`, but never
+ * the chips or group items: those are `TECH_ITEMS` above, not prose.
+ */
+const CORPUS = new Set(
+  wordsIn(
+    ZONES.flatMap((z) => [
+      z.content.title,
+      z.content.sub ?? '',
+      ...(z.content.body ?? []),
+      ...(z.content.points ?? []),
+      ...(z.content.facts ?? []).flatMap((f) => [f.k, f.v]),
+    ]).join(' '),
+  ),
+)
 
 /** Type a whole word into the current row. */
 const typeWord = (s: ReturnType<typeof newGame>, word: string) => [...word].reduce(typeLetter, s)
 /** Type and submit a word against a dictionary that accepts everything. */
 const play = (s: ReturnType<typeof newGame>, word: string) => submit(typeWord(s, word), () => true).state
 
+/** A tiny deterministic PRNG (a linear congruential generator), so a test that
+ * wants "seeded" randomness gets the same 200 picks on every run. */
+const makeRnd = (seed: number): (() => number) => {
+  let s = seed
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff
+    return s / 0x7fffffff
+  }
+}
+
 describe('wordle answers', () => {
-  it('takes every answer from an approved skill, never from a list of its own', () => {
+  it('takes every answer from a tech item or the résumé prose, never from a list of its own', () => {
     const answers = wordleAnswers()
-    expect(answers.length).toBeGreaterThan(0)
+    expect(answers.length).toBeGreaterThanOrEqual(8)
     for (const a of answers) {
       expect(a, `${a} is not five lower-case letters`).toMatch(/^[a-z]{5}$/)
-      expect(SKILL_ITEMS.some((item) => wordsIn(item).includes(a)), `${a} is in no approved skill`).toBe(true)
+      const fromTech = TECH_ITEMS.some((item) => wordsIn(item).includes(a))
+      expect(fromTech || CORPUS.has(a), `${a} is neither a tech item nor a word the résumé actually says`).toBe(true)
     }
   })
 
-  it('misses no five-letter skill word, and lists each one once', () => {
+  it('misses no five-letter tech item, and lists each answer once', () => {
     const answers = wordleAnswers()
-    const wanted = SKILL_ITEMS.flatMap(wordsIn).filter((w) => w.length === WORD_LEN)
+    const wanted = TECH_ITEMS.flatMap(wordsIn).filter((w) => w.length === WORD_LEN)
     for (const w of wanted) expect(answers).toContain(w)
     expect(new Set(answers).size).toBe(answers.length)
   })
 
-  it('is the stack Naman actually works on today', () => {
-    // A consequence of `content.ts`, not a constant: change the skills and this
-    // line is the one that tells you the puzzle changed with them.
-    expect(wordleAnswers()).toEqual(['kafka', 'flink', 'redis', 'linux'])
+  it('still has the four tools it always had', () => {
+    const answers = wordleAnswers()
+    for (const w of ['kafka', 'flink', 'redis', 'linux']) expect(answers).toContain(w)
   })
 
-  it('cycles through the answers, one per attempt', () => {
-    const a = wordleAnswers()
-    expect([0, 1, 2, 3, 4, 5].map((n) => pickAnswer(n))).toEqual([a[0], a[1], a[2], a[3], a[0], a[1]])
+  it('is the résumé Naman actually has today, tools and prose alike', () => {
+    // A consequence of `content.ts`, not a constant: change the résumé and this
+    // line is the one that tells you the puzzle changed with it. Sorted, because
+    // the order tokens are discovered in is an implementation detail, not a rule.
+    expect([...wordleAnswers()].sort()).toEqual(['event', 'flink', 'kafka', 'linux', 'money', 'redis', 'scale', 'stack', 'trust'])
   })
+})
 
-  it('lets ?word= force the answer, and ignores anything that is not a word', () => {
+describe('pickAnswer', () => {
+  it('lets ?word= force the answer, case-insensitively, whatever rnd or avoid say', () => {
+    const zero = () => 0
     expect(pickAnswer(0, 'crane')).toBe('crane')
     expect(pickAnswer(0, 'CRANE')).toBe('crane')
-    expect(pickAnswer(1, null)).toBe(wordleAnswers()[1])
-    expect(pickAnswer(1, '')).toBe(wordleAnswers()[1])
-    expect(pickAnswer(1, 'cran')).toBe(wordleAnswers()[1])
-    expect(pickAnswer(1, 'cranes')).toBe(wordleAnswers()[1])
-    expect(pickAnswer(1, 'cr4ne')).toBe(wordleAnswers()[1])
+    expect(pickAnswer(0, 'crane', zero, 'crane')).toBe('crane')
+  })
+
+  it('falls back to the pool on anything that is not really a five-letter word', () => {
+    const zero = () => 0 // lands on the (filtered) pool's first word every time
+    const first = wordleAnswers()[0]
+    for (const bad of [null, undefined, '', 'cran', 'cranes', 'cr4ne'] as (string | null | undefined)[]) {
+      expect(pickAnswer(0, bad, zero)).toBe(first)
+    }
+  })
+
+  it('stays inside the pool on a real pick', () => {
+    const pool = wordleAnswers()
+    for (let i = 0; i < 50; i++) expect(pool).toContain(pickAnswer(i))
+  })
+
+  it('never returns avoid across 200 picks with a seeded rnd, and covers more than one word', () => {
+    const pool = wordleAnswers()
+    const avoid = pool[0]
+    const rnd = makeRnd(1)
+    const seen = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      const picked = pickAnswer(i, null, rnd, avoid)
+      expect(picked).not.toBe(avoid)
+      seen.add(picked)
+    }
+    expect(seen.size).toBeGreaterThan(1)
   })
 })
 

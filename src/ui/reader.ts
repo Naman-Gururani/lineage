@@ -62,7 +62,7 @@ export function openReader(): void {
       <nav class="reader-toc" aria-label="Contents"><h2 class="toc-title">Contents</h2><ol>${toc}</ol></nav>
       <main id="reader-main" class="reader-main" tabindex="-1">
         <h1 class="reader-h1" tabindex="-1">${esc(PROFILE.name)}<small>${esc(PROFILE.role)} · ${esc(PROFILE.company)}</small></h1>
-        <p class="reader-intro">Everything the island has to say, as plain text — the same content the landmarks reveal, in order.</p>
+        <p class="reader-intro">Everything the fair has to say, as plain text — the same content the attractions reveal, in order.</p>
         ${zones}
         <footer class="reader-foot"><p>Prefer to explore?</p><button type="button" class="pbtn primary" data-act="back">◀ Back to the game</button></footer>
       </main>

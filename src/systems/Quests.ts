@@ -1,7 +1,13 @@
 import type { QuestSave } from '../core/save'
 import { QUESTS, type QuestDef } from '../data/quests'
 
-export type QuestEvent = { type: 'started' | 'progress' | 'done'; id: string }
+/**
+ * `silent` rides along on a `started` event only: the quest is begun and
+ * journalled exactly as any other, but whoever renders the event is asked not
+ * to announce it. It is for the quests that start themselves — see the
+ * auto-start loop in `GameState`'s constructor.
+ */
+export type QuestEvent = { type: 'started' | 'progress' | 'done'; id: string; silent?: boolean }
 
 export class QuestLog {
   constructor(
@@ -27,10 +33,11 @@ export class QuestLog {
     return !!this.state[id]?.done
   }
 
-  start(id: string): boolean {
+  /** `silent` starts the quest without asking for it to be announced. */
+  start(id: string, silent = false): boolean {
     if (!this.def(id) || this.isStarted(id)) return false
     this.state[id] = { started: true, done: false, progress: {} }
-    this.on({ type: 'started', id })
+    this.on({ type: 'started', id, silent })
     return true
   }
 

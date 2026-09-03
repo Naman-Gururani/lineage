@@ -5,7 +5,7 @@ import { events } from '../core/events'
 import { hooks } from '../core/hooks'
 import { initBanner } from './banner'
 import { initDialogue, openDialogue } from './dialogue'
-import { initElevator } from './elevator'
+import { initForgeboard } from './forgeboard'
 import { initHud } from './hud'
 import { initJournal } from './journal'
 import { initLoading } from './loading'
@@ -17,8 +17,8 @@ import { initPause } from './pause'
 import { initPrizes } from './prizes'
 import { initPrompt } from './prompt'
 import { initReader } from './reader'
+import { initRidecard } from './ridecard'
 import { initSettings } from './settings'
-import { initToolwall } from './toolwall'
 import { initTouch } from './touch'
 import { initWelcome } from './welcome'
 
@@ -45,8 +45,8 @@ export function initUI(): void {
   initMap()
   initMinimap()
   initPause()
-  initElevator()
-  initToolwall()
+  initRidecard()
+  initForgeboard()
   initPrizes()
   initMinigames()
   initMinigameRenderers()

@@ -141,19 +141,21 @@ describe('locked chapter cards', () => {
     expect(isModalOpen()).toBe(false)
   })
 
-  it('Show on map closes the card and opens the map with that landmark selected', () => {
+  it('Show on map closes the card and opens the map with that attraction selected', () => {
     const seen: { id: string; data?: unknown }[] = []
     const off = events.on('ui:panel', (p) => seen.push(p))
     openZone('lineage')
     btnByLabel('Show on map')!.click()
     off()
     expect(seen).toEqual([{ id: 'map', data: { focus: 'lineage' } }])
-    // the card is gone and the map took its place, pin selected
+    // the card is gone and the map took its place, with the stall that hands
+    // that chapter over selected: the pin is the Prize Tent, not the project
     expect(openIds()).toEqual(['map'])
-    const pin = document.querySelector<HTMLElement>('.map-lm[data-id="lineage"]')!
+    const pin = document.querySelector<HTMLElement>('.map-lm[data-id="prizetent"]')!
     expect(pin.classList.contains('sel')).toBe(true)
-    // undiscovered: it may be pointed at, but not travelled to
-    expect(document.querySelector<HTMLButtonElement>('.map-travel')!.hidden).toBe(true)
+    // undiscovered: it may be pointed at, but not travelled to. The button
+    // stays on screen and in the tab order — dimmed, not taken away.
+    expect(document.querySelector<HTMLButtonElement>('.map-travel')!.disabled).toBe(true)
   })
 
   /* ---------------- the unlocked card is untouched ---------------- */

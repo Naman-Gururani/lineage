@@ -16,6 +16,11 @@ export function initPrompt(root: HTMLElement): void {
   })
   const hint = document.createElement('div')
   hint.className = 'hint'
+  // The same live region its `.prompt` sibling has. The hint is how the ride
+  // says "Esc to leave" and how the world says a key exists at all; it is only
+  // ever shown, never focused, so a reader hears it or never learns it.
+  hint.setAttribute('role', 'status')
+  hint.setAttribute('aria-live', 'polite')
   root.appendChild(hint)
   let hintTimer = 0
   events.on('ui:hint', ({ text }) => {

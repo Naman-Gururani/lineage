@@ -16,6 +16,7 @@
 // wheel to a ring index and every event speaks to the reducer in ring indices.
 import { sfx } from '../../audio/sfx'
 import { events } from '../../core/events'
+import { ZONES } from '../../data/content'
 import {
   FORGE_MISSES,
   FORGE_ROUNDS,
@@ -25,8 +26,10 @@ import {
   hintsLeft,
   newForge,
   pick,
+  restore,
   revealWord,
   roundOf,
+  serialize,
   shuffle,
   submit,
   unpick,
@@ -35,8 +38,9 @@ import {
 } from '../../games/forge'
 import { afterWin, type MinigameHost, type MinigameSession } from '../../systems/Minigame'
 import { esc } from '../modal'
-import { panelHead } from '../panels'
+import { openContent, panelHead } from '../panels'
 import { reducedMotion } from '../state'
+import { mountReveal } from './reveal'
 
 /* ---------------- the wheel's geometry ---------------- */
 
@@ -74,8 +78,33 @@ const ROUND_MS = 700
 /** How long after a drag a click still counts as that drag's own echo. */
 const DRAG_CLICK_MS = 200
 
+/**
+ * The tools forged so far, gathered under the Workshop card's own headings and
+ * in its own order — one line per group, which is what the cumulative card
+ * hangs above the full chip list.
+ */
+function forgedLines(found: string[]): string[] {
+  const forged = new Set(
+    FORGE_ROUNDS.flatMap((r) => r.words)
+      .filter((w) => found.includes(w.word))
+      .map((w) => w.skill),
+  )
+  const out: string[] = []
+  for (const g of ZONES.find((z) => z.id === 'skills')?.content.groups ?? []) {
+    const items = g.items.filter((i) => forged.has(i))
+    if (items.length) out.push(`${g.label} — ${items.join(' · ')}`)
+  }
+  return out
+}
+
 export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSession {
-  let state: ForgeState = newForge()
+  // The bench remembers. Whatever was forged last visit comes back off the save
+  // through the same validator the tests use; a wall that was already finished
+  // starts over instead, so the booth is replayable.
+  const saved = restore(host.state?.save.minigames.forge?.progress)
+  /** True when this visit is a replay of a wall already completed once. */
+  const replay = saved.status === 'won'
+  let state: ForgeState = replay ? newForge() : saved
   /** Seat → ring index. Shuffle permutes it; the reducer never sees a seat. */
   let order: number[] = []
   /** Ring index → seat, the inverse of `order`, rebuilt with the wheel. */
@@ -87,7 +116,7 @@ export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSessi
   const timers: number[] = []
 
   root.innerHTML =
-    panelHead('Word Forge', 'THE WORKSHOP') +
+    panelHead('Word Forge', 'GAME ROW') +
     `<p class="mg-rule">Spell the tools Naman actually uses. Drag or tap the letters, then press Enter.</p>` +
     // `role="list"` because `list-style: none` takes the list semantics away
     // with the bullets in Safari, and the wall is exactly a list of words.
@@ -127,6 +156,15 @@ export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSessi
   function clearTimers(): void {
     for (const t of timers) clearTimeout(t)
     timers.length = 0
+  }
+
+  /**
+   * Write the wall into the save, so leaving the booth costs nothing. A replay
+   * writes nothing: the record already says every tool is forged, and starting
+   * the wheels over must not walk the prize board back to the first word.
+   */
+  function remember(): void {
+    if (!replay) host.progress(serialize(state))
   }
 
   /* ---------------- drawing ---------------- */
@@ -318,6 +356,7 @@ export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSessi
     const word = state.found.find((w) => !before.found.includes(w))
     const hit = round.words.find((w) => w.word === word)
     clearNote()
+    remember()
     paintSlots(round)
     paintPicks()
     paintFoot()
@@ -349,10 +388,53 @@ export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSessi
     })
   }
 
+  /**
+   * The wall, finished: the cumulative card. It is the Skills chapter's own
+   * content with the tools the player actually spelled listed above it — the
+   * thing the bench has been building towards, rather than a chip list they
+   * could have read anywhere.
+   */
+  function openTechStack(): void {
+    const content = ZONES.find((z) => z.id === 'skills')?.content
+    if (!content) return
+    openContent({ ...content, title: "Naman's tech stack", body: forgedLines(state.found), points: undefined }, 'Word Forge · Skills', 'techstack')
+  }
+
   function win(): void {
-    say('Every tool on the wall. The Workshop is yours.')
-    const beat = afterWin(() => host.close({ id: 'forge', won: true, score: FORGE_ROUNDS.length }))
+    say('Every tool on the wall. The Forge is yours.')
+    remember()
+    const beat = afterWin(() => {
+      // The card *is* the announcement, so the chapter is credited quietly here
+      // and the panel layer does not queue a second Skills book behind it.
+      host.unlockFacet('skills', false)
+      // Close first, open second. The other way round the card records the
+      // bench as the thing to hand focus back to, and the bench is gone a line
+      // later — so closing the card dropped focus to the document entirely.
+      host.close({ id: 'forge', won: true, score: FORGE_ROUNDS.length })
+      openTechStack()
+    })
     if (beat) timers.push(beat)
+  }
+
+  /**
+   * "Show all the answers": every wheel forged at once, the same card, the same
+   * win. `revealWord` is the Hire-me lifeline run to the end of the list, so the
+   * wall lands exactly as it would have done a word at a time.
+   */
+  function revealAll(): boolean | void {
+    if (state.status !== 'play') return false
+    clearTimers()
+    let next = state
+    const totalWords = FORGE_ROUNDS.reduce((n, r) => n + r.words.length, 0)
+    for (let i = 0; i < totalWords && next.status === 'play'; i++) next = revealWord(next)
+    state = next
+    clearNote()
+    order = layOut()
+    paintWheel()
+    paintSlots()
+    paintPicks()
+    paintFoot()
+    win()
   }
 
   /**
@@ -481,6 +563,7 @@ export function mountForge(host: MinigameHost, root: HTMLElement): MinigameSessi
     }
   })
 
+  mountReveal(root, 'Show all the answers', revealAll)
   order = layOut()
   paintWheel()
   paintSlots()

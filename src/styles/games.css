@@ -1,5 +1,6 @@
 /* Per-game styles. Each mini-game owns exactly one file under ./games/;
    shared `.mg-*` framework classes stay in panels.css. */
+@import './games/reveal.css';
 @import './games/wordle.css';
 @import './games/claw.css';
 @import './games/flappy.css';

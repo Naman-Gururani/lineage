@@ -17,7 +17,7 @@ export function openPrizes(): void {
   box.innerHTML = `${panelHead("Sol's Prize Tent", 'PRIZE SHELF')}
     <div class="prizes-body">
       <p class="j-count">${won} / ${zones.length} prizes on the shelf</p>
-      <div class="rs-list">${zones.map(zoneRow).join('')}</div>
+      <div class="rs-list">${zones.map((z) => zoneRow(z)).join('')}</div>
     </div>
     <footer class="modal-foot"><button type="button" class="pbtn" data-act="close">Close</button></footer>`
   box.addEventListener('click', (e) => {

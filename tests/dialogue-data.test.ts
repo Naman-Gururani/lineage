@@ -1,11 +1,11 @@
 // The dialogue budget, enforced.
 //
-// v3 ("Story Isle") cut the island's conversation down to sixteen trees with a
-// handful of fixed lines each: Bo the guide, seven room hosts, the three quest
-// villagers, the cat, and four objects. Every résumé fact left the dialogue for
-// the cards — which is why the hardest rule in here is the simplest one: a
-// spoken line may not contain a digit. Figures live on cards, where they can be
-// read twice and copied.
+// v4 ("Naman's World Fair") cut the cast down to eleven trees: Bo on the gate,
+// the coaster operator, the four stall-holders, the three errand-givers, the
+// cat, and the turnstile. Every résumé fact left the dialogue for the cards —
+// which is why the hardest rule in here is the simplest one: a spoken line may
+// not contain a digit. Figures live on cards, where they can be read twice and
+// copied.
 //
 // What this suite pins:
 //   · the exact tree list — nothing may be added without deciding to
@@ -18,7 +18,6 @@ import { ACHIEVEMENTS } from '../src/data/achievements'
 import { ZONES } from '../src/data/content'
 import { NPC_INFO, NPC_TREES, ROOM_HOSTS, STORY_TREE_IDS, greetFlag } from '../src/data/npcs'
 import { QUESTS } from '../src/data/quests'
-import { ROOMS } from '../src/data/rooms'
 import { DialogueRunner, type Cond, type Ctx, type Effect, type Tree } from '../src/systems/Dialogue'
 import type { MinigameId } from '../src/systems/Minigame'
 import { QuestLog } from '../src/systems/Quests'
@@ -37,11 +36,11 @@ const MINIGAME_IDS = Object.keys(EVERY_MINIGAME) as MinigameId[]
 
 /** One dialogue box, and nothing that needs a second breath to read. */
 const MAX_LINE = 120
-/** Three boxes is the most anyone on this island may hold the floor for. */
+/** Three boxes is the most anyone at this fair may hold the floor for. */
 const MAX_LINES_PER_NODE = 3
 /** An auto-greet fires before the player has asked for anything: two boxes. */
 const MAX_INTRO_LINES = 2
-/** Bo's arrival cutscene is the one authored exception (spec §7). */
+/** Bo's arrival cutscene is the one authored exception (spec §8). */
 const MAX_ARRIVAL_LINES = 3
 const MAX_CHOICES = 4
 const MAX_CHOICE_TEXT = 40
@@ -58,8 +57,6 @@ const questIds = new Set(QUESTS.map((q) => q.id))
 const achievementIds = new Set(ACHIEVEMENTS.map((a) => a.id))
 const zoneIds = new Set(ZONES.map((z) => z.id))
 const minigameIds = new Set<string>(MINIGAME_IDS)
-const hosts = Object.entries(ROOM_HOSTS)
-const hostTrees = new Set(Object.values(ROOM_HOSTS))
 
 /** Chapters the story never gates. `contact` is reachable from the first minute. */
 const FREE_FACETS = new Set(['contact'])
@@ -187,14 +184,19 @@ const entersAt = (id: string, w: World): string => new DialogueRunner(NPC_TREES[
 /* ------------------------------------------------------------------ */
 
 describe('the cast list', () => {
-  it('holds exactly the sixteen story trees, keyed by their own ids', () => {
-    expect(STORY_TREE_IDS).toEqual(['dockmaster', 'naman', 'ada', 'sol', 'professor', 'ravi', 'mira', 'ilse', 'tomas', 'pip', 'arjun', 'cat', 'bed', 'lens', 'telescope', 'vault_door'])
+  it('holds exactly the eleven fair trees, keyed by their own ids', () => {
+    expect(STORY_TREE_IDS).toEqual(['dockmaster', 'professor', 'sol', 'ravi', 'arjun', 'mira', 'tomas', 'pip', 'ilse', 'cat', 'gate'])
     expect(Object.keys(NPC_TREES).sort()).toEqual([...STORY_TREE_IDS].sort())
     for (const [key, tree] of trees) expect(tree.id, `NPC_TREES["${key}"].id`).toBe(key)
   })
 
-  it('kept none of the chatter v2 carried — the villagers and talking props are gone', () => {
-    const cut = ['lou', 'devi', 'vault_keeper', 'bookshelf', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell']
+  it('kept none of the chatter the island carried — the interiors and their props are gone', () => {
+    const cut = [
+      // v2's villagers and talking scenery
+      'lou', 'devi', 'vault_keeper', 'bookshelf', 'photo', 'fireplace', 'kettle', 'workbench', 'whiteboard', 'sos', 'fountain', 'well', 'stall', 'boat', 'mailbox', 'bell',
+      // v3's room hosts and interior objects — the fair has no indoors
+      'naman', 'ada', 'bed', 'lens', 'telescope', 'vault_door',
+    ]
     for (const id of cut) expect(NPC_TREES[id], `"${id}" should have been deleted`).toBeUndefined()
   })
 
@@ -202,7 +204,7 @@ describe('the cast list', () => {
     expect(NPC_INFO.dockmaster).toEqual({ name: 'Bo', face: 'face_dockmaster' })
     for (const [id, tree] of trees) {
       const info = NPC_INFO[id]
-      if (!info) continue // objects (the bed, the lens) speak with a nameplate, not a face
+      if (!info) continue // objects (the turnstile) speak with a nameplate, not a face
       expect(info.face, `"${id}" face`).toBe(`face_${id}`)
       for (const { nodeId, line } of allLines(tree)) {
         expect(line.who, `"${id}/${nodeId}" wrong speaker`).toBe(info.name)
@@ -212,7 +214,7 @@ describe('the cast list', () => {
   })
 
   it('gives every object tree a nameplate and no portrait', () => {
-    for (const id of ['bed', 'lens', 'telescope', 'vault_door']) {
+    for (const id of ['gate']) {
       for (const { nodeId, line } of allLines(NPC_TREES[id])) {
         expect(line.who.trim().length, `"${id}/${nodeId}" nameplate`).toBeGreaterThan(0)
         expect(line.face, `"${id}/${nodeId}" should not carry a face`).toBeUndefined()
@@ -238,7 +240,14 @@ describe('the line budget', () => {
     }
   })
 
-  it('never speaks a digit — every figure on this island lives on a card', () => {
+  it('holds every greeting bar Bo’s arrival to two boxes', () => {
+    for (const [id, tree] of trees) {
+      if (!tree.nodes.intro || id === 'dockmaster') continue
+      expect(tree.nodes.intro.lines.length, `"${id}/intro" greeting is over budget`).toBeLessThanOrEqual(MAX_INTRO_LINES)
+    }
+  })
+
+  it('never speaks a digit — every figure at this fair lives on a card', () => {
     for (const [id, tree] of trees)
       for (const { nodeId, line } of allLines(tree))
         expect(line.text, `"${id}/${nodeId}" speaks a figure: ${line.text}`).not.toMatch(DIGIT)
@@ -302,6 +311,17 @@ describe('structure', () => {
         for (const c of node.choices ?? []) stack.push(c.next)
       }
       for (const nodeId of Object.keys(tree.nodes)) expect(reachable.has(nodeId), `"${id}/${nodeId}" is unreachable`).toBe(true)
+    }
+  })
+
+  it('keeps `intro` for the greeting alone — never an entry, never an edge', () => {
+    for (const [id, tree] of trees) {
+      if (!tree.nodes.intro) continue
+      expect(tree.entry.some((e) => e.node === 'intro'), `"${id}" lists intro as an entry`).toBe(false)
+      for (const [nodeId, node] of Object.entries(tree.nodes)) {
+        expect(node.next, `"${id}/${nodeId}" leads into intro`).not.toBe('intro')
+        for (const c of node.choices ?? []) expect(c.next, `"${id}/${nodeId}" chooses into intro`).not.toBe('intro')
+      }
     }
   })
 })
@@ -407,114 +427,77 @@ describe('effects', () => {
   })
 })
 
-describe('room hosts', () => {
-  it('hosts a room that exists, with a tree that exists, one host apiece', () => {
-    for (const [room, host] of hosts) {
-      expect(ROOMS[room], `ROOM_HOSTS names a room "${room}" that does not exist`).toBeDefined()
-      expect(NPC_TREES[host], `room "${room}" host "${host}" has no tree`).toBeDefined()
-    }
-    expect(new Set(Object.values(ROOM_HOSTS)).size, 'one host per room').toBe(hosts.length)
+describe('the interiors are gone', () => {
+  // `ROOM_HOSTS` and `greetFlag` survive as empty shells only because
+  // `scenes/InteriorScene.ts` still imports them; Wave 2 deletes that scene and
+  // then these two go with it. Nothing may be added to the table meanwhile.
+  it('keeps ROOM_HOSTS as an empty table — the fair has no rooms to greet you in', () => {
+    expect(ROOM_HOSTS).toEqual({})
+    expect(Object.keys(ROOM_HOSTS)).toHaveLength(0)
   })
 
-  it('leaves the Vault hostless — a covered bench needs no greeter', () => {
-    expect(ROOM_HOSTS.stealth).toBeUndefined()
-    expect(Object.keys(ROOMS).filter((r) => !ROOM_HOSTS[r])).toEqual(['stealth'])
-  })
-
-  it('names greet flags after the room', () => {
-    for (const room of Object.keys(ROOMS)) expect(greetFlag(room)).toBe(`greet_${room}`)
-  })
-
-  it('gives every host a short `intro` that sets its room’s greet flag', () => {
-    for (const [room, host] of hosts) {
-      const intro = NPC_TREES[host].nodes.intro
-      expect(intro, `host "${host}" has no intro node`).toBeDefined()
-      expect(intro.effects?.some((e) => e.setFlag === greetFlag(room)), `"${host}/intro" must set ${greetFlag(room)}`).toBe(true)
-      expect(intro.lines.length, `"${host}/intro" greeting is over budget`).toBeLessThanOrEqual(MAX_INTRO_LINES)
-    }
-  })
-
-  it('keeps `intro` for the greeting alone — never an entry, never an edge', () => {
-    for (const [id, tree] of trees) {
-      if (!tree.nodes.intro) continue
-      expect(tree.entry.some((e) => e.node === 'intro'), `"${id}" lists intro as an entry`).toBe(false)
-      for (const [nodeId, node] of Object.entries(tree.nodes)) {
-        expect(node.next, `"${id}/${nodeId}" leads into intro`).not.toBe('intro')
-        for (const c of node.choices ?? []) expect(c.next, `"${id}/${nodeId}" chooses into intro`).not.toBe('intro')
-      }
-    }
-  })
-
-  it('runs each greeting the way InteriorScene does, and never runs it twice', () => {
-    for (const [room, host] of hosts) {
-      const w = makeWorld()
-      play(host, w, [], 'intro')
-      expect(w.flags.has(greetFlag(room)), `"${host}" greeting never set ${greetFlag(room)}`).toBe(true)
-      // the flag now routes the tree elsewhere: a second visit cannot re-greet
-      expect(entersAt(host, w), `"${host}" still enters at intro`).not.toBe('intro')
-    }
-  })
-
-  it('points the host of every game room at its cabinet', () => {
-    const room = (id: string) => Object.entries(ROOM_HOSTS).find(([, h]) => h === id)![0]
-    expect(room('sol')).toBe('fair')
-    expect(room('professor')).toBe('campus')
-    expect(room('ravi')).toBe('skills')
-    expect(room('mira')).toBe('warehouse')
-    expect(hostTrees.has('naman')).toBe(true)
+  it('still names a greet flag after its room, for the scene that has not been deleted yet', () => {
+    expect(greetFlag('about')).toBe('greet_about')
   })
 })
 
 /* ------------------------------------------------------------------ */
 /* Bo — the guide. His entry ladder is the story's compass.             */
 
-describe('Bo the dockmaster', () => {
+describe('Bo the gateman', () => {
   const bo = NPC_TREES.dockmaster
 
   it('reads the story off the chapters you have not unlocked yet, in order', () => {
     expect(bo.entry).toEqual([
       { when: { flag: 'story_done' }, node: 'done' },
-      { when: { locked: 'experience' }, node: 'puzzle_again' },
-      { when: { locked: 'lineage' }, node: 'to_fair' },
-      { when: { locked: 'safestride' }, node: 'to_fair' },
-      { when: { locked: 'stealth' }, node: 'to_fair' },
-      { when: { locked: 'education' }, node: 'to_campus' },
-      { when: { locked: 'skills' }, node: 'to_workshop' },
-      { node: 'to_lighthouse' },
+      { when: { notFlag: 'ticket' }, node: 'puzzle_again' },
+      { when: { locked: 'experience' }, node: 'to_coaster' },
+      { when: { locked: 'lineage' }, node: 'to_tent' },
+      { when: { locked: 'safestride' }, node: 'to_tent' },
+      { when: { locked: 'stealth' }, node: 'to_tent' },
+      { when: { locked: 'skills' }, node: 'to_forge' },
+      { node: 'to_guestbook' },
     ])
   })
 
-  it('keeps pointing at the tent while any prize is still on the shelf', () => {
-    const at = (unlocked: string[]) => entersAt('dockmaster', makeWorld({ unlocked }))
-    const won = ['about', 'experience']
-    // One rung per prize: catching them in any order leaves Bo on the fairground
-    // until the shelf is empty. A single `stealth` rung skipped the tent the
-    // moment the mystery box came down, whichever two were still up there.
-    expect(at([...won, 'stealth'])).toBe('to_fair')
-    expect(at([...won, 'stealth', 'lineage'])).toBe('to_fair')
-    expect(at([...won, 'stealth', 'safestride'])).toBe('to_fair')
-    expect(at([...won, 'lineage', 'safestride'])).toBe('to_fair')
-    expect(at([...won, 'lineage', 'safestride', 'stealth'])).toBe('to_campus')
+  it('keeps asking for the ticket until the turnstile flag is set', () => {
+    // The ticket is a save flag, not a chapter: reading the About card at the
+    // booth no longer counts as having paid your way in.
+    expect(entersAt('dockmaster', makeWorld({ unlocked: ['about'] }))).toBe('puzzle_again')
+    expect(entersAt('dockmaster', makeWorld({ unlocked: ['about'], flags: ['ticket'] }))).toBe('to_coaster')
   })
 
-  it('sends you to the right place at each stage of the story', () => {
-    const all = ['about', 'experience', 'lineage', 'safestride', 'stealth', 'education', 'skills']
-    const at = (unlocked: string[], flags: string[] = []) => entersAt('dockmaster', makeWorld({ unlocked, flags }))
-    expect(at([])).toBe('puzzle_again')
-    expect(at(['about'])).toBe('puzzle_again')
-    expect(at(['about', 'experience'])).toBe('to_fair')
-    expect(at(['about', 'experience', 'lineage', 'safestride'])).toBe('to_fair')
-    expect(at(['about', 'experience', 'lineage', 'safestride', 'stealth'])).toBe('to_campus')
-    expect(at(['about', 'experience', 'lineage', 'safestride', 'stealth', 'education'])).toBe('to_workshop')
-    expect(at(all)).toBe('to_lighthouse')
-    expect(at(all, ['story_done'])).toBe('done')
+  it('keeps pointing at the tent while any prize is still on the shelf', () => {
+    const at = (unlocked: string[]) => entersAt('dockmaster', makeWorld({ unlocked, flags: ['ticket'] }))
+    const won = ['about', 'experience', 'education']
+    expect(at([...won, 'stealth'])).toBe('to_tent')
+    expect(at([...won, 'stealth', 'lineage'])).toBe('to_tent')
+    expect(at([...won, 'stealth', 'safestride'])).toBe('to_tent')
+    expect(at([...won, 'lineage', 'safestride'])).toBe('to_tent')
+    expect(at([...won, 'lineage', 'safestride', 'stealth'])).toBe('to_forge')
+  })
+
+  it('sends you to the right place at each stage of the fair', () => {
+    const all = ['about', 'experience', 'education', 'lineage', 'safestride', 'stealth', 'skills']
+    const at = (unlocked: string[], flags: string[] = ['ticket']) => entersAt('dockmaster', makeWorld({ unlocked, flags }))
+    expect(at([], [])).toBe('puzzle_again')
+    expect(at(['about'])).toBe('to_coaster')
+    expect(at(['about', 'experience', 'education'])).toBe('to_tent')
+    expect(at(['about', 'experience', 'education', 'lineage', 'safestride'])).toBe('to_tent')
+    expect(at(['about', 'experience', 'education', 'lineage', 'safestride', 'stealth'])).toBe('to_forge')
+    expect(at(all)).toBe('to_guestbook')
+    expect(at(all, ['ticket', 'story_done'])).toBe('done')
   })
 
   it('greets you on arrival, opens the About card and offers the word puzzle', () => {
     const w = makeWorld()
     const said = play('dockmaster', w, ["Let's solve it"], 'intro')
-    expect(said[0]).toBe("Welcome to Lineage Isle. I'm Bo — I run the docks.")
-    expect(said[said.length - 1]).toBe('Five letters. Six tries. Go on.')
+    expect(said.slice(0, 3)).toEqual([
+      "Welcome to Naman's World Fair. I'm Bo — I run the gate.",
+      "Everything in here is a chapter of Naman's résumé, and I know the way round.",
+      "Here's the man himself.",
+    ])
+    expect(said[3]).toBe("Tickets are one word each. Five letters, six tries — crack it and you're in.")
     expect(w.flags.has('met_dockmaster')).toBe(true)
     expect(w.xp).toBe(20)
     expect(w.applied).toContainEqual({ panel: 'zone:about' })
@@ -529,7 +512,7 @@ describe('Bo the dockmaster', () => {
     expect(intro.next).toBe('puzzle')
   })
 
-  it('lets the puzzle wait, and offers it again every time you pass the pier', () => {
+  it('lets the puzzle wait, and offers it again every time you pass the booth', () => {
     const w = makeWorld()
     play('dockmaster', w, ['Maybe later'], 'intro')
     expect(w.applied.some((e) => e.minigame)).toBe(false)
@@ -541,105 +524,87 @@ describe('Bo the dockmaster', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/* The quest villagers, trimmed to the errand and nothing else.         */
+/* The stalls and the errands, trimmed to the game and nothing else.    */
+
+describe('the stalls point at their games', () => {
+  it('gives the operator and the three stall-holders one thing to say', () => {
+    for (const id of ['professor', 'sol', 'ravi', 'arjun']) {
+      const w = makeWorld()
+      expect(play(id, w).length, `"${id}" says more than it needs to`).toBeGreaterThan(0)
+      expect(w.applied, `"${id}" should not hand anything out`).toEqual([])
+    }
+  })
+
+  it('lets the coaster operator greet you in two boxes and wave you aboard after', () => {
+    const w = makeWorld()
+    const said = play('professor', w, [], 'intro')
+    expect(said).toEqual(['All aboard. Every hill up there is a year of his career.', 'Ride it whenever you like.'])
+  })
+})
 
 describe('the errands still run', () => {
-  it('Tomas lends the rod, takes three fish and hands over Byte', () => {
+  it('Tomas lends the pole, takes three ducks and hands over the cat', () => {
     const w = makeWorld()
     play('tomas', w)
-    expect(w.quests.isActive('fishing')).toBe(true)
-    w.quests.advance('fishing', 'catch', 3) // the pier does this bit
+    expect(w.quests.isActive('ducks')).toBe(true)
+    w.quests.advance('ducks', 'hook', 3) // the pond does this bit
     w.items.set('fish', 3)
     play('tomas', w)
     expect(w.items.get('fish')).toBe(0)
     expect(w.applied).toContainEqual({ companion: true })
-    expect(w.quests.isDone('fishing')).toBe(true)
+    expect(w.quests.isDone('ducks')).toBe(true)
     // and never a second time
     const before = w.applied.length
     play('tomas', w)
     expect(w.applied.length).toBe(before)
   })
 
-  it('Pip asks for five shells and takes them once', () => {
+  it('Pip asks for five balloons and takes them once', () => {
     const w = makeWorld()
     play('pip', w)
-    expect(w.quests.isActive('shells')).toBe(true)
-    w.quests.advance('shells', 'find', 5) // the beach does this bit
+    expect(w.quests.isActive('balloons')).toBe(true)
+    w.quests.advance('balloons', 'find', 5) // the lawns do this bit
     w.items.set('shell', 5)
     play('pip', w)
     expect(w.items.get('shell')).toBe(0)
-    expect(w.quests.isDone('shells')).toBe(true)
+    expect(w.quests.isDone('balloons')).toBe(true)
     const before = w.applied.length
     play('pip', w)
     expect(w.applied.length).toBe(before)
   })
 
-  it('Ilse starts the beacon and remarks on it once it burns', () => {
-    const w = makeWorld()
+  it('Ilse only asks for the lights once it is dark, and remarks on them after', () => {
+    const day = makeWorld()
+    play('ilse', day)
+    expect(day.quests.isActive('lights'), 'the lights are not worth switching on at noon').toBe(false)
+
+    const w = makeWorld({ night: true })
     play('ilse', w)
-    expect(w.quests.isActive('beacon')).toBe(true)
-    w.quests.advance('beacon', 'light', 1)
-    expect(w.quests.isDone('beacon')).toBe(true)
+    expect(w.quests.isActive('lights')).toBe(true)
+    w.quests.advance('lights', 'switch', 1)
+    expect(w.quests.isDone('lights')).toBe(true)
+    expect(entersAt('ilse', w)).toBe('lit')
+    // and the finished quest reads the same by daylight
+    w.night = false
     expect(entersAt('ilse', w)).toBe('lit')
   })
 
-  it('Mira hands out her crew game inside the arcade', () => {
+  it('Mira hands out her crew game at the arcade tent', () => {
     const w = makeWorld()
-    play('mira', w, [], 'intro')
+    play('mira', w)
     expect(w.quests.isActive('crew')).toBe(true)
+    w.quests.advance('crew', 'win', 1)
+    expect(entersAt('mira', w)).toBe('done')
   })
 })
 
 /* ------------------------------------------------------------------ */
-/* The four objects.                                                    */
 
-describe('the objects', () => {
-  it('the lens always offers a signal — the Contact chapter is never gated', () => {
-    // dark, mid-errand and lit: every state the lens can be found in
-    for (const node of NPC_TREES.lens.entry.map((e) => e.node)) {
-      const r = new DialogueRunner(startingAt(NPC_TREES.lens, node), permissive())
-      expect(drive(r), `the lens should offer a choice at "${node}"`).toBe('choice')
-      expect(r.choices.map((c) => c.text), `"${node}"`).toContain('Send a signal?')
-    }
+describe('the fixtures', () => {
+  it('the turnstile asks for a ticket and points at the window', () => {
     const w = makeWorld()
-    play('lens', w, ['Send a signal?'])
-    expect(w.applied).toContainEqual({ unlockFacet: 'contact' })
-    expect(w.applied).toContainEqual({ panel: 'zone:contact' })
-    expect(w.unlocked.has('contact')).toBe(true)
-  })
-
-  it('keeps lighting the lens on Ilse’s beacon path', () => {
-    const w = makeWorld()
-    w.quests.start('beacon')
-    play('lens', w, ['Light the lens'])
-    expect(w.applied).toContainEqual({ cutscene: 'beacon' })
-  })
-
-  it('the vault door stays sealed under twenty packets, then opens the card', () => {
-    expect(entersAt('vault_door', makeWorld({ packets: 19 }))).toBe('sealed')
-    const w = makeWorld({ packets: 20 })
-    play('vault_door', w)
-    expect(w.applied).toContainEqual({ panel: 'zone:stealth' })
-  })
-
-  it('the bed sleeps till morning, till night, or not at all', () => {
-    for (const [answer, effect] of [
-      ['Sleep till morning', { sleep: 'morning' }],
-      ['Nap till night', { sleep: 'night' }],
-    ] as const) {
-      const w = makeWorld()
-      play('bed', w, [answer])
-      expect(w.applied).toContainEqual(effect)
-    }
-    const w = makeWorld()
-    play('bed', w, ['Never mind'])
-    expect(w.applied.some((e) => e.sleep)).toBe(false)
-  })
-
-  it('the telescope pays the Summit badge', () => {
-    const w = makeWorld()
-    play('telescope', w)
-    expect(w.applied).toContainEqual({ achievement: 'summit' })
+    expect(play('gate', w)).toEqual(["Ticket first. Bo's window is right there."])
+    expect(w.applied).toEqual([])
   })
 
   it('the cat says one word', () => {

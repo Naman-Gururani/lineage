@@ -1,6 +1,6 @@
 export const TILE = 32
-export const WORLD_TW = 96
-export const WORLD_TH = 72
+export const WORLD_TW = 72
+export const WORLD_TH = 56
 export const WORLD_W = TILE * WORLD_TW
 export const WORLD_H = TILE * WORLD_TH
 export const WORLD_SEED = 20240816

@@ -85,7 +85,7 @@ describe('finger post card', () => {
     uiState.settings.reducedMotion = true // synchronous close/removal
     for (const k of ['open', 'close', 'select', 'blip', 'pickup'] as const) vi.spyOn(sfx, k).mockImplementation(() => {})
     initPanels()
-    offScene = wireScene(() => events.emit('ui:panel', { id: 'sign', data: 'harbor' }))
+    offScene = wireScene(() => events.emit('ui:panel', { id: 'sign', data: 'gate' }))
   })
 
   afterEach(() => {
@@ -97,7 +97,7 @@ describe('finger post card', () => {
   })
 
   it('routes ui:panel {id:"sign"} to the card', () => {
-    events.emit('ui:panel', { id: 'sign', data: 'harbor' })
+    events.emit('ui:panel', { id: 'sign', data: 'gate' })
     expect(card()).toBeTruthy()
     expect(document.querySelectorAll('.sign-arm').length).toBe(SIGNS[0].arms.length)
   })

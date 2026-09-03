@@ -8,12 +8,14 @@
 // books is rasterised once when it is first seen and blitted after that, so a
 // frame is a handful of draws however many books are on the board.
 import { sfx } from '../../audio/sfx'
+import { events } from '../../core/events'
 import { BIRD_X, FLAPPY, type FlappyState, type Rect, columnRects, flap, newFlappy, revive, step, won } from '../../games/flappy'
 import { type MinigameHost, type MinigameSession, afterWin } from '../../systems/Minigame'
 import { panelHead } from '../panels'
 import { reducedMotion } from '../state'
 import { type Surface, makeCanvas } from './canvas'
 import { createLoop } from './loop'
+import { mountReveal } from './reveal'
 
 const HZ = 120
 const STEP_MS = 1000 / HZ
@@ -142,7 +144,7 @@ export function mountFlappy(host: MinigameHost, root: HTMLElement): FlappySessio
   let winTimer = 0
 
   root.innerHTML =
-    panelHead('Chalk Flight', 'SRM CAMPUS') +
+    panelHead('Chalk Flight', 'PRIZE ROW') +
     `<p class="mg-rule">Tap or press Space to flap. Fly through ten gaps and the notice board is yours.</p>` +
     `<div class="mg-stats"><span class="mg-stat"><b data-f="score">0</b><small>of ${FLAPPY.WIN} gaps</small></span></div>` +
     `<div class="mg-board fl-board"></div>` +
@@ -366,6 +368,14 @@ export function mountFlappy(host: MinigameHost, root: HTMLElement): FlappySessio
     e.preventDefault()
     root.focus({ preventScroll: true })
     doFlap()
+  })
+
+  // "Skip this one" is the only reveal on the midway that reveals nothing: the
+  // board is fun and nothing else, so peeking simply ends the round — and the
+  // hat, which is for playing, stays on its hook.
+  mountReveal(root, 'Skip this one', () => {
+    events.emit('ui:toast', { kind: 'info', icon: '🎓', title: 'No hat for peeking.' })
+    host.quit()
   })
 
   root.focus({ preventScroll: true })

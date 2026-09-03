@@ -20,8 +20,10 @@ import {
   hintsLeft,
   newForge,
   pick,
+  restore,
   revealWord,
   roundOf,
+  serialize,
   shuffle,
   submit,
   unpick,
@@ -343,5 +345,60 @@ describe('forge — shuffle', () => {
     shuffle(RING, 3)
     expect(RING).toEqual(before)
     expect(FORGE_ROUNDS[4].ring).toEqual(before)
+  })
+})
+
+describe('forge — progress that survives leaving the booth', () => {
+  it('writes down the round and every word forged so far, and nothing else', () => {
+    let s = clearRound(newForge())
+    s = spell(s, 'FL') // a half-spelled word is not progress
+    expect(serialize(s)).toEqual({ round: 1, found: ['JAVA', 'KAFKA'] })
+    expect(Object.keys(serialize(s)).sort()).toEqual(['found', 'round'])
+  })
+
+  it('copies the word list, so a saved record cannot be written through', () => {
+    const s = clearRound(newForge())
+    const out = serialize(s)
+    out.found.push('NOPE')
+    expect(s.found).toEqual(['JAVA', 'KAFKA'])
+  })
+
+  it('comes back on the wheel it was left on, with the wall already lit', () => {
+    let s = clearRound(newForge())
+    s = play(s, 'FLINK').state
+    const back = restore(serialize(s))
+    expect(back.found).toEqual(['JAVA', 'KAFKA', 'FLINK'])
+    expect(back.round).toBe(1)
+    expect(roundOf(back).ring).toEqual(FORGE_ROUNDS[1].ring)
+    expect(back.status).toBe('play')
+    // A fresh visit is a fresh bench: no half-spelled word, no misses banked
+    // against it, and the round's two hints back on the house.
+    expect(back.picked).toEqual([])
+    expect(back.misses).toBe(0)
+    expect(hintsLeft(back)).toBe(FORGE_HINTS)
+  })
+
+  it('comes back finished when the wall was finished', () => {
+    let s = newForge()
+    for (let i = 0; i < FORGE_ROUNDS.length; i++) s = clearRound(s)
+    const back = restore(serialize(s))
+    expect(back.status).toBe('won')
+    expect(back.round).toBe(FORGE_ROUNDS.length)
+    expect(back.found.length).toBe(FORGE_ROUNDS.flatMap((r) => r.words).length)
+  })
+
+  it('starts a fresh bench on anything that is not a record', () => {
+    for (const junk of [undefined, null, 0, 'JAVA', [], { found: 'JAVA', round: 0 }, { found: ['JAVA'] }, { round: 1 }]) {
+      expect(restore(junk)).toEqual(newForge())
+    }
+  })
+
+  it('drops words that are not on any wheel, and duplicates of ones that are', () => {
+    const back = restore({ round: 4, found: ['JAVA', 'NOPE', 'JAVA', 42, 'KAFKA'] })
+    expect(back.found).toEqual(['JAVA', 'KAFKA'])
+    // The round is read back off the words, not taken on trust: a record that
+    // claims the last wheel with the first one's words is still on wheel two.
+    expect(back.round).toBe(1)
+    expect(back.status).toBe('play')
   })
 })

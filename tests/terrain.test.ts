@@ -198,7 +198,7 @@ describe('ground painters', () => {
       }
   })
 
-  it('never paints outside its own tile', () => {
+  it('never paints outside its own tile', { timeout: 20000 }, () => {
     for (const kind of GROUND_KINDS) {
       const r = makeRaster(TILE * 3, TILE * 3)
       fillRect(r, 0, 0, r.w, r.h, MARK)

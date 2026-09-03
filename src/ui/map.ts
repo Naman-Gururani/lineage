@@ -1,44 +1,60 @@
-// The island map (modal) and the always-on minimap widget.
+// The fair map (modal) and the always-on minimap widget.
 import { sfx } from '../audio/sfx'
 import { WORLD_H, WORLD_TH, WORLD_TW, WORLD_W } from '../config'
 import { events } from '../core/events'
 import { ZONES, type Zone } from '../data/content'
-import { BLUEPRINT } from '../world/blueprint'
+import { BLUEPRINT, type Attraction, type AttractionId } from '../world/blueprint'
 import { closeAllModals, closeModal, el, esc, openModal, uiRoot } from './modal'
 import { accentOf, panelHead, registerPanel } from './panels'
 import { uiState } from './state'
 
-const KIND_ICON: Record<string, string> = {
-  home: '🏠',
-  tower: '🏢',
-  workshop: '🛠️',
-  fair: '🎪',
-  vault: '🔐',
-  cottage: '🏡',
-  lighthouse: '🗼',
-  campus: '🎓',
+/** One glyph per attraction — what the stall *is*, not what it hands over. */
+const ICON: Record<AttractionId, string> = {
+  gate: '🎟️',
+  coaster: '🎢',
+  prizetent: '🎪',
+  forge: '🔨',
+  flight: '🪁',
+  arcade: '🕹️',
+  duckpond: '🦆',
+  guestbook: '📖',
 }
 
-/**
- * Discoverable landmarks — the "n/N FOUND" denominator and the pin set. Minor
- * buildings (the warehouse) are scenery with a door: no zone, no discovery, so
- * counting them would leave the tally stuck one short of full forever.
- */
-const discoverable = () => BLUEPRINT.landmarks.filter((lm) => !lm.minor)
+/** Pin colour for the three stalls that hand over no chapter: fair gold. */
+const FAIR_ACCENT = 0xffd23f
 
 /**
- * Routes that are earned rather than found. The Tower Express comes with the
- * visitor pass Bo hands over for his word puzzle: the entry is registered now
- * and stays out of the map until the flag lands, so nothing has to be added to
- * this panel when the game ships.
+ * The pin set and the "n/8 FOUND" denominator: every attraction at the fair.
+ * All eight are discoverable — there is no scenery with a door here, so nothing
+ * can leave the tally stuck one short of full.
  */
-export const FAST_TRAVEL: { id: string; label: string; note: string; flag: string }[] = [
-  { id: 'experience', label: 'Tower Express', note: "Bo's visitor pass", flag: 'tower_express' },
-]
-
-export const unlockedTravel = (): typeof FAST_TRAVEL => FAST_TRAVEL.filter((f) => !!uiState.flags[f.flag])
+const attractions = (): Attraction[] => BLUEPRINT.attractions
 
 const zoneOf = (id: string): Zone | undefined => ZONES.find((z) => z.id === id)
+
+/**
+ * The attraction a pin request means. Panels ask by *chapter* — a locked card's
+ * [Show on map] knows which chapter it is, not which stall hands it over — and
+ * the story asks by attraction id. Both are answered here, id first.
+ */
+const attractionFor = (id: string): Attraction | undefined =>
+  attractions().find((a) => a.id === id) ?? attractions().find((a) => a.zones.includes(id))
+
+/**
+ * The chapters a stall hands over, as the résumé labels them ('' for the fun
+ * stalls). Deduped: the Prize Tent hands over three chapters and all three are
+ * labelled "Project", which is one thing to say, not three.
+ */
+const chaptersOf = (a: Attraction): string => {
+  const labels = a.zones.map((z) => zoneOf(z)?.label).filter((l): l is string => !!l)
+  return [...new Set(labels)].join(' · ')
+}
+
+const accentFor = (a: Attraction): string => {
+  const z = a.zones.map(zoneOf).find(Boolean)
+  return accentOf(z ?? FAIR_ACCENT)
+}
+
 const pctX = (tx: number) => ((tx / WORLD_TW) * 100).toFixed(2) + '%'
 const pctY = (ty: number) => ((ty / WORLD_TH) * 100).toFixed(2) + '%'
 
@@ -56,19 +72,20 @@ function bboxCentre(poly: { x: number; y: number }[]): { x: number; y: number } 
   return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }
 }
 
-function lmCentre(id: string): { x: number; y: number } {
-  const lm = BLUEPRINT.landmarks.find((l) => l.id === id)!
-  return { x: lm.tx + lm.w / 2, y: lm.ty + lm.h / 2 }
-}
+const centreOf = (a: Attraction): { x: number; y: number } => ({ x: a.tx + a.w / 2, y: a.ty + a.h / 2 })
 
 function nearestInDirection(buttons: HTMLButtonElement[], from: HTMLButtonElement | null, dx: number, dy: number): HTMLButtonElement | null {
   if (!from) return buttons[0] ?? null
-  const o = lmCentre(from.dataset.id!)
+  const start = attractionFor(from.dataset.id!)
+  if (!start) return buttons[0] ?? null
+  const o = centreOf(start)
   let best: HTMLButtonElement | null = null
   let score = Infinity
   for (const b of buttons) {
     if (b === from) continue
-    const p = lmCentre(b.dataset.id!)
+    const a = attractionFor(b.dataset.id!)
+    if (!a) continue
+    const p = centreOf(a)
     const vx = p.x - o.x
     const vy = p.y - o.y
     const along = vx * dx + vy * dy
@@ -86,6 +103,9 @@ function nearestInDirection(buttons: HTMLButtonElement[], from: HTMLButtonElemen
 export function openMap(data?: { focus?: string }): void {
   const discovered = new Set(uiState.stats.discoveries)
   const objective = uiState.objective
+  // The stall the story is sending you to. It names an attraction, but a
+  // chapter is answered too, so the ring never lands on nothing.
+  const objectivePin = objective ? attractionFor(objective.landmark) : undefined
   const box = el('div', 'map')
   box.dataset.width = '900px'
   let stage = uiState.minimapURL
@@ -95,38 +115,42 @@ export function openMap(data?: { focus?: string }): void {
     const c = bboxCentre(r.poly)
     stage += `<span class="map-region" style="left:${pctX(c.x)};top:${pctY(c.y)}">${esc(r.name)}</span>`
   }
-  // Where the story sends you next, pinned to its tile rather than to a
-  // landmark: the first two stations point at the `PIER` sentinel, which no
-  // landmark answers to and so has no pin of its own.
+  // Where the story sends you next, pinned to its tile as well as to its stall:
+  // the tile is where you are actually being sent (a door, not a roof).
   if (objective)
     stage += `<span class="map-objective" aria-hidden="true" style="left:${pctX(objective.tx + 0.5)};top:${pctY(objective.ty + 0.5)}"></span>`
-  for (const lm of discoverable()) {
-    const z = zoneOf(lm.id)
-    if (!z) continue
-    const known = discovered.has(lm.id)
-    const c = lmCentre(lm.id)
+  for (const a of attractions()) {
+    const known = discovered.has(a.id)
+    const c = centreOf(a)
+    const chapters = chaptersOf(a)
+    const isNext = objectivePin?.id === a.id
+    // The ring round the story's next stall is a colour, and colour is the one
+    // thing a screen reader cannot read. `aria-current` puts the pin in the set
+    // as the current one; the label says it in words. It goes in the *label* and
+    // not in an `sr-only` child because `aria-label` wins over anything inside
+    // the button — a hidden span there would never be read at all.
+    const name = (known ? (chapters ? `${a.name} — ${chapters}` : a.name) : 'Undiscovered attraction') + (isNext ? ' — the story goes here' : '')
     stage +=
-      `<button type="button" class="map-lm ${known ? 'known' : 'unknown'}${objective?.landmark === lm.id ? ' objective' : ''}" data-id="${lm.id}" ` +
-      `style="left:${pctX(c.x)};top:${pctY(c.y)};--accent:${accentOf(z)}" ` +
-      `aria-label="${known ? `${esc(z.name)} — ${esc(z.label)}` : 'Undiscovered landmark'}">` +
-      `<span class="map-ic" aria-hidden="true">${known ? (KIND_ICON[z.kind] ?? '★') : '?'}</span>` +
-      `<span class="map-lbl" aria-hidden="true">${known ? esc(z.label) : '?'}</span></button>`
+      `<button type="button" class="map-lm ${known ? 'known' : 'unknown'}${isNext ? ' objective' : ''}" data-id="${a.id}" ` +
+      `style="left:${pctX(c.x)};top:${pctY(c.y)};--accent:${accentFor(a)}" ` +
+      `aria-pressed="false"${isNext ? ' aria-current="true"' : ''} ` +
+      `aria-label="${esc(name)}">` +
+      `<span class="map-ic" aria-hidden="true">${known ? ICON[a.id] : '?'}</span>` +
+      `<span class="map-lbl" aria-hidden="true">${known ? esc(a.name) : '?'}</span></button>`
   }
   stage += `<span class="map-player" role="img" aria-label="You are here" style="left:${((uiState.player.x / WORLD_W) * 100).toFixed(2)}%;top:${((uiState.player.y / WORLD_H) * 100).toFixed(2)}%"></span>`
-  const express = unlockedTravel()
-  box.innerHTML = `${panelHead('Lineage Isle', `${discovered.size}/${discoverable().length} FOUND`)}
+  box.innerHTML = `${panelHead("Naman's World Fair", `${discovered.size}/${attractions().length} FOUND`)}
     <div class="map-wrap"><div class="map-stage">${stage}</div></div>
-    <div class="map-info"><p class="map-hint" aria-live="polite">Select a landmark — discovered places can be travelled to.</p><button type="button" class="pbtn primary map-travel" hidden>Travel ▶</button></div>
-    ${
-      express.length
-        ? `<div class="map-express"><span class="map-express-lbl">Fast travel</span>${express
-            .map(
-              (f) =>
-                `<button type="button" class="pbtn map-express-btn" data-travel="${esc(f.id)}">⚡ ${esc(f.label)}<small>${esc(f.note)}</small></button>`,
-            )
-            .join('')}</div>`
-        : ''
-    }`
+    <div class="map-info"><p class="map-hint">Select an attraction — the ones you have found can be travelled to.</p><button type="button" class="pbtn primary map-travel" disabled>Travel ▶</button></div>`
+  // Two deliberate absences above.
+  //
+  // `.map-hint` is not a live region. Moving between pins focuses a button, and
+  // a focused button announces its own label; rewriting a live hint with the
+  // same name at the same moment said everything twice.
+  //
+  // Travel is `disabled`, never `hidden`. Removing a control from the tab order
+  // whenever the selection changes moves the furniture under the player's hands;
+  // a button that is there and dimmed says the same thing and stays put.
 
   const hint = box.querySelector('.map-hint') as HTMLElement
   const travel = box.querySelector('.map-travel') as HTMLButtonElement
@@ -134,17 +158,20 @@ export function openMap(data?: { focus?: string }): void {
   let selId = ''
   const select = (id: string) => {
     selId = id
-    buttons.forEach((b) => b.classList.toggle('sel', b.dataset.id === id))
-    const z = zoneOf(id)
-    if (!z) return
-    if (discovered.has(id)) {
-      hint.innerHTML =
-        `<b>${esc(z.name)}</b> <span class="map-tag">${esc(z.label)}</span>` +
-        (z.content.kicker ? `<span class="map-kick">${esc(z.content.kicker)}</span>` : '')
-      travel.hidden = false
+    buttons.forEach((b) => {
+      const on = b.dataset.id === id
+      b.classList.toggle('sel', on)
+      b.setAttribute('aria-pressed', String(on))
+    })
+    const a = attractionFor(id)
+    if (!a) return
+    if (discovered.has(a.id)) {
+      const chapters = chaptersOf(a)
+      hint.innerHTML = `<b>${esc(a.name)}</b>` + (chapters ? ` <span class="map-tag">${esc(chapters)}</span>` : '')
+      travel.disabled = false
     } else {
       hint.textContent = 'An undiscovered place — you will have to find it on foot.'
-      travel.hidden = true
+      travel.disabled = true
     }
   }
   const goTo = (id: string) => {
@@ -156,11 +183,6 @@ export function openMap(data?: { focus?: string }): void {
     const t = e.target as HTMLElement
     if (t.closest('.modal-x')) {
       closeModal('map')
-      return
-    }
-    const route = t.closest<HTMLButtonElement>('[data-travel]')
-    if (route) {
-      goTo(route.dataset.travel!)
       return
     }
     const b = t.closest<HTMLButtonElement>('.map-lm')
@@ -197,15 +219,16 @@ export function openMap(data?: { focus?: string }): void {
     }
     e.preventDefault()
   })
-  // A locked card's [Show on map] asks for its landmark: select it and hand it
-  // the opening focus, discovered or not — being told where a place is does not
-  // make it somewhere you may travel to.
-  const wanted = data?.focus ? buttons.find((b) => b.dataset.id === data.focus) : undefined
+  // A locked card's [Show on map] asks for its chapter: select the stall that
+  // hands it over and give it the opening focus, discovered or not — being told
+  // where a place is does not make it somewhere you may travel to.
+  const focus = data?.focus ? attractionFor(data.focus) : undefined
+  const wanted = focus ? buttons.find((b) => b.dataset.id === focus.id) : undefined
   if (wanted) {
     select(wanted.dataset.id!)
     wanted.setAttribute('data-autofocus', '')
   }
-  openModal({ id: 'map', el: box, label: 'Island map' })
+  openModal({ id: 'map', el: box, label: 'Fair map' })
 }
 
 export function initMap(): void {
@@ -228,7 +251,13 @@ export function initMinimap(): void {
   btn.appendChild(canvas)
   uiRoot().appendChild(btn)
   widget = btn
-  btn.addEventListener('click', () => events.emit('ui:panel', { id: 'map' }))
+  btn.addEventListener('click', (e) => {
+    // A pointer click would leave the widget focused, and the next Space (the
+    // hop) would press it again; hand focus back first. Keyboard activation
+    // (`detail` 0, no pointer) keeps its focus.
+    if (e.detail > 0 || !!(e as PointerEvent).pointerType) btn.blur()
+    events.emit('ui:panel', { id: 'map' })
+  })
 
   let img: HTMLImageElement | null = null
   let loaded = ''
@@ -246,15 +275,15 @@ export function initMinimap(): void {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.imageSmoothingEnabled = false
-    ctx.fillStyle = '#2b7fc0'
+    ctx.fillStyle = '#3f7d3a'
     ctx.fillRect(0, 0, 128, 96)
     if (img && img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, 128, 96)
-    for (const lm of discoverable()) {
-      const z = zoneOf(lm.id)
-      const known = uiState.stats.discoveries.includes(lm.id)
-      ctx.fillStyle = known && z ? accentOf(z) : 'rgba(253,251,244,0.55)'
-      const x = Math.round(((lm.tx + lm.w / 2) / WORLD_TW) * 128)
-      const y = Math.round(((lm.ty + lm.h / 2) / WORLD_TH) * 96)
+    for (const a of attractions()) {
+      const known = uiState.stats.discoveries.includes(a.id)
+      ctx.fillStyle = known ? accentFor(a) : 'rgba(253,251,244,0.55)'
+      const c = centreOf(a)
+      const x = Math.round((c.x / WORLD_TW) * 128)
+      const y = Math.round((c.y / WORLD_TH) * 96)
       ctx.fillRect(x - 1, y - 1, 3, 3)
     }
     const px = Math.round((uiState.player.x / WORLD_W) * 128)

@@ -1,0 +1,27 @@
+/* "Show me the answers" — the door every cabinet keeps in its footer.
+
+   It is deliberately quieter than the game's own buttons: a dashed outline and
+   dimmed ink, so a player looking for a way out finds it and a player enjoying
+   themselves does not reach for it by accident. It sits last-but-one, right
+   before Leave, which is where the footer's two exits belong together. */
+.mg-reveal {
+  border-style: dashed;
+  border-color: var(--line);
+  color: var(--ink-dim);
+  background: transparent;
+}
+.mg-reveal:hover,
+.mg-reveal:focus-visible {
+  border-style: solid;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* On a phone the footer is already fighting for room: the eye-catching half of
+   the label is the verb, so the button keeps its full text but stops growing. */
+@media (max-width: 520px) {
+  .mg-reveal {
+    padding-inline: 0.8rem;
+    font-size: 0.82rem;
+  }
+}

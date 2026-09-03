@@ -2,8 +2,9 @@
 //
 // Everything the renderer draws is decided here: which tile is cracking, when it
 // drops, who is standing on it when it does, where the bots hop next and how
-// often they blunder. The two properties the game lives or dies by are pinned
-// down at the bottom: nobody ever stands on a hole, and every seed ends.
+// often they blunder. The three properties the game lives or dies by are pinned
+// down at the bottom: nobody ever stands on a hole, a hole never becomes floor
+// again, and every seed ends — in a round somebody would call a round.
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -115,6 +116,33 @@ function withTile(s: CrewState, x: number, y: number, tile: Tile): CrewState {
   return { ...s, tiles: s.tiles.map((t, i) => (i === y * CREW.W + x ? tile : t)) }
 }
 
+describe('the dials', () => {
+  it('deals a twelve-by-eight deck', () => {
+    expect([CREW.W, CREW.H]).toEqual([12, 8])
+    expect(CREW.W * CREW.H).toBe(96)
+  })
+
+  it('keeps the constants the sweep was measured against', () => {
+    // Nothing repairs, so the length of a round is these numbers and nothing
+    // else. They were swept together — change one and the bounds at the bottom
+    // of this file, which is what they were chosen to satisfy, are what will
+    // tell you whether the new set is still a game.
+    expect(CREW.CRACK_MS).toBe(1400)
+    expect(CREW.MOVE_MS).toBe(160)
+    expect(CREW.THINK_MS).toBe(450)
+    expect(CREW.SHRINK_START_MS).toBe(15000)
+    expect(CREW.SHRINK_EVERY_MS).toBe(3000)
+    expect(CREW.SHRINK_DECAY).toBe(0.9)
+    expect(CREW.SHRINK_MIN_MS).toBe(600)
+    // A bean notices and hops with time to spare; its trail still closes behind it.
+    expect(CREW.CRACK_MS).toBeGreaterThan(CREW.THINK_MS + CREW.MOVE_MS)
+  })
+
+  it('has no repair clock left in it at all', () => {
+    expect(Object.keys(CREW).filter((k) => /REGROW|REPAIR|HEAL/.test(k))).toEqual([])
+  })
+})
+
 describe('newCrew', () => {
   it('deals the crew onto an intact floor', () => {
     const s = newCrew(1)
@@ -130,13 +158,17 @@ describe('newCrew', () => {
   it('puts you at the west end and the four bots around you', () => {
     const s = newCrew(9)
     expect(s.beans).toHaveLength(CREW.BOTS + 1)
-    expect([you(s).x, you(s).y]).toEqual([1, 3])
+    expect([you(s).x, you(s).y]).toEqual([1, 4])
     expect(bots(s).map((b) => [b.id, b.x, b.y])).toEqual([
-      ['bot0', 8, 1],
-      ['bot1', 8, 5],
+      ['bot0', 10, 1],
+      ['bot1', 10, 6],
       ['bot2', 4, 0],
-      ['bot3', 5, 6],
+      ['bot3', 6, 7],
     ])
+    // Nobody starts within a hop of anybody else: five beans on one tile's worth
+    // of floor would settle the round before a key was pressed.
+    for (const a of s.beans)
+      for (const b of s.beans) if (a !== b) expect(Math.abs(a.x - b.x) + Math.abs(a.y - b.y)).toBeGreaterThan(1)
     // Nobody is mid-hop, everybody is standing where they are drawn.
     expect(s.beans.every((b) => b.alive && b.moveT === 0 && b.fx === b.x && b.fy === b.y)).toBe(true)
   })
@@ -194,31 +226,31 @@ describe('the floor gives way wherever you stand', () => {
     // has must carry on, or two beans could keep a tile alive between them.
     s = tryMove(s, 'you', 'right')
     s = step(s, CREW.MOVE_MS)
-    const aged = tileAt(s, 2, 3)!.t
+    const aged = tileAt(s, 2, 4)!.t
     s = step(s, 100)
     s = tryMove(s, 'you', 'left')
     s = step(s, CREW.MOVE_MS)
     s = tryMove(s, 'you', 'right')
     s = step(s, CREW.MOVE_MS)
-    expect(tileAt(s, 2, 3)!.t).toBeGreaterThan(aged + 200)
+    expect(tileAt(s, 2, 4)!.t).toBeGreaterThan(aged + 200)
   })
 })
 
 describe('tryMove', () => {
   it('sets the hop up and commits it when the hop lands', () => {
     let s = tryMove(newCrew(5), 'you', 'right')
-    expect([you(s).x, you(s).y]).toEqual([1, 3])
-    expect([you(s).fx, you(s).fy]).toEqual([2, 3])
+    expect([you(s).x, you(s).y]).toEqual([1, 4])
+    expect([you(s).fx, you(s).fy]).toEqual([2, 4])
     expect(you(s).moveT).toBe(CREW.MOVE_MS)
 
     s = step(s, CREW.MOVE_MS / 2)
     // Mid-hop: still owned by the tile it left, and the renderer has a fraction
     // to interpolate with rather than a jump.
     expect(you(s).moveT).toBeCloseTo(CREW.MOVE_MS / 2, 6)
-    expect([you(s).x, you(s).y]).toEqual([1, 3])
+    expect([you(s).x, you(s).y]).toEqual([1, 4])
 
     s = step(s, CREW.MOVE_MS / 2)
-    expect([you(s).x, you(s).y]).toEqual([2, 3])
+    expect([you(s).x, you(s).y]).toEqual([2, 4])
     expect(you(s).moveT).toBe(0)
   })
 
@@ -231,7 +263,7 @@ describe('tryMove', () => {
 
   it('ignores a hop off the grid', () => {
     const s = newCrew(5)
-    expect(tryMove(s, 'you', 'left')).not.toEqual(s) // (1,3) → (0,3) is on the grid
+    expect(tryMove(s, 'you', 'left')).not.toEqual(s) // (1,4) → (0,4) is on the grid
     let edge = newCrew(5)
     edge = tryMove(edge, 'you', 'left')
     edge = step(edge, CREW.MOVE_MS)
@@ -239,12 +271,12 @@ describe('tryMove', () => {
   })
 
   it('ignores a hop into a hole, and into the void', () => {
-    const hole = withTile(newCrew(5), 2, 3, { state: 'gone', t: CREW.REGROW_MS })
+    const hole = withTile(newCrew(5), 2, 4, { state: 'gone', t: 0 })
     expect(tryMove(hole, 'you', 'right')).toEqual(hole)
     // the same press one tile the other way is fine
     expect(tryMove(hole, 'you', 'left')).not.toEqual(hole)
 
-    const bitten = withTile(newCrew(5), 2, 3, { state: 'void', t: 0 })
+    const bitten = withTile(newCrew(5), 2, 4, { state: 'void', t: 0 })
     expect(tryMove(bitten, 'you', 'right')).toEqual(bitten)
   })
 
@@ -351,8 +383,7 @@ describe('the bots', () => {
           }
         },
       })
-      // and they really did move — a frozen board would pass the check above,
-      // and holes healing behind them means counting holes no longer would
+      // and they really did move — a frozen board would pass the check above
       expect(touched.size).toBeGreaterThan(20)
       // The watch above ran while the arena was biting, which is what makes
       // "never over the side" worth checking: a round that ended before the
@@ -385,21 +416,21 @@ describe('step', () => {
     for (const lump of [300, 700]) {
       let s = tryMove(solo(4), 'you', 'right')
       s = step(s, lump)
-      expect([you(s).x, you(s).y]).toEqual([2, 3])
+      expect([you(s).x, you(s).y]).toEqual([2, 4])
       expect(you(s).moveT).toBe(0)
-      expect(tileAt(s, 2, 3)!.t).toBeCloseTo(lump - CREW.MOVE_MS, 6)
+      expect(tileAt(s, 2, 4)!.t).toBeCloseTo(lump - CREW.MOVE_MS, 6)
     }
   })
 
   it('never steps over a crack expiring inside the lump', () => {
     const bare = (): CrewState => ({ ...newCrew(4), beans: [] })
     const cracked = (): CrewState => withTile(bare(), 4, 4, { state: 'cracking', t: CREW.CRACK_MS - 200 })
-    // The tile is due to drop two tenths in. One second later it is a hole that
-    // has already begun growing back; five seconds later it is floor again.
+    // The tile is due to drop two tenths in. One second later it is a hole with
+    // nothing left to count; five seconds later it is the same hole.
     const soon = step(cracked(), 1000)
     expect(stateOf(soon, 4, 4)).toBe('gone')
-    expect(tileAt(soon, 4, 4)!.t).toBeCloseTo(CREW.REGROW_MS - 800, 6)
-    expect(stateOf(step(cracked(), 5000), 4, 4)).toBe('ok')
+    expect(tileAt(soon, 4, 4)!.t).toBe(0)
+    expect(stateOf(step(cracked(), 5000), 4, 4)).toBe('gone')
   })
 
   it('takes whoever was standing on a tile that drops inside the lump', () => {
@@ -419,38 +450,63 @@ describe('step', () => {
   })
 })
 
-describe('the floor grows back', () => {
-  /** An empty floor: with nobody standing on it, the only clock is the tile's own. */
-  const bare = (seed: number): CrewState => ({ ...newCrew(seed), beans: [] })
+describe('a hole stays a hole', () => {
+  /**
+   * An empty floor with the arena's bite disarmed: the only thing that could
+   * change a tile here is the tile itself, which is exactly the claim.
+   */
+  const bare = (seed: number): CrewState => ({ ...newCrew(seed), beans: [], nextShrink: Infinity })
 
   function run(s: CrewState, ms: number): CrewState {
     for (let t = 0; t < ms; t += 16) s = step(s, 16)
     return s
   }
 
-  it('closes a hole once it has had its five seconds', () => {
-    const s = run(withTile(bare(1), 4, 4, { state: 'gone', t: CREW.REGROW_MS }), CREW.REGROW_MS - 200)
-    expect(stateOf(s, 4, 4)).toBe('gone')
-    // A hole counts *down*: what is left of its clock is how long until the
-    // deck is whole again, which is what the renderer fades back in on.
-    expect(tileAt(s, 4, 4)!.t).toBeLessThan(300)
-    expect(stateOf(run(s, 400), 4, 4)).toBe('ok')
-  })
-
-  it('turns a crack into a hole with a full regrow ahead of it', () => {
+  it('turns a crack into a hole with nothing left to count', () => {
     const s = run(withTile(bare(1), 4, 4, { state: 'cracking', t: 0 }), CREW.CRACK_MS + 50)
     expect(stateOf(s, 4, 4)).toBe('gone')
-    expect(tileAt(s, 4, 4)!.t).toBeGreaterThan(CREW.REGROW_MS - 200)
+    expect(tileAt(s, 4, 4)!.t).toBe(0)
   })
 
-  it('lets you hop onto the tile you could not, once it is back', () => {
-    let s = withTile(solo(1), 2, 3, { state: 'gone', t: 120 })
-    expect(tryMove(s, 'you', 'right')).toEqual(s)
-    s = step(s, 200)
-    expect(stateOf(s, 2, 3)).toBe('ok')
-    s = tryMove(s, 'you', 'right')
-    s = step(s, CREW.MOVE_MS)
-    expect([you(s).x, you(s).y]).toEqual([2, 3])
+  it('never turns it back into floor, however long the clock runs', () => {
+    let s = run(withTile(bare(1), 4, 4, { state: 'cracking', t: 0 }), CREW.CRACK_MS + 50)
+    expect(stateOf(s, 4, 4)).toBe('gone')
+    // A minute and a half of nothing but the clock — several times the longest
+    // round any seed plays — and the deck has not repaired one tile of itself.
+    for (const _ of [1, 2, 3]) {
+      s = run(s, 30000)
+      expect(stateOf(s, 4, 4)).toBe('gone')
+      expect(tileAt(s, 4, 4)!.t).toBe(0)
+    }
+    expect(s.tiles.filter((t) => t.state === 'gone')).toHaveLength(1)
+    expect(s.tiles.filter((t) => t.state === 'ok')).toHaveLength(CREW.W * CREW.H - 1)
+  })
+
+  it('refuses the hop onto it for as long as the round lasts', () => {
+    const hole = withTile(solo(1), 2, 4, { state: 'gone', t: 0 })
+    expect(tryMove(hole, 'you', 'right')).toEqual(hole)
+    // The same board a full round later — the bean lifted off it so the clock
+    // can run past its own crack — still refuses the same press.
+    const later = run({ ...hole, beans: [] }, 60000)
+    const rejoined: CrewState = { ...later, beans: hole.beans }
+    expect(stateOf(rejoined, 2, 4)).toBe('gone')
+    expect(tryMove(rejoined, 'you', 'right')).toEqual(rejoined)
+  })
+
+  it('leaves the deck strictly smaller after every round, played out', () => {
+    // The property the whole retune rests on: floor is spent, never lent. At no
+    // point in a round is there more intact floor than there was a moment ago.
+    let last = Infinity
+    play(7, {
+      ms: 60000,
+      policy: true,
+      watch: (cur) => {
+        const ok = cur.tiles.filter((t) => t.state === 'ok').length
+        expect(ok).toBeLessThanOrEqual(last)
+        last = ok
+      },
+    })
+    expect(last).toBeLessThan(CREW.W * CREW.H)
   })
 })
 
@@ -475,9 +531,11 @@ describe('the shrinking arena', () => {
     let s = run(bare(2), CREW.SHRINK_START_MS + 100)
     expect(voids(s)).toBe(1)
     expect(onRim(s.tiles.findIndex((t) => t.state === 'void'))).toBe(true)
-    // A bite is not a hole: three regrows later, it has not grown back.
+    // and it is still gone five seconds later — as, now, is everything else
+    // that goes, which is why this one is checked for staying `void` rather
+    // than merely for staying away.
     const bitten = s.tiles.findIndex((t) => t.state === 'void')
-    s = run(s, CREW.REGROW_MS * 3)
+    s = run(s, 5000)
     expect(s.tiles[bitten].state).toBe('void')
   })
 
@@ -559,8 +617,9 @@ describe('revive — the Hire-me lifeline', () => {
     const s = revive(lose(3))
     expect(bots(s).every((b) => b.frozen === CREW.FREEZE_MS)).toBe(true)
     // They see out the hop they were already in and start no other, and the
-    // floor waits with them: a second of freeze against a seven-tenths crack
-    // would otherwise drop all four of them and hand the round over.
+    // floor waits with them: a second of freeze over a crack that keeps running
+    // would otherwise drop whoever was furthest through theirs and hand the
+    // round over.
     const held = drive(s, {
       ms: CREW.FREEZE_MS - 40,
       policy: true,
@@ -574,10 +633,13 @@ describe('revive — the Hire-me lifeline', () => {
     expect(bots(held).every((b) => b.frozen > 0)).toBe(true)
     const where = bots(held).map((b) => [b.x, b.y])
 
-    // and once the second is up, they are off again
-    const thawed = drive(held, { ms: CREW.THINK_MS + CREW.MOVE_MS + 100, policy: true })
+    // …and once the second is up they are off again. A bot holds its nerve, so
+    // the wait is not one think but the rest of the crack under it — a whole
+    // one of those is long enough for every one of them to have had to move.
+    const thawed = drive(held, { ms: CREW.CRACK_MS, policy: true })
     expect(bots(thawed).every((b) => b.frozen === 0)).toBe(true)
-    expect(bots(thawed).map((b) => [b.x, b.y])).not.toEqual(where)
+    const moved = bots(thawed).filter((b, i) => b.x !== where[i][0] || b.y !== where[i][1])
+    expect(moved.length).toBeGreaterThan(0)
   })
 
   it('picks the tile from the seed', () => {
@@ -592,25 +654,54 @@ describe('revive — the Hire-me lifeline', () => {
   })
 })
 
-describe('every round ends', () => {
-  it('finishes inside ninety seconds for the first twenty seeds, played straight', () => {
-    const ends: number[] = []
-    for (let seed = 1; seed <= 20; seed++) {
-      const s = play(seed, { ms: 90000, policy: true })
-      expect(s.status).not.toBe('play')
-      ends.push(s.t)
-    }
-    // The deck grows back, so attrition alone would let a careful bean hop for
-    // ever: what guarantees an ending is the arena's own edge, quickening as it
-    // eats. Ninety seconds is the guarantee; the shape of a round is the median.
+describe('every round ends, and every round is a round', () => {
+  /**
+   * The sweep, run as a test: this policy, these seeds, the shipped constants.
+   * What it measured when they were chosen was min 16.4 s, median 23.4 s, max
+   * 28.9 s, with the scripted player taking thirteen of the twenty rounds it
+   * played. The bounds below are set well outside those, so an
+   * honest retune has room to move and the two failures that actually matter
+   * cannot slip through: rounds collapsing back to the five-second scramble
+   * that regrowth was once added to fix, and rounds dragging past a minute
+   * because nobody can be made to fall.
+   */
+  const ends: number[] = []
+  const wins: number[] = []
+  for (let seed = 1; seed <= 20; seed++) {
+    const s = play(seed, { ms: 120000, policy: true })
+    ends.push(s.t)
+    if (s.status === 'won') wins.push(seed)
+  }
+  const sorted = [...ends].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+
+  it('finishes inside a minute and a half for the first twenty seeds, played straight', () => {
+    for (let seed = 1; seed <= 20; seed++) expect(play(seed, { ms: 120000, policy: true }).status).not.toBe('play')
     expect(Math.max(...ends)).toBeLessThan(90000)
-    // Not a wall of instant losses either — and the floor is set where it can
-    // actually catch the failure this is guarding: with the deck healing too
-    // slowly for the crew it feeds, beans wall themselves in with their own
-    // trail and every round is over inside five seconds. No seed may end before
-    // the arena has even started closing in.
-    expect(Math.min(...ends)).toBeGreaterThan(CREW.SHRINK_START_MS)
-    const median = [...ends].sort((a, b) => a - b)[Math.floor(ends.length / 2)]
-    expect(median).toBeGreaterThan(CREW.SHRINK_START_MS)
+  })
+
+  it('gives a round worth calling a round', () => {
+    // A game, not a scramble: the median sits in the twenties, and even the
+    // shortest seed outlasts a single crack many times over.
+    expect(median).toBeGreaterThanOrEqual(15000)
+    expect(median).toBeLessThanOrEqual(45000)
+    expect(Math.min(...ends)).toBeGreaterThanOrEqual(8000)
+    // …and over the first ten seeds alone, which is the slice the sweep prints
+    const half = ends.slice(0, 10).sort((a, b) => a - b)
+    expect(half[Math.floor(half.length / 2)]).toBeGreaterThanOrEqual(15000)
+    expect(half[0]).toBeGreaterThanOrEqual(8000)
+  })
+
+  it('lets a careful player win their share, and still lose some', () => {
+    // The bots have to die of their own blunders often enough to be beatable
+    // and rarely enough to be worth beating.
+    expect(wins.length).toBeGreaterThanOrEqual(6)
+    expect(wins.length).toBeLessThanOrEqual(18)
+  })
+
+  it('gets the arena biting before the median round is over', () => {
+    // The shrink is no longer what ends a round — a deck that never repairs
+    // does that on its own — but it still has to arrive in time to matter.
+    expect(CREW.SHRINK_START_MS).toBeLessThan(median)
   })
 })

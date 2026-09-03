@@ -16,16 +16,6 @@ export const PROFILE = {
   linkedinHandle: 'in/naman-gururani',
 }
 
-export type LandmarkKind =
-  | 'home'
-  | 'tower'
-  | 'workshop'
-  | 'fair'
-  | 'vault'
-  | 'cottage'
-  | 'lighthouse'
-  | 'campus'
-
 export type Content = {
   kicker?: string
   title: string
@@ -40,9 +30,16 @@ export type Content = {
 
 export type Zone = {
   id: string
-  name: string // in-world landmark name
+  name: string // the attraction this chapter is handed over at
   label: string // short HUD/section label
-  kind: LandmarkKind
+  /**
+   * The name on the prize box, for the chapters won off the claw machine's
+   * shelf. All three are labelled "Project" and all three come out of the same
+   * tent, so this is the only thing that tells them apart while they are still
+   * locked: the claw cabinet paints it on the box, and the Journal's prize
+   * shelf repeats it on the row. Only the prize chapters carry one.
+   */
+  short?: string
   tx: number // tile column
   ty: number // tile row
   accent: number // hex color int
@@ -57,9 +54,8 @@ export const SPAWN = { tx: 40, ty: 37 }
 export const ZONES: Zone[] = [
   {
     id: 'about',
-    name: 'The Cottage',
+    name: 'Ticket Booth',
     label: 'About',
-    kind: 'home',
     tx: 40,
     ty: 30,
     accent: 0xffc24b,
@@ -81,9 +77,8 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'experience',
-    name: 'Barclays Tower',
+    name: 'Career Coaster',
     label: 'Experience',
-    kind: 'tower',
     tx: 17,
     ty: 15,
     accent: 0x5b9bd5,
@@ -102,9 +97,8 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'education',
-    name: 'SRM Campus',
+    name: 'Career Coaster',
     label: 'Education',
-    kind: 'campus',
     tx: 57,
     ty: 26,
     accent: 0x7ec8ff,
@@ -122,15 +116,14 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'skills',
-    name: 'The Workshop',
+    name: 'Word Forge',
     label: 'Skills',
-    kind: 'workshop',
     tx: 63,
     ty: 17,
     accent: 0xff7a59,
     content: {
       kicker: 'TOOLS',
-      title: 'The Workshop',
+      title: 'The Word Forge',
       sub: 'How I work — AI spec-driven development: a precise written spec is the contract, and AI is the force-multiplier that turns intent into correct, reviewable implementation.',
       groups: [
         { label: 'Languages & Frameworks', items: ['Java', 'Spring Boot', 'Python', 'C++', 'SQL'] },
@@ -141,9 +134,9 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'lineage',
-    name: "Sol's Prize Tent",
+    name: 'Prize Tent',
     label: 'Project',
-    kind: 'fair',
+    short: 'Lineage Engine',
     tx: 16,
     ty: 42,
     accent: 0x5eead4,
@@ -159,9 +152,9 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'stealth',
-    name: 'The Vault',
+    name: 'Prize Tent',
     label: 'Project',
-    kind: 'vault',
+    short: '???', // the product is unnamed here exactly as it is everywhere else
     tx: 41,
     ty: 12,
     accent: 0xb794f6,
@@ -176,9 +169,9 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'safestride',
-    name: 'Safe Stride',
+    name: 'Prize Tent',
     label: 'Project',
-    kind: 'cottage',
+    short: 'Safe Stride',
     tx: 66,
     ty: 44,
     accent: 0x59f3a6,
@@ -202,18 +195,19 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'contact',
-    name: 'The Lighthouse',
+    name: 'Guestbook',
     label: 'Contact',
-    kind: 'lighthouse',
     tx: 44,
     ty: 49,
     accent: 0xffd95e,
     content: {
       kicker: 'SAY HELLO',
-      title: 'The Lighthouse',
+      title: 'The Guestbook',
       body: [
-        'You explored the whole island 🎉 If you’re building something where data has to be trusted end to end — or you just want to compare notes — send a signal.',
+        'You saw the whole fair 🎉 If you’re building something where data has to be trusted end to end — or you just want to compare notes — send a signal.',
+        'Looking for a backend, data or Java engineer? Say hello. I’m just as happy in full-stack or spec-driven work, or something we haven’t named yet.',
       ],
+      facts: [{ k: 'Open to', v: 'Backend · Data · Java · Full-stack · Spec-driven dev' }],
       links: [
         { label: 'Email', value: PROFILE.email, href: `mailto:${PROFILE.email}`, ext: false },
         { label: 'GitHub', value: PROFILE.githubHandle, href: PROFILE.github, ext: true },

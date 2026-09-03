@@ -42,6 +42,48 @@ let current: Session | null = null
 let hideTimer = 0
 let keysInstalled = false
 
+/**
+ * The box lives on the bottom edge of the screen, which is fine everywhere the
+ * camera can still scroll. The fair's arrival apron cannot: it is on the world's
+ * bottom row, the camera clamps there, and the player and Bo spend the whole
+ * intro standing in the last tenth of the viewport — behind the box. The same
+ * goes for anyone else on the bottom two rows (Ilse at the guestbook).
+ *
+ * So the scene says where the speaker is and the box moves out of their way.
+ */
+const ANCHOR_MIDDLE = 0.5
+/** At or below this fraction of the viewport the speaker is behind the box. */
+export const TOP_DOCK_FROM = 2 / 3
+let anchorY = ANCHOR_MIDDLE
+let anchorWired = false
+
+function wireAnchor(): void {
+  if (anchorWired) return
+  anchorWired = true
+  events.on('ui:dialogue-anchor', ({ y }) => {
+    anchorY = Number.isFinite(y) ? Math.min(1, Math.max(0, y)) : ANCHOR_MIDDLE
+  })
+  // The HUD's chip cluster changes height as the window changes width (chips
+  // wrap); a box docked at the top follows it.
+  window.addEventListener('resize', () => {
+    if (root && root.classList.contains('top') && !root.classList.contains('hidden')) placeBelowHud(root)
+  })
+}
+
+/**
+ * Docked at the top, the box must clear the HUD's chip cluster rather than sit
+ * across it; the cluster's height depends on how many chips wrapped, so measure
+ * it instead of guessing. The stylesheet's `top` stays as the fallback for a
+ * HUD that is hidden or not yet mounted, and a bottom-docked box carries no
+ * inline offset at all.
+ */
+function placeBelowHud(r: HTMLElement): void {
+  const top = r.classList.contains('top')
+  const hud = top ? document.querySelector<HTMLElement>('.hud-cluster') : null
+  const hudBottom = hud && !hud.closest('.hidden') ? hud.getBoundingClientRect().bottom : 0
+  r.style.top = top && hudBottom > 0 ? `${Math.round(hudBottom + 10)}px` : ''
+}
+
 function ensure(): HTMLElement {
   if (root) {
     if (!root.isConnected) uiRoot().appendChild(root)
@@ -277,11 +319,18 @@ export function isDialogueOpen(): boolean {
 
 export function openDialogue(runner: DialogueRunner, opts: DialogueOptions = {}): Promise<void> {
   installKeys()
+  wireAnchor()
   const r = ensure()
   if (current) finish()
   return new Promise<void>((resolve) => {
     window.clearTimeout(hideTimer)
     r.classList.remove('hidden', 'out')
+    // One conversation, one anchor: whatever opens a dialogue without reporting
+    // a position (a panel, a test) gets the box where it has always been.
+    const top = anchorY >= TOP_DOCK_FROM
+    r.classList.toggle('top', top)
+    placeBelowHud(r)
+    anchorY = ANCHOR_MIDDLE
     r.classList.add('show')
     const unsub = events.on('world:action', ({ action }) => {
       if (action === 'interact' && !isModalOpen()) act()
@@ -302,4 +351,5 @@ export function openDialogue(runner: DialogueRunner, opts: DialogueOptions = {})
 export function initDialogue(): void {
   ensure()
   installKeys()
+  wireAnchor()
 }

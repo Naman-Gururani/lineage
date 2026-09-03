@@ -1,20 +1,21 @@
-// Shared harness for the six per-pack sprite suites.
+// Shared harness for the per-pack sprite suites.
 //
 // Everything here is deliberately resolution-agnostic: it passes against the
 // current 16px defs and must keep passing once a pack is redrawn at 32px, so
-// six pack agents can work in parallel without touching this file. Anything
+// pack agents can work in parallel without touching this file. Anything
 // that pins a size or a name belongs in the pack's own test file.
 import { expect, it } from 'vitest'
 import { PAL } from '../../src/art/palette'
 import { rasterize, sizeOf, type SpriteDef } from '../../src/art/pixel'
 import { BUILDING_DEFS } from '../../src/art/sprites/buildings'
 import { ENV_DEFS } from '../../src/art/sprites/env'
+import { FAIR_DEFS } from '../../src/art/sprites/fair'
 import { HERO_DEFS } from '../../src/art/sprites/hero'
-import { INTERIOR_DEFS } from '../../src/art/sprites/interior'
 import { NPC_DEFS } from '../../src/art/sprites/npcs'
 import { PROP_DEFS } from '../../src/art/sprites/props'
+import { RIDE_DEFS } from '../../src/art/sprites/rides'
 
-export type PackName = 'hero' | 'npcs' | 'env' | 'props' | 'buildings' | 'interior'
+export type PackName = 'hero' | 'npcs' | 'env' | 'props' | 'buildings' | 'fair' | 'rides'
 
 export const PACKS: Record<PackName, SpriteDef[]> = {
   hero: HERO_DEFS,
@@ -22,7 +23,8 @@ export const PACKS: Record<PackName, SpriteDef[]> = {
   env: ENV_DEFS,
   props: PROP_DEFS,
   buildings: BUILDING_DEFS,
-  interior: INTERIOR_DEFS,
+  fair: FAIR_DEFS,
+  rides: RIDE_DEFS,
 }
 
 /** name → [frame width, height, frame count] — the shape of every dimension table below. */

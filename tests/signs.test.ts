@@ -41,10 +41,13 @@ import { SIGNS, SIGN_TARGETS, type SignDir } from '../src/data/signs'
 import { closeAllModals } from '../src/ui/modal'
 import { initPanels } from '../src/ui/panels'
 import { uiState } from '../src/ui/state'
-import { BLUEPRINT, footprintContains, rasterizeBlueprint } from '../src/world/blueprint'
+import { BLUEPRINT, rasterizeBlueprint, type Attraction } from '../src/world/blueprint'
 import { isWalkable } from '../src/world/terrain'
 
 const grid = rasterizeBlueprint(BLUEPRINT, makeRng(WORLD_SEED))
+
+/** A tile inside an attraction's footprint — the stall itself, not its door. */
+const inside = (a: Attraction, x: number, y: number): boolean => x >= a.tx && x < a.tx + a.w && y >= a.ty && y < a.ty + a.h
 
 const DIRS: SignDir[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
@@ -75,8 +78,8 @@ describe('bearing helpers', () => {
 })
 
 describe('SIGNS data', () => {
-  it('has the eight authored junction posts with unique ids and 2–4 arms each', () => {
-    expect(SIGNS.map((s) => s.id)).toEqual(['harbor', 'plaza_w', 'plaza_e', 'campus', 'bridge_tower', 'bridge_engine', 'ridge', 'willow'])
+  it('has the six authored junction posts with unique ids and 2–4 arms each', () => {
+    expect(SIGNS.map((s) => s.id)).toEqual(['gate', 'midway_w', 'midway_e', 'hill', 'pond', 'wheel'])
     expect(new Set(SIGNS.map((s) => s.id)).size).toBe(SIGNS.length)
     for (const s of SIGNS) {
       expect(s.arms.length, `${s.id} arms`).toBeGreaterThanOrEqual(2)
@@ -100,12 +103,19 @@ describe('SIGNS data', () => {
     for (const label of Object.keys(SIGN_TARGETS)) expect(used.has(label), `unused SIGN_TARGETS entry "${label}"`).toBe(true)
   })
 
-  it('anchors every target on the island, clear of building footprints', () => {
+  it('anchors every target on the fairground, on a door rather than inside a stall', () => {
     for (const [label, t] of Object.entries(SIGN_TARGETS)) {
       expect(grid.inb(t.tx, t.ty), `target "${label}" off the map`).toBe(true)
-      for (const lm of BLUEPRINT.landmarks)
-        expect(footprintContains(lm, t.tx, t.ty), `target "${label}" inside ${lm.id}`).toBe(false)
+      for (const a of BLUEPRINT.attractions) expect(inside(a, t.tx, t.ty), `target "${label}" inside ${a.id}`).toBe(false)
     }
+  })
+
+  it('points at every attraction door the fair has a name for', () => {
+    // The arms are the only signposting the fair has; each of the eight
+    // attractions is named on at least one of them, at its own door tile.
+    const doors = new Map(BLUEPRINT.attractions.map((a) => [`${a.door.x},${a.door.y}`, a.id]))
+    const named = new Set(Object.values(SIGN_TARGETS).map((t) => doors.get(`${t.tx},${t.ty}`)).filter(Boolean))
+    for (const a of BLUEPRINT.attractions) expect(named.has(a.id), `no arm points at "${a.id}"`).toBe(true)
   })
 
   it('points every arm within ±45° of its target', () => {
@@ -127,7 +137,7 @@ describe('SIGNS data', () => {
           if (grid.inb(s.tx + dx, s.ty + dy) && isWalkable(grid.get(s.tx + dx, s.ty + dy))) adjacent = true
         }
       expect(adjacent, `sign "${s.id}" at ${s.tx},${s.ty} has no walkable neighbour`).toBe(true)
-      for (const lm of BLUEPRINT.landmarks) expect(footprintContains(lm, s.tx, s.ty), `sign "${s.id}" inside ${lm.id}`).toBe(false)
+      for (const a of BLUEPRINT.attractions) expect(inside(a, s.tx, s.ty), `sign "${s.id}" inside ${a.id}`).toBe(false)
     }
   })
 
@@ -153,15 +163,15 @@ describe('sign card', () => {
     initPanels()
   })
 
-  const openHarbor = () => {
-    events.emit('ui:panel', { id: 'sign', data: 'harbor' })
+  const openGate = () => {
+    events.emit('ui:panel', { id: 'sign', data: 'gate' })
     return document.querySelector('.signcard') as HTMLElement
   }
 
   it('opens from ui:panel with one row per arm, an arrow glyph and a bold label', () => {
-    const card = openHarbor()
+    const card = openGate()
     expect(card).not.toBeNull()
-    const sign = SIGNS.find((s) => s.id === 'harbor')!
+    const sign = SIGNS.find((s) => s.id === 'gate')!
     const rows = card.querySelectorAll('.sign-arm')
     expect(rows.length).toBe(sign.arms.length)
     const ARROW: Record<SignDir, string> = { N: '↑', NE: '↗', E: '→', SE: '↘', S: '↓', SW: '↙', W: '←', NW: '↖' }
@@ -181,7 +191,7 @@ describe('sign card', () => {
   it('labels the dialog for assistive tech and holds the world-input lock', () => {
     const locks: boolean[] = []
     const off = events.on('ui:lock', ({ locked }) => locks.push(locked))
-    openHarbor()
+    openGate()
     const panel = document.querySelector('.modal-panel') as HTMLElement
     expect(panel.getAttribute('role')).toBe('dialog')
     expect(panel.getAttribute('aria-modal')).toBe('true')
@@ -192,7 +202,7 @@ describe('sign card', () => {
 
   it('closes on Escape and on E', () => {
     for (const key of ['Escape', 'e']) {
-      openHarbor()
+      openGate()
       expect(document.querySelector('.signcard')).not.toBeNull()
       // E walks on only once the press that opened the card has ended, so the
       // dialog has to see a release first — as it does from any real key press.

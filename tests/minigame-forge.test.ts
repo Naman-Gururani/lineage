@@ -130,7 +130,7 @@ describe('Word Forge — the bench', () => {
 
   it('lays the first wheel out with a tile per letter and a slot per word', () => {
     expect(q('.modal-title')?.textContent).toBe('Word Forge')
-    expect(q('.modal-kicker')?.textContent).toBe('THE WORKSHOP')
+    expect(q('.modal-kicker')?.textContent).toBe('GAME ROW')
     expect(q('.mg-rule')?.textContent).toBe('Spell the tools Naman actually uses. Drag or tap the letters, then press Enter.')
     expect(letters().length).toBe(7)
     expect(wheelText()).toBe(FORGE_ROUNDS[0].ring.join(''))
@@ -337,7 +337,14 @@ describe('Word Forge — the bench', () => {
   it('closes as a win when the last wheel is cleared, and opens the Skills chapter', () => {
     for (let i = 0; i < FORGE_ROUNDS.length; i++) clearRound(i)
     expect(host.openId).toBe(null)
-    expect(state.save.minigames.forge).toEqual({ won: true, best: FORGE_ROUNDS.length, plays: 1 })
+    expect(state.save.minigames.forge).toEqual({
+      won: true,
+      best: FORGE_ROUNDS.length,
+      plays: 1,
+      // The wall is written down as it is forged, so the prize board outside
+      // the booth can show it without the game being open.
+      progress: { round: FORGE_ROUNDS.length, found: FORGE_ROUNDS.flatMap((r) => r.words.map((w) => w.word)) },
+    })
     expect(state.isUnlocked('skills')).toBe(true)
     expect(state.save.hats).toContain('hardhat')
   })
@@ -345,7 +352,95 @@ describe('Word Forge — the bench', () => {
   it('scores the wheels finished when the player walks out halfway', () => {
     clearRound(0)
     host.quit()
-    expect(state.save.minigames.forge).toEqual({ won: false, best: 1, plays: 1 })
+    expect(state.save.minigames.forge).toEqual({ won: false, best: 1, plays: 1, progress: { round: 1, found: ['JAVA', 'KAFKA'] } })
     expect(state.isUnlocked('skills')).toBe(false)
+  })
+
+  /* ---------------- what the bench remembers ---------------- */
+
+  it('writes every word forged into the save as it lands', () => {
+    expect(state.save.minigames.forge?.progress).toBeUndefined()
+    play('JAVA')
+    expect(state.save.minigames.forge?.progress).toEqual({ round: 0, found: ['JAVA'] })
+    play('KAFKA')
+    expect(state.save.minigames.forge?.progress).toEqual({ round: 1, found: ['JAVA', 'KAFKA'] })
+    // Remembering is not playing: the round is still open and unscored.
+    expect(state.save.minigames.forge).toEqual({ won: false, best: 0, plays: 0, progress: { round: 1, found: ['JAVA', 'KAFKA'] } })
+  })
+
+  it('picks the bench back up on the wheel the player left it on', () => {
+    clearRound(0)
+    host.quit()
+    expect(state.save.minigames.forge?.progress).toEqual({ round: 1, found: ['JAVA', 'KAFKA'] })
+
+    host.open('forge')
+    expect(wheelText()).toBe(FORGE_ROUNDS[1].ring.join(''))
+    expect(slots().map((sl) => sl.querySelector('.fg-clue')?.textContent)).toEqual(['Streaming & Messaging', 'State & Tooling'])
+    // A fresh visit is a fresh bench: the round's two hints are back on the house.
+    expect(act('hint').textContent).toBe('💡 Hint (2 left)')
+    play('FLINK')
+    expect(state.save.minigames.forge?.progress).toEqual({ round: 1, found: ['JAVA', 'KAFKA', 'FLINK'] })
+  })
+
+  it('starts from the first wheel when the save has nothing to say', () => {
+    host.quit()
+    state.save.minigames.forge = { won: false, best: 0, plays: 1, progress: { round: 'four' } }
+    host.open('forge')
+    expect(wheelText()).toBe(FORGE_ROUNDS[0].ring.join(''))
+    expect(slots().some((sl) => sl.classList.contains('found'))).toBe(false)
+  })
+
+  /* ---------------- the cumulative tech-stack card ---------------- */
+
+  it('finishes on a card that puts the tools forged above the Skills groups', () => {
+    for (let i = 0; i < FORGE_ROUNDS.length; i++) clearRound(i)
+    expect(topModalId()).toBe('techstack')
+    expect(q('.book .d-title .typed')?.textContent).toBe("Naman's tech stack")
+    // A header block above the full Skills chip groups, not a second list under
+    // them: pin the ORDER, not just the presence, of both pieces.
+    const kids = Array.from(q<HTMLElement>('.book-page')!.children)
+    const shape = kids
+      .map((k) => (k.classList.contains('d-body') ? 'body' : k.classList.contains('d-group') ? 'group' : ''))
+      .filter((s) => s !== '')
+    expect(shape).toEqual(['body', 'body', 'body', 'group', 'group', 'group'])
+    expect(kids.filter((k) => k.classList.contains('d-body')).map((k) => k.textContent)).toEqual([
+      'Languages & Frameworks — Java · Spring Boot · Python · SQL',
+      'Streaming & Messaging — Apache Kafka · Apache Flink',
+      'State & Tooling — Redis · Docker · Linux · Git',
+    ])
+    // The Skills card's own groups are still intact underneath.
+    expect(all('.book .d-glabel').map((g) => g.textContent)).toEqual(['Languages & Frameworks', 'Streaming & Messaging', 'State & Tooling'])
+    expect(q('.book-tag')?.textContent).toBe('Word Forge · Skills')
+    // The card *is* the announcement: no second Skills book queued behind it.
+    expect(state.isUnlocked('skills')).toBe(true)
+    closeAllModals()
+    expect(q('.book')).toBe(null)
+  })
+
+  /* ---------------- the way out for a recruiter in a hurry ---------------- */
+
+  it('offers to show the answers, in the footer, just before Leave', () => {
+    const foot = q<HTMLElement>('.mg-foot')!
+    const btn = q<HTMLButtonElement>('.mg-reveal')!
+    expect(btn.textContent).toBe('Show all the answers')
+    const order = Array.from(foot.querySelectorAll('button')).map((b) => b.textContent)
+    expect(order.indexOf('Show all the answers')).toBe(order.indexOf('Leave') - 1)
+  })
+
+  it('forges every word at once, opens the tech-stack card and banks the win', () => {
+    play('JAVA')
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    expect(toasts.map((t) => t.title)).toContain('Noted. HR sees everything.')
+    expect(host.openId).toBe(null)
+    expect(topModalId()).toBe('techstack')
+    expect(all('.book .d-body').length).toBe(3)
+    expect(state.save.minigames.forge).toEqual({
+      won: true,
+      best: FORGE_ROUNDS.length,
+      plays: 1,
+      progress: { round: FORGE_ROUNDS.length, found: FORGE_ROUNDS.flatMap((r) => r.words.map((w) => w.word)) },
+    })
+    expect(state.isUnlocked('skills')).toBe(true)
+    expect(state.save.hats).toContain('hardhat')
   })
 })

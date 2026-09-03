@@ -1,12 +1,12 @@
 // Crew Drop — the dropping floor Mira's cabinet runs, with none of the canvas.
 //
-// Five beans on a ten-by-seven deck. The tile under a bean starts cracking the
-// moment it is stood on and drops a second or so later, whoever is still on it
-// going with it, so the only way to stay up is to keep hopping onto floor
-// nobody has spent yet. Holes close again a second or two later, which is what
-// keeps a deck this size playable with five beans eating it; what does not come
-// back is the arena's own edge, which starts biting inwards a quarter of a
-// minute in and bites faster from there. Last bean standing wins.
+// Five beans on a twelve-by-eight deck. The tile under a bean starts cracking
+// the moment it is stood on and drops a second or so later, whoever is still on
+// it going with it, so the only way to stay up is to keep hopping onto floor
+// nobody has spent yet. A hole is a hole for good — nothing repairs itself here
+// — so the deck only ever gets smaller, and the arena's own edge starts biting
+// inwards a quarter of a minute in and bites faster from there, to close out the
+// rounds attrition alone would drag on. Last bean standing wins.
 //
 // Every rule lives here as plain functions over plain data: no Phaser, no
 // document, no `Math.random` — the bots' blunders, the shrinking arena and the
@@ -14,27 +14,35 @@
 // tests below replay a whole round and prove it ends.
 import { makeRng } from '../core/rng'
 
+/**
+ * The dials, all of them measured rather than felt.
+ *
+ * Nothing here grows back, so a round is a subtraction: ninety-six tiles, five
+ * beans, and whatever floor is left when four of them have fallen. The deck,
+ * the crack and the bots' patience were swept together over seeds one to twenty
+ * against a competent scripted player until a round landed where the design
+ * asks — around twenty-three seconds, none under sixteen. They are a set, not
+ * five independent choices: move one and the round length moves with it, which
+ * is why `tests/crew.test.ts` replays that same sweep and fails on a retune
+ * that quietly makes rounds trivial again. (`scratch/crew-sweep.ts` is the same
+ * drive with the grid still attached, for choosing the next set.)
+ */
 export const CREW = {
-  W: 10,
-  H: 7,
-  /** how long a tile holds once it starts cracking */
-  CRACK_MS: 900,
+  W: 12,
+  H: 8,
   /**
-   * How long a hole takes to close again — the deck repairs itself, and only
-   * the arena's bite is permanent. Measured, not guessed: five beans spend a
-   * tile roughly every six tenths of a second between them, so a hole that
-   * outlives a bean's own circuit traps it in its own trail. See the sweep in
-   * the task report — this is the value that puts a round in the half-minute
-   * the design asks for.
+   * How long a tile holds once it starts cracking. Long enough that a bean
+   * clears the tile it spent well before it goes, short enough that its own
+   * trail is still closing behind it.
    */
-  REGROW_MS: 1800,
+  CRACK_MS: 1400,
   /** one hop, tile to tile */
   MOVE_MS: 160,
   /** how often a bot picks its next hop */
-  THINK_MS: 350,
+  THINK_MS: 450,
   /** the arena starts closing in this late */
   SHRINK_START_MS: 15000,
-  SHRINK_EVERY_MS: 2500,
+  SHRINK_EVERY_MS: 3000,
   /** and closes in faster after every bite, down to the floor below */
   SHRINK_DECAY: 0.9,
   SHRINK_MIN_MS: 600,
@@ -49,15 +57,15 @@ export const CREW = {
 
 export type Tile = {
   /**
-   * `ok` → `cracking` under a bean → `gone` when the crack runs out → `ok`
-   * again once it has regrown. `void` is the shrinking arena's bite: it is
-   * outside the deck now, and nothing brings it back.
+   * `ok` → `cracking` under a bean → `gone` when the crack runs out, and there
+   * the tile stays: a hole never repairs. `void` is the shrinking arena's bite
+   * — the same one-way trip, arrived at from the outside in rather than from
+   * under somebody's feet.
    */
   state: 'ok' | 'cracking' | 'gone' | 'void'
   /**
-   * The tile's own clock, read differently per state: `cracking` counts *up*
-   * to `CRACK_MS`, `gone` counts *down* from `REGROW_MS` to nothing, and `ok`
-   * and `void` have nothing to count.
+   * The tile's own clock, and only `cracking` has anything to count: it runs
+   * *up* to `CRACK_MS`. `ok`, `gone` and `void` all sit at nought.
    */
   t: number
 }
@@ -100,11 +108,14 @@ const DELTA: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: 
 
 /** Where the four bots are dealt — spread around you, none of them adjacent. */
 const BOT_SPAWNS: [number, number][] = [
-  [8, 1],
-  [8, 5],
+  [10, 1],
+  [10, 6],
   [4, 0],
-  [5, 6],
+  [6, 7],
 ]
+
+/** Where you are dealt: west of the deck, mid-height, clear of all four. */
+const YOU_SPAWN: [number, number] = [1, 4]
 
 /**
  * A step longer than this is cut into pieces before it is simulated. The loop
@@ -140,7 +151,7 @@ function bean(id: Bean['id'], x: number, y: number, think: number): Bean {
 export function newCrew(seed: number): CrewState {
   const tiles: Tile[] = Array.from({ length: CREW.W * CREW.H }, () => ({ state: 'ok', t: 0 }))
   const beans: Bean[] = [
-    bean('you', 1, 3, 0),
+    bean('you', YOU_SPAWN[0], YOU_SPAWN[1], 0),
     // Staggered think clocks: four bots hopping on the same tick read as one
     // four-headed animal rather than as a crew.
     ...BOT_SPAWNS.map((p, i) => bean(`bot${i}` as Bean['id'], p[0], p[1], CREW.THINK_MS - (i * CREW.THINK_MS) / CREW.BOTS)),
@@ -177,8 +188,13 @@ export function timeLeft(s: CrewState, b: Bean): number {
 /**
  * The last moment a bean can still get off a tile: it has to notice (one think)
  * and then make the hop. Leave it later than this and the floor goes first.
+ *
+ * Read off `CREW` on the spot rather than folded into a constant at load, so
+ * that a sweep rewriting the dials to try a tuning is measuring the bots it
+ * asked for. Frozen at load, this is the difference between a config and the
+ * numbers it prints.
  */
-const NERVE_MS = CREW.THINK_MS + CREW.MOVE_MS
+const nerveMs = (): number => CREW.THINK_MS + CREW.MOVE_MS
 
 /** How much pristine floor touches a tile — what both greedy policies rank on. */
 function okNeighbours(s: CrewState, x: number, y: number): number {
@@ -249,8 +265,9 @@ export function tryMove(s: CrewState, id: Bean['id'], d: Dir): CrewState {
 
 /**
  * What the arena eats next: the outside edge of the deck — the grid's own rim,
- * and the lip of everything already eaten. Holes are fair game (they grow back
- * otherwise); the void itself is finished with.
+ * and the lip of everything already eaten. Holes are fair game, since a bite
+ * out of one costs the players nothing they had left; the void itself is
+ * finished with.
  */
 function shrinkCandidates(s: CrewState): number[] {
   const rim: number[] = []
@@ -275,27 +292,19 @@ function tick(s: CrewState, dt: number): CrewState {
   const beans = s.beans.map((b) => ({ ...b }))
   const next: CrewState = { ...s, tiles, beans, t: s.t + dt }
 
-  // 1. The floor ages, except under a bean the Hire-me lifeline has frozen.
-  //    A one-second freeze over a crack shorter than it would drop all four
-  //    bots where they stood and hand the round over: the pause has to hold the
+  // 1. The cracks age, except under a bean the Hire-me lifeline has frozen. A
+  //    one-second freeze over a crack shorter than it would drop all four bots
+  //    where they stood and hand the round over: the pause has to hold the
   //    floor still too, or it is an execution rather than a breather.
+  //    Nothing else on the deck has a clock: a hole that has opened stays open.
   const held = new Set(beans.filter((b) => b.alive && b.frozen > 0).map((b) => idx(b.x, b.y)))
   for (let i = 0; i < tiles.length; i++) {
     const t = tiles[i]
-    if (t.state === 'ok' || t.state === 'void' || held.has(i)) continue
-    if (t.state === 'cracking') {
-      t.t += dt
-      if (t.t >= CREW.CRACK_MS) {
-        // A crack that runs out is a hole, and the hole starts counting its way
-        // back: the deck repairs itself, and only the arena's bite is forever.
-        t.state = 'gone'
-        t.t = CREW.REGROW_MS
-      }
-      continue
-    }
-    t.t -= dt
-    if (t.t <= 0) {
-      t.state = 'ok'
+    if (t.state !== 'cracking' || held.has(i)) continue
+    t.t += dt
+    if (t.t >= CREW.CRACK_MS) {
+      // A crack that runs out is a hole, and a hole is the end of that tile.
+      t.state = 'gone'
       t.t = 0
     }
   }
@@ -343,12 +352,12 @@ function tick(s: CrewState, dt: number): CrewState {
     b.think = CREW.THINK_MS
     if (b.frozen > 0 || b.moveT > 0) continue
     // Hold your nerve. A bot that hopped on every think would spend a fresh
-    // tile every third of a second, and five beans doing that eat a
-    // seventy-tile deck faster than it can grow back — the whole crew would be
-    // standing on holes inside five seconds. So a bot stays put until its own
-    // floor is about to go, which is also how the game reads: nobody moves
-    // until they have to, and then everybody does.
-    if (timeLeft(next, b) > NERVE_MS) continue
+    // tile every half-second, and five beans doing that strip a ninety-six-tile
+    // deck that never repairs inside ten seconds flat — the whole crew standing
+    // in its own trail. So a bot stays put until its own floor is about to go,
+    // which is also how the game reads: nobody moves until they have to, and
+    // then everybody does.
+    if (timeLeft(next, b) > nerveMs()) continue
     const d = botChoice(next, b, rngAt(next, `bot:${b.id}`))
     if (d) startMove(beans, i, next, d)
   }

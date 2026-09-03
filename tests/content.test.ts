@@ -74,10 +74,9 @@ describe('the CGPA is 9.63', () => {
 describe('the education zone', () => {
   const edu = zone('education')
 
-  it('stands on Campus Green as a campus landmark', () => {
-    expect(edu.name).toBe('SRM Campus')
+  it('is told on the Career Coaster, alongside the work chapter', () => {
+    expect(edu.name).toBe('Career Coaster')
     expect(edu.label).toBe('Education')
-    expect(edu.kind).toBe('campus')
     expect([edu.tx, edu.ty]).toEqual([57, 26])
     expect(edu.accent).toBe(0x7ec8ff)
   })
@@ -98,10 +97,6 @@ describe('the education zone', () => {
     expect(factOf(zone('about'), 'Education')).toContain('SRM IST')
     expect(factOf(zone('about'), 'Education')).toContain('2020')
     expect(factOf(zone('about'), 'Education')).toContain('2024')
-  })
-
-  it('is the only campus on the island', () => {
-    expect(ZONES.filter((z) => z.kind === 'campus').map((z) => z.id)).toEqual(['education'])
   })
 })
 
@@ -133,5 +128,44 @@ describe('every zone', () => {
     const vault = zone('stealth')
     expect(vault.content.title).toBe('A consumer product, in development')
     expect(vault.content.sub).toBe('Independent')
+  })
+})
+
+describe('the prize-shelf labels', () => {
+  // `short` is the label on the box the claw grabs for, and it is the only
+  // thing the fair says about a project before you win it. The claw cabinet
+  // (`ui/minigames/claw.ts`) and the Journal's prize shelf (`ui/panels.ts`)
+  // both read it from here, so the two can no longer drift apart — which they
+  // could while each kept its own copy of the list.
+  it('belong to the three projects and to nobody else', () => {
+    expect(Object.fromEntries(ZONES.filter((z) => z.short !== undefined).map((z) => [z.id, z.short]))).toEqual({
+      lineage: 'Lineage Engine',
+      safestride: 'Safe Stride',
+      stealth: '???', // the in-development product is a mystery box here too
+    })
+  })
+})
+
+describe('zone names point at the fair, not the island', () => {
+  // `name` is the in-world place a chapter is told, and v4 tells several of
+  // them at the same attraction: both career chapters ride the coaster, all
+  // three projects come down off the same prize shelf.
+  it('names the attraction each chapter is handed over at', () => {
+    expect(Object.fromEntries(ZONES.map((z) => [z.id, z.name]))).toEqual({
+      about: 'Ticket Booth',
+      experience: 'Career Coaster',
+      education: 'Career Coaster',
+      skills: 'Word Forge',
+      lineage: 'Prize Tent',
+      stealth: 'Prize Tent',
+      safestride: 'Prize Tent',
+      contact: 'Guestbook',
+    })
+  })
+
+  it('has forgotten the island’s buildings', () => {
+    const names = ZONES.map((z) => z.name)
+    for (const gone of ['The Cottage', 'Barclays Tower', 'SRM Campus', 'The Workshop', "Sol's Prize Tent", 'The Vault', 'Safe Stride', 'The Lighthouse'])
+      expect(names, gone).not.toContain(gone)
   })
 })

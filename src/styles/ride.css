@@ -1,0 +1,124 @@
+/* The Career Coaster's milestone caption — one card, bottom centre, one résumé
+   beat at a time, and the cart stands at each one until the card's Next is
+   pressed.
+
+   It is a caption and not a panel: the card takes no pointer events at all and
+   the one button in it opts back in, so nothing else on it can swallow a click
+   meant for the world. The ride runs inside a cutscene, so it sits clear of the
+   letterbox band that `body.cutscene::after` lays across the foot of the screen,
+   and it lives inside `#ui` (z-index 10) which is already above it.
+   See `ui/ridecard.ts`. */
+
+.ride-card {
+  position: fixed;
+  left: 50%;
+  bottom: calc(11vh + clamp(0.8rem, 2.5vh, 1.6rem));
+  width: min(560px, calc(100% - 2rem));
+  padding: clamp(0.7rem, 0.55rem + 0.5vw, 1rem) clamp(0.9rem, 0.7rem + 0.8vw, 1.3rem);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--ink);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 18px);
+  /* --t-med is 220ms; `ui/ridecard.ts` waits exactly that long before marking the
+     card hidden, so the slide-out is never cut off half way down. */
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .ride-card {
+    background: rgba(16, 22, 34, 0.94);
+  }
+}
+
+/* Added a frame after the copy lands, so the slide always plays — including on
+   the second beat, which reuses the very same element. */
+.ride-card.in {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.ride-kicker {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-accent);
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ride-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: clamp(1.05rem, 0.9rem + 0.7vw, 1.4rem);
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.ride-line {
+  /* The beats are cut from `content.ts` and one of them is a whole sentence of
+     it: this wraps to as many lines as it needs and never clips. */
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+
+/* A beat with no kicker (or no line) leaves no gap behind it. */
+.ride-kicker:empty,
+.ride-line:empty {
+  display: none;
+}
+
+/* The rider's own pacing lives here: the button that moves the cart on, and the
+   keys that are the same button for anyone whose hands are on the keyboard. */
+.ride-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+/* The card is `pointer-events: none` so it never eats a click meant for the
+   world; the one thing there is to press has to ask for them back. */
+.ride-next {
+  pointer-events: auto;
+}
+
+.ride-keys {
+  font-size: 0.78rem;
+  color: var(--ink-mute);
+}
+
+@media (max-width: 560px) {
+  .ride-card {
+    bottom: calc(11vh + 0.7rem);
+  }
+  .ride-line {
+    font-size: 0.86rem;
+  }
+  .ride-foot {
+    margin-top: 0.6rem;
+  }
+}
+
+/* Reduced motion: the card still arrives — it is the content — it just does not
+   travel to get here. (The global rules in `ui.css` already cut the duration; this
+   also drops the offset, so nothing jumps into place from below.) */
+.reduce-motion .ride-card {
+  transform: translate(-50%, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ride-card {
+    transform: translate(-50%, 0);
+  }
+}

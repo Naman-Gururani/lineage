@@ -16,9 +16,10 @@ import { rasterize, sizeOf, type SpriteDef } from '../src/art/pixel'
 import { BUILDING_DEFS } from '../src/art/sprites/buildings'
 import { ENV_DEFS } from '../src/art/sprites/env'
 import { HERO_DEFS } from '../src/art/sprites/hero'
-import { INTERIOR_DEFS } from '../src/art/sprites/interior'
 import { NPC_DEFS } from '../src/art/sprites/npcs'
 import { PROP_DEFS } from '../src/art/sprites/props'
+import { FAIR_DEFS } from '../src/art/sprites/fair'
+import { RIDE_DEFS } from '../src/art/sprites/rides'
 
 /** The budget passed to `buildSheet` in src/art/atlas.ts. */
 const MAX = 4096
@@ -34,7 +35,7 @@ const BUDGET_PCT = (BUDGET * 100).toFixed(0)
 
 /**
  * The same composition `allDefs()` performs, in the same order. `extraPacks`
- * (registerPack) is empty — nothing in src/ calls it today — so these six packs
+ * (registerPack) is empty — nothing in src/ calls it today — so these seven packs
  * are the whole atlas. The source guard below fails if that stops being true.
  */
 const ALL_DEFS: SpriteDef[] = [
@@ -43,7 +44,8 @@ const ALL_DEFS: SpriteDef[] = [
   ...NPC_DEFS,
   ...PROP_DEFS,
   ...BUILDING_DEFS,
-  ...INTERIOR_DEFS,
+  ...FAIR_DEFS,
+  ...RIDE_DEFS,
 ]
 
 /** Padding-inclusive footprint of one def's placed rectangle (packSheet leaves a 1px gutter). */
@@ -63,11 +65,11 @@ describe('atlas source guard', () => {
     expect(src, `atlas.ts no longer calls buildSheet(allDefs(), ${MAX})`).toContain(`buildSheet(allDefs(), ${MAX})`)
   })
 
-  it('still composes exactly the six packs this suite sums', () => {
-    const packs = ['HERO_DEFS', 'ENV_DEFS', 'NPC_DEFS', 'PROP_DEFS', 'BUILDING_DEFS', 'INTERIOR_DEFS']
+  it('still composes exactly the seven packs this suite sums', () => {
+    const packs = ['HERO_DEFS', 'ENV_DEFS', 'NPC_DEFS', 'PROP_DEFS', 'BUILDING_DEFS', 'FAIR_DEFS', 'RIDE_DEFS']
     const line = src.split('\n').find((l) => l.includes('...HERO_DEFS')) ?? ''
     for (const p of packs) expect(line, `allDefs() no longer spreads ${p}`).toContain(`...${p}`)
-    // A seventh static pack would make this suite under-count the atlas.
+    // An eighth static pack would make this suite under-count the atlas.
     const spreads = line.match(/\.\.\.[A-Z_]+/g) ?? []
     expect(spreads.sort(), 'allDefs() gained or lost a static pack').toEqual(packs.map((p) => `...${p}`).sort())
   })

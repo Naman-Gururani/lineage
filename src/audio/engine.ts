@@ -14,6 +14,14 @@ export type AudioEngine = {
   unlock(): void
   readonly ctx: AudioContext | null
   setVolumes(s: Volumes): void
+  /**
+   * The one place "mute" lives: gates the master bus (which both the music and
+   * sfx buses feed into) without touching the stored `volumes`. `setVolumes`
+   * always re-applies through this same gate, so no caller — including a
+   * settings re-read that only knows the raw sliders — can un-mute by calling
+   * it; only `setMuted(false)` can.
+   */
+  setMuted(m: boolean): void
   readonly master: GainNode | null
   readonly musicBus: GainNode | null
   readonly sfxBus: GainNode | null
@@ -27,6 +35,7 @@ let master: GainNode | null = null
 let musicBus: GainNode | null = null
 let sfxBus: GainNode | null = null
 let volumes: Volumes = { master: 0.8, music: 0.6, sfx: 0.8 }
+let muted = false
 let ready = false
 const readyFns: Array<(c: AudioContext) => void> = []
 const noiseCache = new Map<string, AudioBuffer>()
@@ -45,6 +54,19 @@ function findContextCtor(): typeof AudioContext | undefined {
   return w.AudioContext || w.webkitAudioContext
 }
 
+/** Pushes `volumes` to the three gain nodes, gating the master bus while `muted`. */
+function applyGains() {
+  if (!ctx || !master || !musicBus || !sfxBus) return
+  try {
+    const t = ctx.currentTime
+    master.gain.setTargetAtTime(muted ? 0 : volumeCurve(volumes.master), t, 0.03)
+    musicBus.gain.setTargetAtTime(volumeCurve(volumes.music), t, 0.03)
+    sfxBus.gain.setTargetAtTime(volumeCurve(volumes.sfx), t, 0.03)
+  } catch {
+    /* ignore */
+  }
+}
+
 function buildGraph(c: AudioContext) {
   const comp = c.createDynamicsCompressor()
   comp.threshold.value = -14
@@ -56,7 +78,10 @@ function buildGraph(c: AudioContext) {
   master = c.createGain()
   musicBus = c.createGain()
   sfxBus = c.createGain()
-  master.gain.value = volumeCurve(volumes.master)
+  // A gesture can unlock the context after `muted` was already restored from a
+  // stored setting (settings load and apply well before any gesture can land)
+  // — so the very first graph built must honour it too, not just later calls.
+  master.gain.value = muted ? 0 : volumeCurve(volumes.master)
   musicBus.gain.value = volumeCurve(volumes.music)
   sfxBus.gain.value = volumeCurve(volumes.sfx)
 
@@ -113,15 +138,11 @@ export const audio: AudioEngine = {
   },
   setVolumes(s) {
     volumes = { master: clamp01(s.master), music: clamp01(s.music), sfx: clamp01(s.sfx) }
-    if (!ctx || !master || !musicBus || !sfxBus) return
-    try {
-      const t = ctx.currentTime
-      master.gain.setTargetAtTime(volumeCurve(volumes.master), t, 0.03)
-      musicBus.gain.setTargetAtTime(volumeCurve(volumes.music), t, 0.03)
-      sfxBus.gain.setTargetAtTime(volumeCurve(volumes.sfx), t, 0.03)
-    } catch {
-      /* ignore */
-    }
+    applyGains()
+  },
+  setMuted(m) {
+    muted = m
+    applyGains()
   },
   get master() {
     return master

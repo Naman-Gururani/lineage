@@ -18,6 +18,13 @@ export type UiStats = {
   packets: number
   packetsTotal: number
   discoveries: string[]
+  /**
+   * Prize boxes opened, and words the Word Forge has spelled. Optional because
+   * they arrive with the scene: the journal falls back to the save when nothing
+   * is mirroring them (a panel opened from a test, or before the first tick).
+   */
+  chests?: number
+  forged?: number
 }
 
 /** Where the story sends you next: the chip text, the map pin, and the tile to point at. */
@@ -38,7 +45,7 @@ export type UiState = {
   visitedRegions: string[]
   /** hats owned / worn, and the one way to change what is worn */
   wardrobe: WardrobeView
-  /** the save's own flag bag — read by panels that unlock (fast travel) */
+  /** the save's own flag bag, mirrored for any panel that has to gate on one */
   flags: Record<string, number>
   /** résumé chapters (zone ids) unlocked so far; Contact is always readable */
   unlocked: string[]

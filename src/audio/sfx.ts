@@ -286,10 +286,6 @@ export const sfx = {
     tone({ freq: 659, dur: 0.07, type: 'sine', gain: 0.08 })
     tone({ freq: 440, dur: 0.1, type: 'sine', gain: 0.07, delay: 0.06 })
   },
-  elevator() {
-    noise({ dur: 0.05, gain: 0.12, color: 'brown', filter: 'lowpass', freq: 400, attack: 0.002 })
-    tone({ freq: 55, slideTo: 82, dur: 0.85, type: 'sawtooth', gain: 0.08, lp: 240, attack: 0.15, vib: { rate: 11, depth: 2 } })
-  },
   ding() {
     bell(1568, 0.09, 0.3)
   },

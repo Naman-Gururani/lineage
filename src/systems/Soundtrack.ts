@@ -20,6 +20,10 @@ class Soundtrack {
 
   applyVolumes(): void {
     const s = loadSettings()
+    // Safe to hand over the raw sliders even while muted: `audio.setMuted`
+    // (flipped by `applyToGame`, never touched here) gates the master bus on
+    // its own, so this settings re-read — which only knows the sliders, not
+    // whether the fair is muted — can never un-mute by calling `setVolumes`.
     audio.setVolumes({ master: s.master, music: s.music, sfx: s.sfx })
   }
 

@@ -2,35 +2,32 @@
 // he waits for you to reach the next chapter, and the one line a locked card is
 // allowed to say about how to open it.
 //
-// Suggestion, not enforcement. Every venue works whenever you get there; the
-// order only decides which one the guide points at next.
+// Suggestion, not enforcement. Every attraction works whenever you get there;
+// the order only decides which one the guide points at next.
 import { BLUEPRINT } from '../world/blueprint'
 import type { Vec2 } from '../world/regions'
 
-export type StoryStep = 'meet' | 'experience' | 'projects' | 'education' | 'skills' | 'contact'
+export type StoryStep = 'ticket' | 'ride' | 'prizes' | 'toolkit' | 'guestbook'
 
 /** The order the story is *offered* in — the `story` quest's steps, in the same order. */
-export const STORY_ORDER: readonly StoryStep[] = ['meet', 'experience', 'projects', 'education', 'skills', 'contact']
+export const STORY_ORDER: readonly StoryStep[] = ['ticket', 'ride', 'prizes', 'toolkit', 'guestbook']
 
 /** A stop on the tour: where the guide waits, and what he is waiting for. */
 export type Station = { step: StoryStep; landmark: string; hint: string }
 
 /**
- * The landmark a station points at is also the map pin the objective lights up.
- * The first two chapters happen at Bo's feet on the pier, which is not a
- * building at all — `PIER` is a sentinel no landmark answers to, so the map
- * marks the spot and leaves every pin alone. (It used to say `warehouse`, and
- * lit the arcade's pin for two chapters that have nothing to do with it.)
+ * `landmark` is an `AttractionId` — the fair's stalls are the only doors there
+ * are, so every station names one and the map pin, the objective chip and the
+ * marker all light the same thing. (v3 needed a `PIER` sentinel here because
+ * two of its chapters happened at Bo's feet rather than at anybody's door; the
+ * fair has a gate, and the gate is an attraction.)
  */
-export const PIER = 'pier'
-
 export const STATIONS: Record<StoryStep, Station> = {
-  meet: { step: 'meet', landmark: PIER, hint: 'Talk to Bo at the pier' },
-  experience: { step: 'experience', landmark: PIER, hint: "Solve Bo's word puzzle at the pier" },
-  projects: { step: 'projects', landmark: 'lineage', hint: "Sol's Prize Tent — west along the shore" },
-  education: { step: 'education', landmark: 'education', hint: 'SRM Campus — north, on the green' },
-  skills: { step: 'skills', landmark: 'skills', hint: 'The Workshop — north-east, past the woods' },
-  contact: { step: 'contact', landmark: 'contact', hint: 'The Lighthouse — east, on the Point' },
+  ticket: { step: 'ticket', landmark: 'gate', hint: 'Get your ticket from Bo at the gate' },
+  ride: { step: 'ride', landmark: 'coaster', hint: 'Ride the Career Coaster — north, up the avenue' },
+  prizes: { step: 'prizes', landmark: 'prizetent', hint: 'Win the prizes at the Prize Tent — west side of the midway' },
+  toolkit: { step: 'toolkit', landmark: 'forge', hint: 'Spell the toolkit at the Word Forge — east side of the midway' },
+  guestbook: { step: 'guestbook', landmark: 'guestbook', hint: 'Sign the guestbook — by the exit' },
 }
 
 /**
@@ -39,26 +36,29 @@ export const STATIONS: Record<StoryStep, Station> = {
  * it has nothing to say.
  */
 export const STORY_HINTS: Record<string, string> = {
-  about: 'Bo introduces Naman at the pier.',
-  experience: "Solve Bo's word puzzle at the pier.",
-  lineage: "Win it at Sol's Prize Tent on the fairground.",
-  safestride: "Win it at Sol's Prize Tent on the fairground.",
-  stealth: "Win the mystery box at Sol's Prize Tent.",
-  education: 'Fly the chalkboard course at SRM Campus.',
-  skills: 'Spell the toolkit at the Workshop bench.',
+  about: 'Bo introduces Naman at the ticket booth.',
+  experience: 'Ride the Career Coaster.',
+  education: 'Ride the Career Coaster.',
+  lineage: 'Win it at the Prize Tent.',
+  safestride: 'Win it at the Prize Tent.',
+  stealth: 'Win it at the Prize Tent.',
+  skills: 'Spell the toolkit at the Word Forge booth.',
   contact: '',
 }
 
-/** Which step a chapter counts toward. The three projects share one. */
+/**
+ * Which step a chapter counts toward. The ride tells two chapters in one go
+ * (the coaster's hills *are* the career), and the three prizes share one.
+ */
 export const FACET_STEP: Record<string, StoryStep> = {
-  about: 'meet',
-  experience: 'experience',
-  lineage: 'projects',
-  safestride: 'projects',
-  stealth: 'projects',
-  education: 'education',
-  skills: 'skills',
-  contact: 'contact',
+  about: 'ticket',
+  experience: 'ride',
+  education: 'ride',
+  lineage: 'prizes',
+  safestride: 'prizes',
+  stealth: 'prizes',
+  skills: 'toolkit',
+  contact: 'guestbook',
 }
 
 /** The first step still outstanding, or null once the story is told. */
@@ -66,7 +66,7 @@ export function nextStep(done: (s: StoryStep) => boolean): StoryStep | null {
   return STORY_ORDER.find((s) => !done(s)) ?? null
 }
 
-/** Where the guide stands for a step — and back at the pier when there is none. */
+/** Where the guide stands for a step — and back at the gate when there is none. */
 export function stationSpot(step: StoryStep | null): Vec2 {
   return (step && BLUEPRINT.storySpots[step]) || BLUEPRINT.npcSpots.dockmaster
 }

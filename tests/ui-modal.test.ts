@@ -124,6 +124,30 @@ describe('modal manager', () => {
     expect(document.activeElement).toBe(outside)
   })
 
+  // Two cards in the fair open without a click behind them — the Career card
+  // from a cutscene (`prevFocus` is `<body>`) and the tech-stack card over the
+  // forge panel that is closing under it (`prevFocus` detached). Both used to
+  // leave the document with no focus at all, so Tab restarted at the top.
+  it('falls back to the UI root when the opener cannot take focus back', () => {
+    const root = document.getElementById('ui')!
+
+    // opened from a cutscene: nothing was focused
+    document.body.focus()
+    openModal({ id: 'career', el: makePanel(), label: 'Career' })
+    closeModal('career')
+    expect(document.activeElement).toBe(root)
+
+    // opened over a panel that is removed a moment later
+    const dying = document.createElement('button')
+    document.body.appendChild(dying)
+    dying.focus()
+    openModal({ id: 'techstack', el: makePanel(), label: 'Tech stack' })
+    dying.remove()
+    closeModal('techstack')
+    expect(document.activeElement).toBe(root)
+    expect(root.tabIndex).toBe(-1)
+  })
+
   it('closes on backdrop click by default, not with closeOnBackdrop:false', () => {
     openModal({ id: 'a', el: makePanel(), label: 'A' })
     const root = document.querySelector('.modal') as HTMLElement

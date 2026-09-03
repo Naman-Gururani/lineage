@@ -41,6 +41,7 @@ vi.mock('phaser', () => {
 })
 
 import { sfx } from '../src/audio/sfx'
+import { events } from '../src/core/events'
 import { BIRD_X, FLAPPY, type FlappyState, flap, newFlappy, step, won } from '../src/games/flappy'
 import { GameState } from '../src/systems/GameState'
 import { MinigameHost, initMinigames } from '../src/systems/Minigame'
@@ -162,7 +163,7 @@ describe('Chalk Flight', () => {
   it('mounts a chalkboard, the rule, the score and the three ways to flap', () => {
     host.open('flappy')
     expect(q('.modal-title')?.textContent).toBe('Chalk Flight')
-    expect(q('.modal-kicker')?.textContent).toBe('SRM CAMPUS')
+    expect(q('.modal-kicker')?.textContent).toBe('PRIZE ROW')
     expect(q('.mg-rule')?.textContent).toBe('Tap or press Space to flap. Fly through ten gaps and the notice board is yours.')
 
     const canvas = q<HTMLCanvasElement>('.mg-canvas')!
@@ -173,7 +174,7 @@ describe('Chalk Flight', () => {
 
     expect(scoreText()).toBe('0')
     expect(q('.fl-flap')?.textContent).toBe('Flap')
-    expect(all<HTMLButtonElement>('.mg-foot [data-act]').map((b) => b.dataset.act)).toEqual(['flap', 'quit'])
+    expect(all<HTMLButtonElement>('.mg-foot [data-act]').map((b) => b.dataset.act)).toEqual(['flap', 'reveal', 'quit'])
   })
 
   it('takes focus itself, so a key lands on the game and not on the dialog around it', () => {
@@ -290,7 +291,7 @@ describe('Chalk Flight', () => {
 
   /* ---------------- a finished run ---------------- */
 
-  it('flies ten gaps and hands over the Education chapter, writing to the panel once a gap', () => {
+  it('flies ten gaps and hands over the cap, writing to the panel once a gap', () => {
     host.open('flappy')
     const writes = countWrites(q('[data-f="score"]')!)
 
@@ -300,7 +301,9 @@ describe('Chalk Flight', () => {
     expect(mirror.score).toBe(FLAPPY.WIN)
     expect(host.openId).toBe(null)
     expect(state.save.minigames.flappy).toEqual({ won: true, best: FLAPPY.WIN, plays: 1 })
-    expect(state.isUnlocked('education')).toBe(true)
+    // The chalk booth is a fun stall: a cap and a badge, no chapter. Education
+    // is told on the Career Coaster, and only there.
+    expect(state.isUnlocked('education')).toBe(false)
     expect(state.save.hats).toContain('grad')
     // ~1900 frames of chalk for ten writes: the score is the only thing in the
     // frame allowed to touch the DOM, and only when it changes.
@@ -312,7 +315,7 @@ describe('Chalk Flight', () => {
     // Motion is *not* reduced here, so the close really is 650 ms away and the
     // panel is still open when it lands. Leave asks the session whether the
     // round was won; a session that could not answer would file a cleared board
-    // as a loss and drop the chapter on the floor.
+    // as a loss and drop the cap on the floor.
     vi.useFakeTimers()
     uiState.settings.reducedMotion = false
     host.open('flappy')
@@ -326,7 +329,7 @@ describe('Chalk Flight', () => {
 
     expect(host.openId).toBe(null)
     expect(state.save.minigames.flappy).toEqual({ won: true, best: FLAPPY.WIN, plays: 1 })
-    expect(state.isUnlocked('education')).toBe(true)
+    expect(state.isUnlocked('education')).toBe(false)
     expect(state.save.hats).toContain('grad')
   })
 
@@ -336,7 +339,7 @@ describe('Chalk Flight', () => {
     q<HTMLButtonElement>('.mg-cheat')!.click()
     expect(host.openId).toBe(null)
     expect(state.save.minigames.flappy.won).toBe(true)
-    expect(state.isUnlocked('education')).toBe(true)
+    expect(state.save.hats).toContain('grad')
   })
 
   /* ---------------- reduced motion ---------------- */
@@ -383,5 +386,30 @@ describe('Chalk Flight', () => {
     uiState.settings.reducedMotion = false
     host.open('flappy')
     expect(canvases()).toBe(2) // the board and the grain pre-rendered beside it
+  })
+
+  /* ---------------- the way out for a recruiter in a hurry ---------------- */
+
+  it('offers to skip the round, in the footer, just before Leave', () => {
+    host.open('flappy')
+    const foot = q<HTMLElement>('.mg-foot')!
+    const btn = q<HTMLButtonElement>('.mg-reveal')!
+    expect(btn.textContent).toBe('Skip this one')
+    const order = Array.from(foot.querySelectorAll('button')).map((b) => b.textContent)
+    expect(order.indexOf('Skip this one')).toBe(order.indexOf('Leave') - 1)
+  })
+
+  it('ends the round with nothing to show for it — there is no hat for peeking', () => {
+    const toasts: string[] = []
+    const off = events.on('ui:toast', (t) => toasts.push(t.title))
+    host.open('flappy')
+    q<HTMLButtonElement>('.mg-reveal')!.click()
+    off()
+    expect(topModalId()).toBe(null)
+    expect(host.openId).toBe(null)
+    expect(state.save.minigames.flappy).toEqual({ won: false, best: 0, plays: 1 })
+    expect(state.save.hats).not.toContain('gradcap')
+    expect(toasts).toContain('Noted. HR sees everything.')
+    expect(toasts).toContain('No hat for peeking.')
   })
 })

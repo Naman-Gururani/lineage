@@ -10,7 +10,6 @@ import { bakeChunk, bakeMinimap, chunkList } from '../world/bake'
 import { BLUEPRINT, rasterizeBlueprint } from '../world/blueprint'
 import { scatterDecor, type Decor } from '../world/scatter'
 import type { Grid } from '../world/terrain'
-import { InteriorScene } from './InteriorScene'
 import { NPC_INFO, NPC_TREES } from '../data/npcs'
 import { registerTrees } from '../systems/DialogueRegistry'
 
@@ -27,7 +26,6 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     registerTrees(NPC_TREES, NPC_INFO)
-    if (!this.scene.get('interior')) this.scene.add('interior', InteriorScene, false)
     let grid: Grid | null = null
     let decor: Decor[] = []
     const chunks: WorldData['chunks'] = []
@@ -40,7 +38,7 @@ export class BootScene extends Phaser.Scene {
         },
       },
       {
-        label: 'Shaping the coast',
+        label: 'Levelling the ground',
         run: () => {
           grid = rasterizeBlueprint(BLUEPRINT, makeRng(WORLD_SEED))
         },
@@ -48,7 +46,7 @@ export class BootScene extends Phaser.Scene {
     ]
     for (const { cx, cy } of chunkList())
       steps.push({
-        label: 'Baking the island',
+        label: 'Baking the fairground',
         run: () => {
           const c = bakeChunk(grid!, cx, cy)
           const key = `chunk_${cx}_${cy}`
@@ -57,7 +55,7 @@ export class BootScene extends Phaser.Scene {
         },
       })
     steps.push({
-      label: 'Planting the woods',
+      label: 'Dressing the midway',
       run: () => {
         decor = scatterDecor(grid!, BLUEPRINT, makeRng(WORLD_SEED).fork('scatter'))
       },

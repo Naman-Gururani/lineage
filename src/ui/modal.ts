@@ -214,7 +214,35 @@ export function closeModal(id?: string): void {
 
   const top = stack[stack.length - 1]
   if (top) focusInto(top)
-  else if (entry.prevFocus instanceof HTMLElement && entry.prevFocus.isConnected) entry.prevFocus.focus({ preventScroll: true })
+  else restoreFocus(entry.prevFocus)
+}
+
+/**
+ * Where focus goes when whatever opened a modal cannot take it back.
+ *
+ * Two cards in the fair are opened by the game rather than by a click: the
+ * Career card at the end of the coaster (opened from a cutscene, so `prevFocus`
+ * is `<body>`) and the tech-stack card at the end of the Word Forge (opened over
+ * a panel that is about to be removed, so `prevFocus` is detached by the time it
+ * is read). Focusing neither leaves the document with no focus at all and Tab
+ * restarts at the top of the page.
+ *
+ * The fallback is the UI root — focusable but not tabbable — and not
+ * `#game-root`, which is `aria-hidden` for the canvas it wraps: focus inside an
+ * `aria-hidden` subtree is a worse bug than the one being fixed. `#ui` comes
+ * after the canvas and before the first control, so Tab carries straight on into
+ * the overlay.
+ */
+function restoreFocus(prev: Element | null): void {
+  if (prev instanceof HTMLElement && prev.isConnected && prev !== document.body) {
+    prev.focus({ preventScroll: true })
+    // An element can refuse focus (it went `inert`, or it is display:none);
+    // `activeElement` is the only honest answer about whether it took.
+    if (document.activeElement === prev) return
+  }
+  const root = uiRoot()
+  if (!root.hasAttribute('tabindex')) root.tabIndex = -1
+  root.focus({ preventScroll: true })
 }
 
 export function closeAllModals(): void {

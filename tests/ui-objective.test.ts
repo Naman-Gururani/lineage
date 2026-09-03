@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 //
-// "Where do I go next?" — the three surfaces that answer it, and the two rooms
-// that say why a door is shut.
+// "Where do I go next?" — the two surfaces that answer it.
 //
 //   HUD chip     the objective text plus a compass arrow turned toward the tile
 //   Map          a pulsing marker on that tile (and on its pin, when it has one)
-//   Lock views   the elevator lobby and the workshop wall before they are won
+//
+// The v3 lock views (the elevator lobby, the workshop tool wall) were rooms in
+// a building the fair does not have; both panels are gone and so are their
+// assertions. What is still locked is said on the résumé card — `ui-locks`.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('phaser', () => {
@@ -47,12 +49,10 @@ import { sfx } from '../src/audio/sfx'
 import { TILE, WORLD_TH, WORLD_TW } from '../src/config'
 import { events } from '../src/core/events'
 import { ZONES } from '../src/data/content'
-import { initElevator } from '../src/ui/elevator'
 import { initHud } from '../src/ui/hud'
 import { initMap } from '../src/ui/map'
 import { closeAllModals } from '../src/ui/modal'
 import { initPanels } from '../src/ui/panels'
-import { initToolwall } from '../src/ui/toolwall'
 import { uiState, type Objective } from '../src/ui/state'
 
 const text = (n: Element | null) => (n?.textContent ?? '').replace(/\s+/g, ' ').trim()
@@ -60,7 +60,13 @@ const q = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)
 const chip = () => q('.hud-objective')
 const compass = () => q('.hud-compass')
 const rot = () => Math.round(parseFloat(compass().style.getPropertyValue('--rot')))
-const at = (tx: number, ty: number): Objective => ({ step: 'projects', text: 'Sol’s Prize Tent — west along the shore', landmark: 'lineage', tx, ty })
+const at = (tx: number, ty: number): Objective => ({
+  step: 'prizes',
+  text: 'Win the prizes at the Prize Tent — west side of the midway',
+  landmark: 'prizetent',
+  tx,
+  ty,
+})
 
 describe('HUD objective chip', () => {
   beforeEach(() => {
@@ -92,7 +98,7 @@ describe('HUD objective chip', () => {
     uiState.objective = at(10, 10)
     initHud(document.getElementById('ui')!)
     expect(chip().hidden).toBe(false)
-    expect(text(chip())).toContain('Sol’s Prize Tent')
+    expect(text(chip())).toContain('Prize Tent')
     expect(compass().getAttribute('aria-hidden')).toBe('true')
   })
 
@@ -115,9 +121,9 @@ describe('HUD objective chip', () => {
   it('follows the story: a new station re-reads the objective, and the end hides the chip', () => {
     uiState.objective = at(10, 10)
     initHud(document.getElementById('ui')!)
-    uiState.objective = { step: 'skills', text: 'The Workshop — north-east, past the woods', landmark: 'skills', tx: 69, ty: 21 }
-    events.emit('story:changed', { next: 'skills' })
-    expect(text(chip())).toContain('The Workshop')
+    uiState.objective = { step: 'toolkit', text: 'Spell the toolkit at the Word Forge — east side of the midway', landmark: 'forge', tx: 46, ty: 40 }
+    events.emit('story:changed', { next: 'toolkit' })
+    expect(text(chip())).toContain('Word Forge')
 
     uiState.objective = null
     events.emit('story:changed', { next: null })
@@ -177,16 +183,31 @@ describe('map: the objective is pointed at', () => {
     expect(mark.style.left).toBe(((16.5 / WORLD_TW) * 100).toFixed(2) + '%')
     expect(mark.style.top).toBe(((48.5 / WORLD_TH) * 100).toFixed(2) + '%')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
-    expect(q('.map-lm[data-id="lineage"]').classList.contains('objective')).toBe(true)
+    expect(q('.map-lm[data-id="prizetent"]').classList.contains('objective')).toBe(true)
     expect(document.querySelectorAll('.map-lm.objective').length).toBe(1)
   })
 
-  it('still marks a station that has no pin of its own — the pier warehouse', () => {
-    uiState.objective = { step: 'experience', text: 'Solve Bo’s word puzzle at the pier', landmark: 'warehouse', tx: 44, ty: 57 }
+  // The ring is a colour. `aria-current` and the words in the label are what a
+  // screen reader has to go on, and only the one pin may carry them.
+  it('says in words, not only in colour, which pin the story is pointing at', () => {
+    uiState.objective = at(16, 48)
+    openMapPanel()
+    const pin = q('.map-lm[data-id="prizetent"]')
+    expect(pin.getAttribute('aria-current')).toBe('true')
+    expect(pin.getAttribute('aria-label')).toContain('the story goes here')
+    expect(document.querySelectorAll('.map-lm[aria-current]').length).toBe(1)
+    expect(q('.map-lm[data-id="forge"]').getAttribute('aria-label')).not.toContain('the story goes here')
+  })
+
+  // Every station at the fair names an attraction, so this is the guard rather
+  // than a case the story reaches: the marker belongs to the tile, and a station
+  // sending you somewhere no stall answers for still gets one.
+  it('still marks a station that has no pin of its own', () => {
+    uiState.objective = { step: 'ride', text: 'Meet Bo by the fountain', landmark: 'fountain', tx: 35, ty: 42 }
     openMapPanel()
     expect(q('.map-objective')).toBeTruthy()
     expect(document.querySelectorAll('.map-lm.objective').length).toBe(0)
-    expect(document.querySelector('.map-lm[data-id="warehouse"]')).toBeNull()
+    expect(document.querySelector('.map-lm[data-id="fountain"]')).toBeNull()
   })
 
   it('draws no marker once the story is told', () => {
@@ -195,83 +216,18 @@ describe('map: the objective is pointed at', () => {
   })
 
   it('selects the pin a locked card asked to be shown, discovered or not', () => {
-    openMapPanel({ focus: 'skills' })
-    const pin = q('.map-lm[data-id="skills"]')
+    openMapPanel({ focus: 'skills' }) // the chapter; the Word Forge is where it is won
+    const pin = q('.map-lm[data-id="forge"]')
     expect(pin.classList.contains('sel')).toBe(true)
     expect(pin.classList.contains('unknown')).toBe(true)
     expect(text(q('.map-hint'))).toContain('undiscovered')
-    expect(q<HTMLButtonElement>('.map-travel').hidden).toBe(true) // no travelling to a place you have not found
+    expect(q<HTMLButtonElement>('.map-travel').disabled).toBe(true) // no travelling to a place you have not found
   })
 
   it('names a discovered pin it was asked to focus, and offers the trip', () => {
-    uiState.stats.discoveries = ['skills']
+    uiState.stats.discoveries = ['forge']
     openMapPanel({ focus: 'skills' })
     expect(text(q('.map-hint'))).toContain(ZONES.find((z) => z.id === 'skills')!.name)
-    expect(q<HTMLButtonElement>('.map-travel').hidden).toBe(false)
-  })
-})
-
-describe('rooms that are still locked', () => {
-  const LIFT = 'The lift wants a visitor pass. Bo hands them out at the pier — solve his word puzzle.'
-  const BENCH = 'Spell them out at the bench and Ravi hangs them up.'
-
-  beforeEach(() => {
-    document.body.innerHTML = '<div id="game-root"></div><div id="ui"></div>'
-    document.body.className = ''
-    uiState.settings.reducedMotion = true
-    uiState.unlocked = []
-    for (const k of ['open', 'close', 'select', 'blip', 'pickup'] as const) vi.spyOn(sfx, k).mockImplementation(() => {})
-    initPanels()
-    initElevator()
-    initToolwall()
-  })
-
-  afterEach(() => {
-    closeAllModals()
-    uiState.unlocked = []
-    vi.restoreAllMocks()
-  })
-
-  const floors = () => Array.from(document.querySelectorAll<HTMLButtonElement>('.ebtn'))
-
-  it('parks the lift in the lobby until the pass is won', () => {
-    events.emit('ui:panel', { id: 'elevator', data: undefined })
-    expect(floors().map((b) => b.disabled)).toEqual([false, true, true, true])
-    const card = q('.elev-card')
-    expect(text(card)).toContain(LIFT)
-    expect(text(card)).not.toMatch(/\d/) // no floor numbers in the lock copy
-    expect(text(card)).not.toContain('OAuth')
-    expect(text(card)).not.toContain('750M')
-  })
-
-  it('runs the lift normally once Experience is won', () => {
-    uiState.unlocked = ['experience']
-    events.emit('ui:panel', { id: 'elevator', data: undefined })
-    expect(floors().map((b) => b.disabled)).toEqual([false, false, false, false])
-    expect(text(q('.elev-card'))).toContain('Welcome to Barclays Tower')
-    expect(text(q('.elev-card'))).not.toContain(LIFT)
-  })
-
-  it('hangs blank silhouettes on the workshop wall until the toolkit is spelled', () => {
-    events.emit('ui:panel', { id: 'toolwall', data: undefined })
-    const skills = ZONES.find((z) => z.id === 'skills')!
-    const wall = skills.content.groups![0]
-    const tools = Array.from(document.querySelectorAll<HTMLElement>('.tool'))
-    expect(tools.length).toBe(wall.items.length)
-    expect(tools.every((t) => t.classList.contains('locked'))).toBe(true)
-    expect(tools.map((t) => text(t.querySelector('.tool-name')))).toEqual(wall.items.map(() => '???'))
-    for (const item of wall.items) expect(text(q('.toolwall'))).not.toContain(item)
-    expect(q('.note').hidden).toBe(false)
-    expect(text(q('.note'))).toContain(BENCH)
-    expect(text(q('.note'))).not.toContain(skills.content.sub)
-  })
-
-  it('hangs the real tools once Skills is won', () => {
-    uiState.unlocked = ['skills']
-    events.emit('ui:panel', { id: 'toolwall', data: undefined })
-    const wall = ZONES.find((z) => z.id === 'skills')!.content.groups![0]
-    expect(document.querySelectorAll('.tool.locked').length).toBe(0)
-    expect(Array.from(document.querySelectorAll('.tool-name')).map((n) => text(n))).toEqual(wall.items)
-    expect(text(q('.note'))).not.toContain(BENCH)
+    expect(q<HTMLButtonElement>('.map-travel').disabled).toBe(false)
   })
 })

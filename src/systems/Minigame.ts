@@ -112,6 +112,11 @@ export class MinigameHost {
     this.state?.unlockFacet(zoneId, announce)
   }
 
+  /** Remember something for next time — Word Forge keeps its found words this way. */
+  progress(data: unknown): void {
+    if (this.id) this.state?.minigameProgress(this.id, data)
+  }
+
   /** Mount a game: locks the world, opens the modal, routes keys to the renderer. */
   open(id: MinigameId): void {
     if (this.id) return

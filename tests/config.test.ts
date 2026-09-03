@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { CHUNK, RUN_SPEED, TILE, WALK_SPEED, WORLD_H, WORLD_TH, WORLD_TW, WORLD_W, pickZoom } from '../src/config'
 
 describe('config', () => {
-  it('uses 32px HD tiles on a 96x72 island', () => {
+  it('uses 32px HD tiles on a 72x56 fairground', () => {
     expect(TILE).toBe(32)
-    expect(WORLD_TW).toBe(96)
-    expect(WORLD_TH).toBe(72)
+    expect(WORLD_TW).toBe(72)
+    expect(WORLD_TH).toBe(56)
     expect(WORLD_W).toBe(TILE * WORLD_TW)
     expect(WORLD_H).toBe(TILE * WORLD_TH)
   })

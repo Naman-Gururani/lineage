@@ -43,11 +43,10 @@ import { ZONES } from '../src/data/content'
 import { QUESTS } from '../src/data/quests'
 import { ARCADE_GAMES, GameState, MINIGAME_XP } from '../src/systems/GameState'
 import { closeAllModals, topModalId } from '../src/ui/modal'
-import { FAST_TRAVEL, initMap, openMap } from '../src/ui/map'
+import { initMap } from '../src/ui/map'
 import { initPanels } from '../src/ui/panels'
 import { initPause, openPause } from '../src/ui/pause'
 import { uiState } from '../src/ui/state'
-import { BLUEPRINT } from '../src/world/blueprint'
 
 type Toast = Events['ui:toast']
 
@@ -68,6 +67,30 @@ function mk(save: Save | null = null) {
   state.handlers.hat = (id) => worn.push(id)
   return { state, worn }
 }
+
+describe('the quests a fresh save starts by itself', () => {
+  // Arriving used to stack three "New quest" toasts over Bo's walk-on, plus the
+  // badge and its XP — the fair's first moment read as a notification tray. Only
+  // the story is an instruction; the two collection tallies start in silence and
+  // are read in the journal, where they have always been listed.
+  it('announces the story and starts the two tallies in silence', () => {
+    const toasts: Toast[] = []
+    const unsub = events.on('ui:toast', (t) => toasts.push(t))
+    const { state } = mk()
+    unsub()
+    for (const id of ['story', 'explore', 'tickets']) expect(state.quests.isActive(id), id).toBe(true)
+    expect(toasts.map((t) => t.sub)).toEqual(['Naman’s Story'])
+  })
+
+  it('still lets a quest somebody hands you announce itself', () => {
+    const { state } = mk()
+    const toasts: Toast[] = []
+    const unsub = events.on('ui:toast', (t) => toasts.push(t))
+    state.quests.start('balloons')
+    unsub()
+    expect(toasts.map((t) => `${t.title} · ${t.sub}`)).toEqual(['New quest · Stray Balloons'])
+  })
+})
 
 describe('wardrobe', () => {
   it('wears the first hat it is handed and banks the ones after it', () => {
@@ -115,12 +138,12 @@ describe('wardrobe', () => {
   })
 
   it('takes back the hats an old save could only remember one of', () => {
-    // Pre-wardrobe: the shell errand and Mira's dare both finished, so both caps
-    // were earned, but only the last one granted was ever written down — and
-    // Chalk Flight was won on top of that.
+    // Pre-wardrobe: Pip's balloon errand and Mira's dare both finished, so both
+    // caps were earned, but only the last one granted was ever written down —
+    // and Chalk Flight was won on top of that.
     const save = defaultSave()
     save.hat = 'captain'
-    save.quests.shells = { started: true, done: true, progress: {} }
+    save.quests.balloons = { started: true, done: true, progress: {} }
     save.quests.crew = { started: true, done: true, progress: {} }
     save.minigames.flappy = { won: true, best: 5, plays: 1 }
     const toasts: Toast[] = []
@@ -139,14 +162,14 @@ describe('wardrobe', () => {
     state.unlockHat('grad')
     const toasts: Toast[] = []
     const unsub = events.on('ui:toast', (t) => toasts.push(t))
-    state.quests.start('shells')
-    state.quests.advance('shells', 'find', 5)
-    state.quests.advance('shells', 'return', 1)
+    state.quests.start('balloons')
+    state.quests.advance('balloons', 'find', 5)
+    state.quests.advance('balloons', 'return', 1)
     unsub()
-    expect(state.quests.isDone('shells')).toBe(true)
+    expect(state.quests.isDone('balloons')).toBe(true)
     expect(state.hasHat('seashell')).toBe(true)
     expect(state.save.hat).toBe('grad')
-    const banked = toasts.find((t) => t.title === 'Seashell crown unlocked')
+    const banked = toasts.find((t) => t.title === 'Party crown unlocked')
     expect(banked?.sub).toBe('Added to your hats')
   })
 
@@ -189,9 +212,11 @@ describe('chapters', () => {
     expect(state.unlockFacet('experience')).toBe(false)
     unsub()
     expect(state.save.unlocked).toEqual(['experience'])
-    expect(state.quests.stepProgress('story', 'experience')).toBe(1)
-    // The tower lift only runs once you know what happened up there.
-    expect(state.flag('tower_express')).toBe(true)
+    // Both career chapters are the coaster's, so both credit the ride.
+    expect(state.quests.stepProgress('story', 'ride')).toBe(1)
+    // Reading a chapter unlocks nothing now — the tower's lift went with the
+    // tower, and the fair's one gate is opened by the ticket, not by a card.
+    expect(state.flag('tower_express')).toBe(false)
     expect(seen).toEqual([
       { id: 'experience', first: true, announce: true },
       { id: 'experience', first: false, announce: true },
@@ -213,18 +238,33 @@ describe('chapters', () => {
     expect(toasts.map((t) => t.title)).toContain('New chapter: About')
   })
 
+  it('says nothing at all when the granter is showing the card itself', () => {
+    const { state } = mk()
+    const toasts: Toast[] = []
+    const unsub = events.on('ui:toast', (t) => toasts.push(t))
+    // The ride opens the Career card, the forge the tech stack, the claw each
+    // prize. A "New chapter" toast behind one of those says the same thing
+    // twice — so a quiet unlock is quiet all the way down, while the XP and the
+    // story credit are untouched.
+    expect(state.unlockFacet('experience', false)).toBe(true)
+    unsub()
+    expect(toasts.filter((t) => t.icon === '📖')).toEqual([])
+    expect(state.save.unlocked).toEqual(['experience'])
+    expect(state.quests.stepProgress('story', 'ride')).toBe(1)
+  })
+
   it('records a free chapter as read even though it was never locked', () => {
     const { state } = mk()
     expect(state.isUnlocked('contact')).toBe(true)
     expect(state.unlockFacet('contact')).toBe(true)
     expect(state.save.unlocked).toEqual(['contact'])
-    expect(state.quests.stepProgress('story', 'contact')).toBe(1)
+    expect(state.quests.stepProgress('story', 'guestbook')).toBe(1)
   })
 
   it('counts the three prizes toward one story step, without opening three cards', () => {
     const { state } = mk()
     for (const z of ['lineage', 'safestride', 'stealth']) state.unlockFacet(z, false)
-    expect(state.quests.stepProgress('story', 'projects')).toBe(3)
+    expect(state.quests.stepProgress('story', 'prizes')).toBe(3)
     expect(seen.map((p) => p.announce)).toEqual([false, false, false])
   })
 
@@ -232,9 +272,9 @@ describe('chapters', () => {
     const { state } = mk()
     const next: (string | null)[] = []
     const unsub = events.on('story:changed', (p) => next.push(p.next))
-    expect(state.storyNext()).toBe('meet')
+    expect(state.storyNext()).toBe('ticket')
     state.unlockFacet('about')
-    expect(state.storyNext()).toBe('experience')
+    expect(state.storyNext()).toBe('ride')
     for (const z of ['experience', 'lineage', 'safestride', 'stealth', 'education', 'skills', 'contact']) state.unlockFacet(z)
     unsub()
     expect(state.storyNext()).toBeNull()
@@ -242,6 +282,27 @@ describe('chapters', () => {
     expect(state.flag('story_done')).toBe(true)
     expect(state.ach.has('story')).toBe(true)
     expect(next[next.length - 1]).toBeNull()
+  })
+
+  // The scene hides the objective chip and takes the map's ring off the
+  // Guestbook the moment `story_done` is set, rather than waiting on the step
+  // bookkeeping. That is only safe because the two can never disagree: the flag
+  // is the story quest's reward, and the quest is done on exactly the condition
+  // `storyNext()` returns null on. Pinned in whatever order the chapters land.
+  it('never sets story_done while a station is still outstanding', () => {
+    for (const order of [
+      ['about', 'experience', 'education', 'lineage', 'safestride', 'stealth', 'skills', 'contact'],
+      ['contact', 'skills', 'stealth', 'safestride', 'lineage', 'education', 'experience', 'about'],
+      ['skills', 'contact', 'about', 'stealth', 'education', 'lineage', 'experience', 'safestride'],
+    ]) {
+      const { state } = mk()
+      for (const z of order) {
+        state.unlockFacet(z)
+        if (state.flag('story_done')) expect(state.storyNext(), `after ${z} of ${order.join(',')}`).toBeNull()
+      }
+      expect(state.flag('story_done')).toBe(true)
+      expect(state.storyNext()).toBeNull()
+    }
   })
 
   it('throws the fireworks when the last chapter lands, and says which ending it is', () => {
@@ -274,29 +335,42 @@ describe('mini-game payout', () => {
     expect(state.save.hats).toEqual([])
   })
 
-  it('a Wordle win unlocks Experience, pays XP and the badge, and no hat', () => {
+  it('a Wordle win buys the ticket, pays XP and the badge, and no hat', () => {
     const { state } = mk()
     const before = state.xp.xp
     state.minigameWon('wordle', 5)
-    expect(state.isUnlocked('experience')).toBe(true)
+    // The gate puzzle is the one game that pays in a flag: it opens the park,
+    // not a chapter. Experience is the Career Coaster's to hand over.
+    expect(state.flag('ticket')).toBe(true)
+    expect(state.quests.stepProgress('story', 'ticket')).toBe(1)
+    expect(state.isUnlocked('experience')).toBe(false)
+    expect(state.save.unlocked).toEqual([])
     expect(state.ach.has('ach_wordle')).toBe(true)
     // Exactly the round's XP plus the flat twenty-five a badge is worth — an
     // extra payout down some second path would show up here as a bigger number.
     expect(state.xp.xp - before).toBe(MINIGAME_XP.wordle + ACH_XP)
-    expect(state.save.hats).toEqual([]) // the pier puzzle pays in chapters, not caps
+    expect(state.save.hats).toEqual([]) // the gate puzzle pays in tickets, not caps
   })
 
-  it('hands over the chapter and the cap each of the other two games is worth', () => {
+  it('buys the ticket once, however many times the word is cracked', () => {
     const { state } = mk()
+    state.minigameWon('wordle', 5)
+    state.minigameWon('wordle', 5)
+    expect(state.quests.stepProgress('story', 'ticket')).toBe(1)
+  })
+
+  it('hands over the cap for a fun stall and the chapter for the forge', () => {
+    const { state } = mk()
+    // Chalk Flight gates no chapter: Education is told on the coaster, and the
+    // chalk booth is there to be played.
     state.minigameWon('flappy', 1)
-    expect(state.isUnlocked('education')).toBe(true)
+    expect(state.isUnlocked('education')).toBe(false)
     expect(state.hasHat('grad')).toBe(true)
-    expect(state.quests.stepProgress('story', 'education')).toBe(1)
 
     state.minigameWon('forge', 1)
     expect(state.isUnlocked('skills')).toBe(true)
     expect(state.hasHat('hardhat')).toBe(true)
-    expect(state.quests.stepProgress('story', 'skills')).toBe(1)
+    expect(state.quests.stepProgress('story', 'toolkit')).toBe(1)
   })
 
   it('pays the XP once, and says so the second time round', () => {
@@ -315,7 +389,7 @@ describe('mini-game payout', () => {
     state.unlockFacet('lineage', false) // the claw opens each prize card as it is caught
     state.minigameWon('claw', 3)
     for (const z of ['lineage', 'safestride', 'stealth']) expect(state.isUnlocked(z), z).toBe(true)
-    expect(state.quests.stepProgress('story', 'projects')).toBe(3)
+    expect(state.quests.stepProgress('story', 'prizes')).toBe(3)
     expect(state.hasHat('goggles')).toBe(true)
   })
 
@@ -368,7 +442,7 @@ describe('100%', () => {
     return save
   }
 
-  it('wants all eight landmarks, not seven', () => {
+  it('wants all eight attractions, not seven', () => {
     const save = everything()
     save.discoveries = save.discoveries.slice(0, 7)
     const { state } = mk(save)
@@ -522,42 +596,3 @@ describe('wardrobe panel', () => {
   })
 })
 
-describe('map fast travel', () => {
-  let state: GameState
-
-  beforeEach(() => {
-    document.body.innerHTML = '<div id="game-root"></div><div id="ui"></div>'
-    document.body.className = ''
-    uiState.settings.reducedMotion = true
-    initPanels()
-    initMap()
-    state = new GameState(null)
-    uiState.flags = state.save.flags
-    uiState.stats.discoveries = state.save.discoveries
-  })
-  afterEach(() => closeAllModals())
-
-  it('registers the Tower Express against the flag the Experience chapter sets', () => {
-    const express = FAST_TRAVEL.find((f) => f.flag === 'tower_express')!
-    expect(express.label).toBe('Tower Express')
-    expect(BLUEPRINT.landmarks.some((l) => l.id === express.id)).toBe(true)
-  })
-
-  it('hides the route until the flag lands', () => {
-    openMap()
-    expect(all('.map-express-btn').length).toBe(0)
-  })
-
-  it('offers the route once the flag lands, and travels on it', () => {
-    state.setFlag('tower_express')
-    const seen: string[] = []
-    const unsub = events.on('world:travel', ({ id }) => seen.push(id))
-    openMap()
-    const btn = all<HTMLButtonElement>('.map-express-btn')
-    expect(btn.length).toBe(1)
-    expect(btn[0].textContent).toContain('Tower Express')
-    btn[0].click()
-    unsub()
-    expect(seen).toEqual([FAST_TRAVEL[0].id])
-  })
-})

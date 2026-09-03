@@ -119,17 +119,28 @@ export function isUnlocked(id: string): boolean {
  * A locked row shows the hint in place of the title — never the title itself,
  * which is already half the chapter.
  *
- * The venue *is* shown on a locked row: it is not résumé content (the map has
- * named it all along), and without it the three projects would be three
- * identical "Project" rows carrying the same hint.
+ * A locked row also carries what the fair already shows about the chapter: the
+ * venue, or — where the venue is shared — the label on the prize box, `short`.
+ * All three projects are won at the one tent, so three "Project · Prize Tent"
+ * rows carrying the same hint would be the same row three times; the prize
+ * label tells them apart and gives nothing away, since the cabinet shows it to
+ * anyone who walks up to it. Plus whatever `progress` the caller has for the
+ * chapter ("3 / 10 forged"). A won row needs none of it — it has the chapter's
+ * own title to show.
  */
-export function zoneRow(z: Zone): string {
+export function zoneRow(z: Zone, progress?: string): string {
   const on = isUnlocked(z.id)
+  const where = z.short ?? z.name
+  // `has-prog` opens the row's fourth column. Only the row that renders a pill
+  // gets it: on every other row that column would be dead space taken off the
+  // hint beside it.
+  const pill = !on && !!progress
   return (
-    `<button type="button" class="rs-row${on ? '' : ' locked'}" data-zone="${esc(z.id)}" style="--accent:${accentOf(z)}">` +
+    `<button type="button" class="rs-row${on ? '' : ' locked'}${pill ? ' has-prog' : ''}" data-zone="${esc(z.id)}" style="--accent:${accentOf(z)}">` +
     `<span class="rs-mark" aria-hidden="true">${on ? '✓' : '🔒'}</span>` +
-    `<span class="rs-label">${esc(z.label)}${on ? '' : `<span class="rs-where"> · ${esc(z.name)}</span>`}</span>` +
+    `<span class="rs-label">${esc(z.label)}${on ? '' : `<span class="rs-where"> · ${esc(where)}</span>`}</span>` +
     `<span class="rs-note">${esc(on ? z.content.title : (STORY_HINTS[z.id] ?? ''))}</span>` +
+    (pill ? `<span class="rs-prog">${esc(progress)}</span>` : '') +
     `<span class="sr-only">${on ? 'Unlocked' : 'Locked'}</span></button>`
   )
 }
@@ -159,7 +170,8 @@ function openLockedZone(z: Zone): void {
       <button type="button" class="pbtn" data-act="close">Close</button></footer>`
   box.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-act="map"]')) return
-    // Landmark ids and zone ids are the same registry (tests/registry.test.ts).
+    // The card knows its chapter, not which stall hands it over; the map turns
+    // one into the other (`attractionFor`, pinned by tests/ui-map.test.ts).
     closeModal(modalId)
     events.emit('ui:panel', { id: 'map', data: { focus: z.id } })
   })
@@ -290,10 +302,10 @@ export function openCredits(): void {
   box.dataset.width = '540px'
   box.innerHTML = `${panelHead('Credits')}
     <div class="credits-body">
-      <p><b>Naman's World — Lineage Isle</b> is the portfolio of ${esc(PROFILE.name)}, ${esc(PROFILE.role)} at ${esc(PROFILE.company)}.</p>
+      <p><b>Naman's World Fair</b> is the portfolio of ${esc(PROFILE.name)}, ${esc(PROFILE.role)} at ${esc(PROFILE.company)}.</p>
       <p>Built with Phaser 3, TypeScript and Vite. Every sprite, tile and building is painted procedurally while the game loads, and the music and sounds are synthesised with Web Audio — there are no asset files at all.</p>
       <p>Type: Inter for reading, Pixelify Sans for headings.</p>
-      <p class="credits-thanks">Thanks for exploring. ⛵</p>
+      <p class="credits-thanks">Thanks for exploring. 🎡</p>
     </div>
     <footer class="modal-foot"><button type="button" class="pbtn" data-act="close">Close</button></footer>`
   wireClose(box, 'credits')
@@ -344,7 +356,7 @@ export function initPanels(): void {
     flushFacets()
   })
   events.on('ui:closed', () => flushFacets())
-  // Leaving the island drops whatever was still waiting to be read: quitting
+  // Leaving the fair drops whatever was still waiting to be read: quitting
   // closes every modal, and each of those `ui:closed` events would otherwise
   // pop a chapter card up over the title screen and shut it again.
   const drop = () => {
@@ -352,4 +364,33 @@ export function initPanels(): void {
   }
   events.on('game:title', drop)
   events.on('game:new', drop)
+}
+
+/* ---------------- a card that is not a chapter ---------------- */
+
+/**
+ * Open an arbitrary content block in the chapter book's own furniture.
+ *
+ * Some cards are not a zone: Word Forge finishes on a cumulative "Naman's tech
+ * stack" that is the Skills content plus the tools the player actually spelled,
+ * and the Career Coaster ends on a synthetic Career card built from two zones at
+ * once. Neither has a `Zone` behind it, so neither can go through `openZone` —
+ * but both should read exactly like one.
+ *
+ * The only difference is the accent: with no zone to take a colour from, the box
+ * sets none and inherits the UI's own `--accent`.
+ */
+export function openContent(content: Content, foot: string, id = 'content'): void {
+  if (topModalId() === id) return
+  const box = el('article', 'book')
+  box.dataset.width = '680px'
+  box.innerHTML = `
+    <div class="book-stripe" aria-hidden="true"></div>
+    <button type="button" class="modal-x book-x" aria-label="Close">✕</button>
+    <div class="book-page">${contentHTML(content)}</div>
+    <footer class="book-foot"><span class="book-tag">${esc(foot)}</span><button type="button" class="pbtn" data-act="close">Close</button></footer>`
+  const title = box.querySelector<HTMLElement>('.d-title')!
+  const cancel = typeText(title, content.title, 400)
+  wireClose(box, id)
+  openModal({ id, el: box, label: content.title, onClose: cancel })
 }

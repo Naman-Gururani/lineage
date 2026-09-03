@@ -8,6 +8,7 @@ import '@fontsource/pixelify-sans/400.css'
 import '@fontsource/pixelify-sans/600.css'
 import './styles/ui.css'
 import './styles/panels.css'
+import './styles/ride.css'
 import './styles/games.css'
 
 import Phaser from 'phaser'
@@ -16,7 +17,7 @@ import { WorldScene } from './scenes/WorldScene'
 import { initUI } from './ui'
 import { clearSave } from './core/save'
 import { events } from './core/events'
-import { parseFishFlag, setForcedFish } from './data/fish'
+import { parseDuckFlag, setForcedDuck } from './data/ducks'
 
 // `?fresh=1` starts from nothing: clear the current save *and* the legacy keys
 // (v1 and v2), so a reload cannot restore what the flag just threw away.
@@ -28,10 +29,10 @@ if (new URLSearchParams(location.search).has('fresh')) {
   }
 }
 
-// `?fish=gold` puts the golden one on every hook — the one-in-twenty catch,
+// `?duck=gold` puts the golden one on every hook — the one-in-twenty catch,
 // on demand, for anyone being shown around.
-const forced = parseFishFlag(location.search)
-if (forced) setForcedFish(forced)
+const forced = parseDuckFlag(location.search)
+if (forced) setForcedDuck(forced)
 
 initUI()
 
@@ -39,7 +40,7 @@ function start() {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game-root',
-    backgroundColor: '#2b7fc0',
+    backgroundColor: '#3f7d3a',
     pixelArt: true,
     roundPixels: true,
     render: { antialias: false, powerPreference: 'high-performance' },

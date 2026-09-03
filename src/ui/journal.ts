@@ -1,10 +1,12 @@
 // Journal: Quests / Achievements / Stats in a tabbed pixel notebook.
 import { sfx } from '../audio/sfx'
+import { loadSave } from '../core/save'
 import { ACHIEVEMENTS } from '../data/achievements'
 import { ZONES } from '../data/content'
+import { duckSummary } from '../data/ducks'
 import { NPC_INFO } from '../data/npcs'
 import type { QuestDef } from '../data/quests'
-import { fishSummary } from '../data/fish'
+import { FORGE_ROUNDS, restore } from '../games/forge'
 import { BLUEPRINT } from '../world/blueprint'
 import { closeModal, el, esc, openModal } from './modal'
 import { isUnlocked, openZone, panelHead, registerPanel, wireClose, zoneRow } from './panels'
@@ -17,7 +19,7 @@ const TABS: [Tab, string][] = [
   ['achievements', 'Achievements'],
   ['stats', 'Stats'],
 ]
-// The résumé is what the island is *for*: it opens on the story so far.
+// The résumé is what the fair is *for*: it opens on the story so far.
 let lastTab: Tab = 'resume'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -54,16 +56,31 @@ function questCard(d: QuestDef, done: boolean): string {
   </article>`
 }
 
+/**
+ * The world scene mirrors prize boxes and forged words into `uiState` on its
+ * state tick, so both are live. The save is the fallback for a panel opened
+ * with no scene behind it (a test, or the moment before the first tick).
+ */
+const saved = () => loadSave()
+
+/** Every word every wheel will take: the toolkit, ten tools long. */
+const FORGE_TOTAL = FORGE_ROUNDS.reduce((n, r) => n + r.words.length, 0)
+
+/** "3 / 10 forged" — how much of the toolkit the Word Forge has spelled out. */
+function forgedLine(): string {
+  return `${uiState.stats.forged ?? restore(saved()?.minigames.forge?.progress).found.length} / ${FORGE_TOTAL} forged`
+}
+
 function resumeHTML(): string {
   // `ZONES` order *is* the reading order — it is what Reader Mode prints and
   // what the table of contents lists — so the tab takes it straight rather than
   // keeping a second copy of it that could drift.
   const zones = ZONES
   const open = zones.filter((z) => isUnlocked(z.id)).length
-  return (
-    `<p class="j-count">${open} / ${zones.length} chapters open</p>` +
-    `<div class="rs-list">${zones.map(zoneRow).join('')}</div>`
-  )
+  // Skills is the one chapter you can be part-way through: the bench keeps what
+  // it has forged, so the row says how far in it is rather than only "locked".
+  const rows = zones.map((z) => zoneRow(z, z.id === 'skills' && !isUnlocked(z.id) ? forgedLine() : undefined))
+  return `<p class="j-count">${open} / ${zones.length} chapters open</p>` + `<div class="rs-list">${rows.join('')}</div>`
 }
 
 function questsHTML(): string {
@@ -95,15 +112,18 @@ function achievementsHTML(): string {
 
 function statsHTML(): string {
   const st = uiState.stats
+  // The fair's names for what the save still calls packets, chests and fish:
+  // only the labels moved to the fairground, never the fields.
   const rows: [string, string][] = [
     ['Steps', st.steps.toLocaleString('en-US')],
     ['Time played', fmtTime(st.playSeconds)],
-    ['Fish caught', String(st.fishCaught)],
-    ['Species landed', fishSummary(st.fish ?? {})],
+    ['Ducks hooked', String(st.fishCaught)],
+    ['Ducks landed', duckSummary(st.fish ?? {})],
     ['Sign bonks', String(st.bonks)],
     ['Grass cut', String(st.grassCut)],
-    ['Packets', `${st.packets} / ${st.packetsTotal}`],
-    ['Discoveries', `${st.discoveries.length} / ${ZONES.length}`],
+    ['Tickets', `${st.packets} / ${st.packetsTotal}`],
+    ['Prize boxes', `${st.chests ?? saved()?.chests.length ?? 0} / ${BLUEPRINT.chestSpots.length}`],
+    ['Discoveries', `${st.discoveries.length} / ${BLUEPRINT.attractions.length}`],
     ['Regions visited', `${uiState.visitedRegions.length} / ${BLUEPRINT.regions.length}`],
   ]
   return `<dl class="stats">${rows.map(([k, v]) => `<div class="stat"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
